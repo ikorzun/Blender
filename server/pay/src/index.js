@@ -148,9 +148,20 @@ async function verifyGoogleToken(tok, clientId) {
   if (!sub || sub.length > 64) return { err: 'token' };
   const name = typeof body.name === 'string' ? body.name
     : (typeof body.given_name === 'string' ? body.given_name : '');
-  // ⛔ NOTHING ELSE LEAVES THIS FUNCTION. `email` is deliberately not read, so it cannot be stored
-  // by accident by whoever edits the caller next.
-  return { ok: true, sub, name: name.slice(0, 80) };
+  // ⚡ THE PHOTO, SINCE 2026-09-12 (his word: «instead of the picture pull the photo from the
+  // account into the circle»). It is a URL and nothing more — Google serves it publicly.
+  // ⛔⛔ IT IS PASSED THROUGH AND NEVER STORED. `acc` keeps `sub`, `gid`, `k` and a timestamp; a
+  // photo URL in a table is a piece of personal data this service has no reason to hold, and the
+  // client needs it on the device where the circle is drawn, not here.
+  // ⚠️ THE HOST IS PINNED: an `aud`-valid token still carries whatever `picture` the issuer put in
+  // it, and a URL from this reply goes straight into an `<img src>` on our page. Google's own CDN
+  // is the only host we will point at.
+  let pic = typeof body.picture === 'string' ? body.picture : '';
+  if (!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//i.test(pic) || pic.length > 300) pic = '';
+  // ⛔ AND NOTHING ELSE LEAVES THIS FUNCTION. `email` is deliberately not read, so it cannot be
+  // stored by accident by whoever edits the caller next. The three that do leave are named here:
+  // the subject id, the display name, the photo URL.
+  return { ok: true, sub, name: name.slice(0, 80), pic: pic };
 }
 
 // ===== THE MAPPING: ACCOUNT → IDENTITY =====
@@ -178,7 +189,7 @@ async function auth(req, env) {
   if (v.err) return reply({ err: v.err }, v.err === 'jwks' ? 503 : 401);
 
   const row = await env.DB.prepare('SELECT gid, k FROM acc WHERE sub = ?').bind(v.sub).first();
-  if (row && row.gid) return reply({ ok: 1, gid: row.gid, k: row.k, fresh: 0, name: v.name });
+  if (row && row.gid) return reply({ ok: 1, gid: row.gid, k: row.k, fresh: 0, name: v.name, pic: v.pic });
 
   // ⛔⛔ TRAP 5: ONE IDENTITY, ONE ACCOUNT. Without this the shared phone binds the child's Google
   // account to the parent's identity for ever, and the child's own phone then receives the parent's
@@ -193,7 +204,7 @@ async function auth(req, env) {
   // race between two sign-ins, and the loser must learn that it lost instead of reporting success.
   const back = await env.DB.prepare('SELECT gid, k FROM acc WHERE sub = ?').bind(v.sub).first();
   if (!back || !back.gid) return reply({ err: 'bound' }, 409);
-  return reply({ ok: 1, gid: back.gid, k: back.k, fresh: back.gid === gid ? 1 : 0, name: v.name });
+  return reply({ ok: 1, gid: back.gid, k: back.k, fresh: back.gid === gid ? 1 : 0, name: v.name, pic: v.pic });
 }
 
 // ===== 1. THE CHECKOUT SESSION =====

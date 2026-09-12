@@ -2854,7 +2854,11 @@
      ⛔ THE FORMER BAND (a full-size Google button + «Signed in with Google» + a bordered «Sign
      out» pill) IS CANCELLED BY THE NODE, and with it `.ms-auth-note`, whose whole job was to say
      what the row above could not — the row above now says it by carrying this line. */
-  .ms-prof-txt { display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0; }
+  /* ⚡ gap 0 — his word 2026-09-12 («reduce the gap between the name and Logout by 2 pixels»); it
+     was 2. ⚠️ WHAT IS LEFT BETWEEN THEM IS NOT A GAP: the two lines carry `line-height` 1.35, which
+     is what keeps the «g» of «Sign» off the clip — if the pair still reads apart, that is the line
+     box and not a spacing, and it is not touched unasked. */
+  .ms-prof-txt { display:flex; flex-direction:column; justify-content:center; gap:0; min-width:0; }
   .ms-auth { display:flex; align-items:center; min-width:0; }
   .ms-auth[hidden] { display:none; }
   /* the node: the 14px mark, gap 4, «Sign in with Google» Bold 14 in #3971ff */
@@ -2872,7 +2876,7 @@
   /* ⛔⛔ GOOGLE'S OWN BUTTON, INVISIBLE AND CLIPPED TO THIS LINE. `opacity:0` and NOT
      `visibility:hidden`: a hidden element takes no clicks, and the click IS the point — it is the
      only path that yields an ID token. The clip is what keeps its ~200px minimum width off the
-     «×5 Boost» button beside it; the box is stretched 6px above and below so the tap target is
+     «Boost» button beside it; the box is stretched 6px above and below so the tap target is
      ~26px rather than the line's own 14. */
   .ms-auth-gis { position:absolute; left:0; right:0; top:-6px; bottom:-6px;
     overflow:hidden; opacity:0; }
@@ -2888,7 +2892,7 @@
      (it used to be 10 and 16px «by eye») */
   /* ⚠️ THE PROFILE IS THE SIDE THAT SHRINKS: the header is `space-between`, and with the sign-in
      line under the name the left column can now be wider than the room left by the score and the
-     «×5 Boost» button. Flex overflows rather than wrapping, so without this the two sides simply
+     «Boost» button. Flex overflows rather than wrapping, so without this the two sides simply
      lie on top of each other — measured on the first frame at 390. The name fades into its scroll
      (2026-09-11-p, it used to truncate); the sign-in line under it keeps its ellipsis, and when
      even its short wording would be clipped the NUMBER gives way instead — see `setWalletNumber`. */
@@ -2917,8 +2921,16 @@
     mask-image:linear-gradient(90deg,#000 calc(100% - min(20px,33%)),transparent); }
   .ms-uname-in { display:block; width:max-content; white-space:nowrap; }
   /* the travel is exactly the overflow (`--un-shift`, written by `unameFit`), with a dwell at both
-     ends so the name is READABLE at rest instead of permanently sliding */
-  .ms-uname.over .ms-uname-in { animation:msUnameScroll 8s ease-in-out infinite; }
+     ends so the name is READABLE at rest instead of permanently sliding
+     ⛔⛔ AND IT IS DESKTOP-ONLY SINCE 2026-09-12, HIS WORD ON A SCREENSHOT OF HIS OWN PHONE («leave
+     only 1 word in the name, remove the animation»). On a phone the name is now written as its FIRST
+     WORD (`unameWrite` in 85-hud), which is short enough that the clip rarely fires at all — and a
+     name that still overflows fades WITHOUT moving. The fade is the information, the motion was the
+     part he did not want; the same shape `prefers-reduced-motion` has had since the animation
+     shipped. ⚠️ That reduced-motion rule stands BELOW this one and still wins on the desktop. */
+  @media (min-width:768px){
+    .ms-uname.over .ms-uname-in { animation:msUnameScroll 8s ease-in-out infinite; }
+  }
   @keyframes msUnameScroll {
     0%, 22% { transform:translateX(0); }
     50%, 72% { transform:translateX(var(--un-shift, 0px)); }
@@ -2969,7 +2981,8 @@
     font-size:16px; font-weight:700; }
   /* ⚡⚡ AT 320 HIS THREE RULES DO NOT ADD UP, AND THE FRAME SAID SO IN ONE NUMBER: the name's
      column measured ZERO. The arithmetic of that width — avatar 48 + gap 6 + the 20px floor + the
-     right side 207 (star 25, the compact number ~50, «×5 Boost» ~114) = 281 against 280 available —
+     right side 207 (star 25, the compact number ~50, «×5 Boost» ~114 — the word he shortened on
+     2026-09-12) = 281 against 280 available —
      leaves the profile exactly nothing, and `flex:0 1 auto` duly shrank it to nothing. The wrap
      used to pay for this; his word of 2026-09-11-p spent it («the name and the score on ONE line»).
      ⛔ SO THE ROOM IS TAKEN FROM THE RIGHT SIDE AND THE AVATAR, AT THE NARROWEST WIDTH ONLY, and
@@ -2982,14 +2995,22 @@
      ⛔⛔ AND IT MUST STAND **AFTER** `.ms-getmore` AND `.ms-head-r`: a media query adds no
      specificity, so the first draft of this block sat above their declarations and every rule
      in it but the avatar's was silently overridden — the frame read 17px where 37 were due. */
-  /* ⛔⛔ TWO TIERS, AND THE SECOND ONE EXISTS BECAUSE ONE TIER MADE 360 WORSE THAN 320. With the
-     reductions ending at 359 a 360 screen gained 40px of width and spent ~45 of them on the
-     full-size avatar, star, wallet type and button — so the sign-in was clipped to «Sign…» from 360
-     to 380 while 320 was clean. A breakpoint that hands back more than the width it earns is a
-     cliff, not a fallback. THE RIGHT SIDE tightens first and up to 383 (where the measurement says
-     the full-size row finally holds «[G] Sign in»); the AVATAR is touched only at the narrowest,
-     where nothing else is left to give. */
-  @media (max-width:383px){
+  /* ⚡⚡ ONE TIER AGAIN, AND HIS OWN RENAME IS WHAT PAID FOR IT (2026-09-12, «×5 Boost» → «Boost»).
+     The word gave back about 40px on the right, and the measurement across every width from 320 to
+     1280 says the rest of the apparatus is no longer earning its place: **the avatar is 48 at every
+     width again** (the 32 of yesterday was the price of the longer button, never something he asked
+     for), and 360-383 needs no reductions at all. What remains is 320-359, where the sweep without
+     any tier clips the sign-in by up to 39px.
+     ⛔ TOMBSTONE, because it cost a batch to learn: with the reductions ending at 359 and a
+     full-size row above it, a 360 screen gained 40px of width and spent ~45 on the avatar, star,
+     wallet type and button — 360 to 380 was WORSE than 320. A breakpoint that hands back more width
+     than it earns is a cliff. It is gone with the button that caused it; the guard that found it
+     (the 94-measurement sweep in the AUTH section) stays.
+     ⚠️ THIS IS ALSO HIS ANSWER TO THE FORK I LEFT HIM IN STATUS («say the word and I put the wrap
+     back for 320»): he changed the button instead, and the 320 name column went from three
+     characters to a readable one without the wrap coming back. */
+  @media (max-width:359px){
+    .ms-head { padding:10px 8px; }
     .ms-head-r { gap:6px; }
     .ms-stars { gap:4px; }
     .ms-stars svg { width:18px; height:17px; }
@@ -2997,11 +3018,6 @@
        header, for the same reason: a tighter row */
     .ms-stars span { font-size:18px; }
     .ms-getmore { padding:12px 7px; font-size:14px; }
-  }
-  @media (max-width:359px){
-    .ms-head { padding:10px 8px; }
-    .ms-av { width:32px; height:32px; font-size:16px; }
-    .ms-prof { gap:4px; }
   }
   /* THE ENTRY POINT INTO THE LEADERBOARD — THE MOBILE VARIANT (mock-up 840:4344).
      A pill on a semi-transparent cold background with a white frame; on the left two lines,
@@ -3056,7 +3072,10 @@
      113px of ink) got a box of 74 — the letters ran onto the avatars. The arithmetic meanwhile
      adds up: 48 + 6 + 113 + 12 + (3×32 + 8) + 24 = 307 at a viewport of 320,
      that is, there IS ENOUGH room, it was flex itself that was taking it away. */
-  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; flex:none; }
+  /* ⚡ `flex:0 1 auto` + `min-width:0` since 2026-09-12: the caption carries a NAME now, and a
+     column that cannot shrink would push the neighbour's face off the row instead of ellipsising
+     the word. The score inside it stays `nowrap` and is shortened by its own fit, not by a clip. */
+  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; flex:0 1 auto; min-width:0; }
   /* ⚠️ ONE STYLE WITH THE NAME IN THE HEADER (the owner's word 2026-08-12: «of the same
      style as the name in the header»). We take the same type size/face/colour as at
      `.ms-uname`, and AT BOTH widths: on desktop the name is 22/900, and the place is
@@ -3094,12 +3113,25 @@
      it — it is a separator between two readings, not an edge of a box. */
   .ms-lbe-rule { flex:none; width:1px; height:40px; background:rgba(42,41,53,.12); }
   /* the score reads like the place beside it — the node gives both the same size and weight */
+  /* ⛔⛔ `overflow:hidden` IS A MEASUREMENT TOOL HERE, NOT A CLIP. On an element with
+     `overflow:visible` `scrollWidth` reports the BOX and not the content — measured at 320 with
+     «1 000 900» in a 79px column: `scrollWidth === clientWidth === 79` while the number lay across
+     its neighbours. With the clip on, `scrollWidth > clientWidth` is the honest question the fit
+     asks, and the fit is what makes sure the clip never actually shows: the number falls down its
+     three rungs until it fits. The same trick `.ms-uname` and `.ms-auth-lbl` have always relied on.
+     ⚠️ Digits, «k» and «M» have no descenders, so a 1.1 line box costs nothing here — unlike the
+     sign-in label, whose «g» is exactly why that one carries 1.35. */
   .ms-lbe-score { font-size:18px; font-weight:700; color:#000; line-height:1.1;
-    white-space:nowrap; }
-  /* the node's «next players»: Bold 14 in Carbon 600, the same grey as the line under the place.
-     ⛔ IT IS NOT `.ms-lbe-sub` — that class is written by `lbEntryRefresh` on every answer. */
+    white-space:nowrap; overflow:hidden; }
+  /* Bold 14 in Carbon 600, the same grey as the line under the place.
+     ⚡ IT CARRIES THE NEIGHBOUR'S NAME SINCE 2026-09-12 («Next Mercury», his word) — the node's
+     «next players» is gone, and `lbEntryRefresh` writes this one too now.
+     ⛔⛔ AND IT IS NO LONGER A FIXED STRING, WHICH IS WHY IT MAY CLIP. The server accepts names up
+     to 40 characters, this line is `nowrap`, and the column it sits in used to be `flex:none` —
+     a long name would have pushed the face off a narrow screen. The cap (16) bounds it and the
+     ellipsis catches whatever the cap still lets through; the column may shrink now. */
   .ms-lbe-cap { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
-    white-space:nowrap; }
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   /* an empty slot — a neutral circle: there may be fewer than three rows in the table */
   .ms-lbe-slot { background:rgba(42,41,53,.10); }
 
@@ -5374,7 +5406,7 @@
             <div class="ms-lbe-avs" id="winLbeAvs" aria-hidden="true"></div>
             <div class="ms-lbe-txt">
               <div class="ms-lbe-score" id="winLbeScore"></div>
-              <div class="ms-lbe-cap">next players</div>
+              <div class="ms-lbe-cap">Next player</div>
             </div>
           </div>
         </div>
@@ -5563,7 +5595,7 @@
                  the worker verifies against Google's JWKS.
                  ⚠️ THE OVERLAY IS CLIPPED TO THE LINE (`overflow:hidden`), and that is load-bearing:
                  Google's button has a ~200px minimum width, and unclipped it would lie across the
-                 «×5 Boost» control next to it and swallow its taps. Clipped, it is not hit-testable
+                 «Boost» control next to it and swallow its taps. Clipped, it is not hit-testable
                  outside the box. -->
             <span class="ms-auth-in" id="msAuthIn">
               <svg class="ms-auth-g" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M14 7.15912C14 6.66276 13.9545 6.18549 13.8701 5.72731H7.14285V8.43503H10.987C10.8214 9.31003 10.3182 10.0514 9.56169 10.5478V12.3041H11.8701C13.2208 11.0855 14 9.29094 14 7.15912Z" fill="#4285F4"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.14287 14C9.07144 14 10.6883 13.3732 11.8701 12.3041L9.56169 10.5478C8.92207 10.9678 8.10391 11.2159 7.14287 11.2159C5.28247 11.2159 3.7078 9.98452 3.14611 8.32998H0.759744V10.1436C1.93507 12.4313 4.35066 14 7.14287 14Z" fill="#34A853"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14611 8.32998C3.00325 7.90998 2.92208 7.46139 2.92208 7.00003C2.92208 6.53866 3.00325 6.09003 3.14611 5.67003V3.85639H0.759741C0.275974 4.80139 0 5.87048 0 7.00003C0 8.12957 0.275977 9.19862 0.759744 10.1436L3.14611 8.32998Z" fill="#FBBC05"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.14287 2.78409C8.19157 2.78409 9.13313 3.13727 9.87339 3.8309L11.9221 1.82318C10.6851 0.693635 9.06819 0 7.14287 0C4.35066 0 1.93507 1.56867 0.759741 3.85639L3.14611 5.67003C3.70779 4.01548 5.28247 2.78409 7.14287 2.78409Z" fill="#EA4335"/></svg>
@@ -5588,8 +5620,12 @@
            the viewBox 32x30 is from the file, the colour #FFE730 is from there too --><svg viewBox="0 0 32 30" width="25" height="24" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
           <span id="msStars">0</span>
         </div>
-        <!-- «×5 Boost» — the owner's word 2026-09-03 (it was «More»); the same popup the HUD float opens -->
-        <button class="ms-getmore" id="msGetMore">×5 Boost</button>
+        <!-- ⚡ «Boost» — his word 2026-09-12 (it was «×5 Boost» since 2026-09-03, and «More» before
+             that); the same popup the HUD float opens. ⛔ THE MULTIPLIER GOES FROM THE LABEL AND NOT
+             FROM THE PRODUCT: the popup still sells ×5, and the float in the game still says what it
+             is worth — this is the button that has to share a row with a name and a six-digit score.
+             It is also what paid for the two narrow-width tiers below: the word cost ~40px. -->
+        <button class="ms-getmore" id="msGetMore">Boost</button>
       </div>
     </header>
     <!-- the card's divider — desktop only (in mock-up 840:4688 a line across the whole
@@ -5650,7 +5686,7 @@
           <div class="ms-lbe-avs" id="msLbeAvs" aria-hidden="true"></div>
           <div class="ms-lbe-txt">
             <div class="ms-lbe-score" id="msLbeScore"></div>
-            <div class="ms-lbe-cap">next players</div>
+            <div class="ms-lbe-cap">Next player</div>
           </div>
         </div>
       </div>
@@ -5777,7 +5813,7 @@
            the viewBox 32x30 is from the file, the colour #FFE730 is from there too --><svg viewBox="0 0 32 30" width="16" height="16" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
         <span id="msStars2">0</span>
       </div>
-      <button class="ms-getmore" id="msGetMore2">×5 Boost</button>
+      <button class="ms-getmore" id="msGetMore2">Boost</button>
     </div>
   </div>
 </div>

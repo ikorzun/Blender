@@ -2854,7 +2854,11 @@
      ⛔ THE FORMER BAND (a full-size Google button + «Signed in with Google» + a bordered «Sign
      out» pill) IS CANCELLED BY THE NODE, and with it `.ms-auth-note`, whose whole job was to say
      what the row above could not — the row above now says it by carrying this line. */
-  .ms-prof-txt { display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0; }
+  /* ⚡ gap 0 — his word 2026-09-12 («reduce the gap between the name and Logout by 2 pixels»); it
+     was 2. ⚠️ WHAT IS LEFT BETWEEN THEM IS NOT A GAP: the two lines carry `line-height` 1.35, which
+     is what keeps the «g» of «Sign» off the clip — if the pair still reads apart, that is the line
+     box and not a spacing, and it is not touched unasked. */
+  .ms-prof-txt { display:flex; flex-direction:column; justify-content:center; gap:0; min-width:0; }
   .ms-auth { display:flex; align-items:center; min-width:0; }
   .ms-auth[hidden] { display:none; }
   /* the node: the 14px mark, gap 4, «Sign in with Google» Bold 14 in #3971ff */
@@ -2872,7 +2876,7 @@
   /* ⛔⛔ GOOGLE'S OWN BUTTON, INVISIBLE AND CLIPPED TO THIS LINE. `opacity:0` and NOT
      `visibility:hidden`: a hidden element takes no clicks, and the click IS the point — it is the
      only path that yields an ID token. The clip is what keeps its ~200px minimum width off the
-     «×5 Boost» button beside it; the box is stretched 6px above and below so the tap target is
+     «Boost» button beside it; the box is stretched 6px above and below so the tap target is
      ~26px rather than the line's own 14. */
   .ms-auth-gis { position:absolute; left:0; right:0; top:-6px; bottom:-6px;
     overflow:hidden; opacity:0; }
@@ -2888,7 +2892,7 @@
      (it used to be 10 and 16px «by eye») */
   /* ⚠️ THE PROFILE IS THE SIDE THAT SHRINKS: the header is `space-between`, and with the sign-in
      line under the name the left column can now be wider than the room left by the score and the
-     «×5 Boost» button. Flex overflows rather than wrapping, so without this the two sides simply
+     «Boost» button. Flex overflows rather than wrapping, so without this the two sides simply
      lie on top of each other — measured on the first frame at 390. The name fades into its scroll
      (2026-09-11-p, it used to truncate); the sign-in line under it keeps its ellipsis, and when
      even its short wording would be clipped the NUMBER gives way instead — see `setWalletNumber`. */
@@ -2917,8 +2921,16 @@
     mask-image:linear-gradient(90deg,#000 calc(100% - min(20px,33%)),transparent); }
   .ms-uname-in { display:block; width:max-content; white-space:nowrap; }
   /* the travel is exactly the overflow (`--un-shift`, written by `unameFit`), with a dwell at both
-     ends so the name is READABLE at rest instead of permanently sliding */
-  .ms-uname.over .ms-uname-in { animation:msUnameScroll 8s ease-in-out infinite; }
+     ends so the name is READABLE at rest instead of permanently sliding
+     ⛔⛔ AND IT IS DESKTOP-ONLY SINCE 2026-09-12, HIS WORD ON A SCREENSHOT OF HIS OWN PHONE («leave
+     only 1 word in the name, remove the animation»). On a phone the name is now written as its FIRST
+     WORD (`unameWrite` in 85-hud), which is short enough that the clip rarely fires at all — and a
+     name that still overflows fades WITHOUT moving. The fade is the information, the motion was the
+     part he did not want; the same shape `prefers-reduced-motion` has had since the animation
+     shipped. ⚠️ That reduced-motion rule stands BELOW this one and still wins on the desktop. */
+  @media (min-width:768px){
+    .ms-uname.over .ms-uname-in { animation:msUnameScroll 8s ease-in-out infinite; }
+  }
   @keyframes msUnameScroll {
     0%, 22% { transform:translateX(0); }
     50%, 72% { transform:translateX(var(--un-shift, 0px)); }
@@ -2969,7 +2981,8 @@
     font-size:16px; font-weight:700; }
   /* ⚡⚡ AT 320 HIS THREE RULES DO NOT ADD UP, AND THE FRAME SAID SO IN ONE NUMBER: the name's
      column measured ZERO. The arithmetic of that width — avatar 48 + gap 6 + the 20px floor + the
-     right side 207 (star 25, the compact number ~50, «×5 Boost» ~114) = 281 against 280 available —
+     right side 207 (star 25, the compact number ~50, «×5 Boost» ~114 — the word he shortened on
+     2026-09-12) = 281 against 280 available —
      leaves the profile exactly nothing, and `flex:0 1 auto` duly shrank it to nothing. The wrap
      used to pay for this; his word of 2026-09-11-p spent it («the name and the score on ONE line»).
      ⛔ SO THE ROOM IS TAKEN FROM THE RIGHT SIDE AND THE AVATAR, AT THE NARROWEST WIDTH ONLY, and
@@ -2982,14 +2995,22 @@
      ⛔⛔ AND IT MUST STAND **AFTER** `.ms-getmore` AND `.ms-head-r`: a media query adds no
      specificity, so the first draft of this block sat above their declarations and every rule
      in it but the avatar's was silently overridden — the frame read 17px where 37 were due. */
-  /* ⛔⛔ TWO TIERS, AND THE SECOND ONE EXISTS BECAUSE ONE TIER MADE 360 WORSE THAN 320. With the
-     reductions ending at 359 a 360 screen gained 40px of width and spent ~45 of them on the
-     full-size avatar, star, wallet type and button — so the sign-in was clipped to «Sign…» from 360
-     to 380 while 320 was clean. A breakpoint that hands back more than the width it earns is a
-     cliff, not a fallback. THE RIGHT SIDE tightens first and up to 383 (where the measurement says
-     the full-size row finally holds «[G] Sign in»); the AVATAR is touched only at the narrowest,
-     where nothing else is left to give. */
-  @media (max-width:383px){
+  /* ⚡⚡ ONE TIER AGAIN, AND HIS OWN RENAME IS WHAT PAID FOR IT (2026-09-12, «×5 Boost» → «Boost»).
+     The word gave back about 40px on the right, and the measurement across every width from 320 to
+     1280 says the rest of the apparatus is no longer earning its place: **the avatar is 48 at every
+     width again** (the 32 of yesterday was the price of the longer button, never something he asked
+     for), and 360-383 needs no reductions at all. What remains is 320-359, where the sweep without
+     any tier clips the sign-in by up to 39px.
+     ⛔ TOMBSTONE, because it cost a batch to learn: with the reductions ending at 359 and a
+     full-size row above it, a 360 screen gained 40px of width and spent ~45 on the avatar, star,
+     wallet type and button — 360 to 380 was WORSE than 320. A breakpoint that hands back more width
+     than it earns is a cliff. It is gone with the button that caused it; the guard that found it
+     (the 94-measurement sweep in the AUTH section) stays.
+     ⚠️ THIS IS ALSO HIS ANSWER TO THE FORK I LEFT HIM IN STATUS («say the word and I put the wrap
+     back for 320»): he changed the button instead, and the 320 name column went from three
+     characters to a readable one without the wrap coming back. */
+  @media (max-width:359px){
+    .ms-head { padding:10px 8px; }
     .ms-head-r { gap:6px; }
     .ms-stars { gap:4px; }
     .ms-stars svg { width:18px; height:17px; }
@@ -2997,11 +3018,6 @@
        header, for the same reason: a tighter row */
     .ms-stars span { font-size:18px; }
     .ms-getmore { padding:12px 7px; font-size:14px; }
-  }
-  @media (max-width:359px){
-    .ms-head { padding:10px 8px; }
-    .ms-av { width:32px; height:32px; font-size:16px; }
-    .ms-prof { gap:4px; }
   }
   /* THE ENTRY POINT INTO THE LEADERBOARD — THE MOBILE VARIANT (mock-up 840:4344).
      A pill on a semi-transparent cold background with a white frame; on the left two lines,
@@ -3056,7 +3072,10 @@
      113px of ink) got a box of 74 — the letters ran onto the avatars. The arithmetic meanwhile
      adds up: 48 + 6 + 113 + 12 + (3×32 + 8) + 24 = 307 at a viewport of 320,
      that is, there IS ENOUGH room, it was flex itself that was taking it away. */
-  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; flex:none; }
+  /* ⚡ `flex:0 1 auto` + `min-width:0` since 2026-09-12: the caption carries a NAME now, and a
+     column that cannot shrink would push the neighbour's face off the row instead of ellipsising
+     the word. The score inside it stays `nowrap` and is shortened by its own fit, not by a clip. */
+  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; flex:0 1 auto; min-width:0; }
   /* ⚠️ ONE STYLE WITH THE NAME IN THE HEADER (the owner's word 2026-08-12: «of the same
      style as the name in the header»). We take the same type size/face/colour as at
      `.ms-uname`, and AT BOTH widths: on desktop the name is 22/900, and the place is
@@ -3094,12 +3113,25 @@
      it — it is a separator between two readings, not an edge of a box. */
   .ms-lbe-rule { flex:none; width:1px; height:40px; background:rgba(42,41,53,.12); }
   /* the score reads like the place beside it — the node gives both the same size and weight */
+  /* ⛔⛔ `overflow:hidden` IS A MEASUREMENT TOOL HERE, NOT A CLIP. On an element with
+     `overflow:visible` `scrollWidth` reports the BOX and not the content — measured at 320 with
+     «1 000 900» in a 79px column: `scrollWidth === clientWidth === 79` while the number lay across
+     its neighbours. With the clip on, `scrollWidth > clientWidth` is the honest question the fit
+     asks, and the fit is what makes sure the clip never actually shows: the number falls down its
+     three rungs until it fits. The same trick `.ms-uname` and `.ms-auth-lbl` have always relied on.
+     ⚠️ Digits, «k» and «M» have no descenders, so a 1.1 line box costs nothing here — unlike the
+     sign-in label, whose «g» is exactly why that one carries 1.35. */
   .ms-lbe-score { font-size:18px; font-weight:700; color:#000; line-height:1.1;
-    white-space:nowrap; }
-  /* the node's «next players»: Bold 14 in Carbon 600, the same grey as the line under the place.
-     ⛔ IT IS NOT `.ms-lbe-sub` — that class is written by `lbEntryRefresh` on every answer. */
+    white-space:nowrap; overflow:hidden; }
+  /* Bold 14 in Carbon 600, the same grey as the line under the place.
+     ⚡ IT CARRIES THE NEIGHBOUR'S NAME SINCE 2026-09-12 («Next Mercury», his word) — the node's
+     «next players» is gone, and `lbEntryRefresh` writes this one too now.
+     ⛔⛔ AND IT IS NO LONGER A FIXED STRING, WHICH IS WHY IT MAY CLIP. The server accepts names up
+     to 40 characters, this line is `nowrap`, and the column it sits in used to be `flex:none` —
+     a long name would have pushed the face off a narrow screen. The cap (16) bounds it and the
+     ellipsis catches whatever the cap still lets through; the column may shrink now. */
   .ms-lbe-cap { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
-    white-space:nowrap; }
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   /* an empty slot — a neutral circle: there may be fewer than three rows in the table */
   .ms-lbe-slot { background:rgba(42,41,53,.10); }
 
@@ -5374,7 +5406,7 @@
             <div class="ms-lbe-avs" id="winLbeAvs" aria-hidden="true"></div>
             <div class="ms-lbe-txt">
               <div class="ms-lbe-score" id="winLbeScore"></div>
-              <div class="ms-lbe-cap">next players</div>
+              <div class="ms-lbe-cap">Next player</div>
             </div>
           </div>
         </div>
@@ -5563,7 +5595,7 @@
                  the worker verifies against Google's JWKS.
                  ⚠️ THE OVERLAY IS CLIPPED TO THE LINE (`overflow:hidden`), and that is load-bearing:
                  Google's button has a ~200px minimum width, and unclipped it would lie across the
-                 «×5 Boost» control next to it and swallow its taps. Clipped, it is not hit-testable
+                 «Boost» control next to it and swallow its taps. Clipped, it is not hit-testable
                  outside the box. -->
             <span class="ms-auth-in" id="msAuthIn">
               <svg class="ms-auth-g" viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M14 7.15912C14 6.66276 13.9545 6.18549 13.8701 5.72731H7.14285V8.43503H10.987C10.8214 9.31003 10.3182 10.0514 9.56169 10.5478V12.3041H11.8701C13.2208 11.0855 14 9.29094 14 7.15912Z" fill="#4285F4"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.14287 14C9.07144 14 10.6883 13.3732 11.8701 12.3041L9.56169 10.5478C8.92207 10.9678 8.10391 11.2159 7.14287 11.2159C5.28247 11.2159 3.7078 9.98452 3.14611 8.32998H0.759744V10.1436C1.93507 12.4313 4.35066 14 7.14287 14Z" fill="#34A853"/><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14611 8.32998C3.00325 7.90998 2.92208 7.46139 2.92208 7.00003C2.92208 6.53866 3.00325 6.09003 3.14611 5.67003V3.85639H0.759741C0.275974 4.80139 0 5.87048 0 7.00003C0 8.12957 0.275977 9.19862 0.759744 10.1436L3.14611 8.32998Z" fill="#FBBC05"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.14287 2.78409C8.19157 2.78409 9.13313 3.13727 9.87339 3.8309L11.9221 1.82318C10.6851 0.693635 9.06819 0 7.14287 0C4.35066 0 1.93507 1.56867 0.759741 3.85639L3.14611 5.67003C3.70779 4.01548 5.28247 2.78409 7.14287 2.78409Z" fill="#EA4335"/></svg>
@@ -5588,8 +5620,12 @@
            the viewBox 32x30 is from the file, the colour #FFE730 is from there too --><svg viewBox="0 0 32 30" width="25" height="24" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
           <span id="msStars">0</span>
         </div>
-        <!-- «×5 Boost» — the owner's word 2026-09-03 (it was «More»); the same popup the HUD float opens -->
-        <button class="ms-getmore" id="msGetMore">×5 Boost</button>
+        <!-- ⚡ «Boost» — his word 2026-09-12 (it was «×5 Boost» since 2026-09-03, and «More» before
+             that); the same popup the HUD float opens. ⛔ THE MULTIPLIER GOES FROM THE LABEL AND NOT
+             FROM THE PRODUCT: the popup still sells ×5, and the float in the game still says what it
+             is worth — this is the button that has to share a row with a name and a six-digit score.
+             It is also what paid for the two narrow-width tiers below: the word cost ~40px. -->
+        <button class="ms-getmore" id="msGetMore">Boost</button>
       </div>
     </header>
     <!-- the card's divider — desktop only (in mock-up 840:4688 a line across the whole
@@ -5650,7 +5686,7 @@
           <div class="ms-lbe-avs" id="msLbeAvs" aria-hidden="true"></div>
           <div class="ms-lbe-txt">
             <div class="ms-lbe-score" id="msLbeScore"></div>
-            <div class="ms-lbe-cap">next players</div>
+            <div class="ms-lbe-cap">Next player</div>
           </div>
         </div>
       </div>
@@ -5777,7 +5813,7 @@
            the viewBox 32x30 is from the file, the colour #FFE730 is from there too --><svg viewBox="0 0 32 30" width="16" height="16" aria-hidden="true"><path d="M5.99339 29.418C5.0305 28.6875 4.83128 27.4756 5.31273 26.0811L7.76976 18.8262L1.52757 14.3604C0.299054 13.4805 -0.282001 12.4014 0.133038 11.2227C0.531476 10.0771 1.61058 9.5293 3.08812 9.5459L10.7414 9.6123L13.0657 2.29102C13.5305 0.84668 14.3772 0 15.5891 0C16.801 0 17.6477 0.84668 18.1125 2.29102L20.4367 9.6123L28.0735 9.5459C29.5676 9.5293 30.6467 10.0771 31.0451 11.2393C31.4436 12.4014 30.8791 13.4805 29.6506 14.3604L23.4084 18.8262L25.8655 26.0811C26.3469 27.4756 26.1477 28.6875 25.1848 29.418C24.2053 30.165 23.01 29.9658 21.7649 29.0527L15.5891 24.5039L9.39671 29.0527C8.16819 29.9658 6.97288 30.165 5.99339 29.418Z" fill="#FFE730"/></svg>
         <span id="msStars2">0</span>
       </div>
-      <button class="ms-getmore" id="msGetMore2">×5 Boost</button>
+      <button class="ms-getmore" id="msGetMore2">Boost</button>
     </div>
   </div>
 </div>
@@ -17094,7 +17130,7 @@ function mergeSave(into, from, own){
     // naf — A FOREVER PURCHASE: survives even a generation change (a progress
     // reset does not cancel a paid product) — OR from BOTH sides
     into.naf = (from.naf || into.naf) ? 1 : 0;
-    { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
+    { const nm = pickName(into, from); into.gn = nm.gn; into.gs = nm.gs; into.ga = nm.ga; } // the name AND the photo of the gid that wins — BEFORE the gid line, see pickName
     into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
     into.gid = pickGid(into.gid, from.gid);   // the player key — see pickGid
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
@@ -17128,7 +17164,7 @@ function mergeSave(into, from, own){
   into.ls = Math.max(into.ls || 0, from.ls || 0); // the time mark is monotonic — a clock rollback is not cured by switching devices
   into.na = Math.max(into.na || 0, from.na || 0); // the no-ad window — monotonic
   into.naf = (into.naf || from.naf) ? 1 : 0; // «no ads forever» — OR: a purchase is not cancelled by a lagging copy
-  { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
+  { const nm = pickName(into, from); into.gn = nm.gn; into.gs = nm.gs; into.ga = nm.ga; } // the name AND the photo of the gid that wins — BEFORE the gid line, see pickName
   into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
   into.gid = pickGid(into.gid, from.gid);       // the player key — see pickGid
   into.lv = Math.max(into.lv || 1, from.lv || 1); // level: max — progress is not rolled back by a lagging copy
@@ -17337,11 +17373,18 @@ const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
 // so «ours wins» would let a stale animal name sit on top of a signed-in identity for ever.
 // ⛔ NOT the old `into.gn || from.gn` rule: it knew nothing about the source and kept whichever
 // copy happened to be loaded first.
-function pickName(ag, an, as_, bg, bn, bs){
-  const a = { gn: an || '', gs: as_ || '' }, b = { gn: bn || '', gs: bs || '' };
+// ⚡ AND THE PHOTO RIDES WITH THE NAME SINCE 2026-09-12 (`ga`, his word «pull the photo from the
+// account into the circle»): it belongs to the same account, so it must not be picked by a second
+// rule that could hand a player one account's name beside another's face. The two call sites copy
+// whichever side this returns, whole.
+// ⚠️ THE SIGNATURE TAKES OBJECTS NOW, because three positional strings per side was already one
+// too many and four is where such a call starts silently swapping arguments.
+function pickName(a, b){
+  a = { gid: a.gid || '', gn: a.gn || '', gs: a.gs || '', ga: a.ga || '' };
+  b = { gid: b.gid || '', gn: b.gn || '', gs: b.gs || '', ga: b.ga || '' };
   if (!a.gn) return b;
   if (!b.gn) return a;
-  if (ag && bg && ag !== bg) return (ag < bg) ? a : b;   // different ids — the winner of pickGid
+  if (a.gid && b.gid && a.gid !== b.gid) return (a.gid < b.gid) ? a : b;  // different ids — the winner of pickGid
   if (a.gs === 'g' && b.gs !== 'g') return a;            // same id — the account's name beats the animal
   if (b.gs === 'g' && a.gs !== 'g') return b;
   return a;
@@ -17401,6 +17444,22 @@ function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // the fi
 // ===== THE ACCOUNT'S IDENTITY ON THIS DEVICE =====
 // 84-auth does the talking (the token, the worker, the order of the steps); these four only touch
 // `Save`, so the arithmetic of the identity lives where the identity is stored.
+// ⚡ THE ACCOUNT'S PHOTO (2026-09-12). Kept beside the name and cleared with it; a separate writer
+// because a sign-in may bring one without the other — an account with no photo at all sends an
+// empty string, and that is a value worth storing rather than a reason to keep a stale face.
+const PLAYER_PHOTO_MAX = 300;
+function playerPhotoSet(url){
+  const raw = String(url == null ? '' : url).trim();
+  // ⛔ TOO LONG IS REJECTED, NOT TRIMMED. A url cut in half is not a shorter url — it is a BROKEN
+  // one, and the circle then shows a failed image where the honest answer is «no photo». Found by a
+  // frame: a test photo of 302 characters was stored as 300 and the picture silently fell back.
+  // The worker caps the same field at the same number, so production never reaches this line.
+  const u = raw.length > PLAYER_PHOTO_MAX ? '' : raw;
+  if (Save.ga === u) return false;
+  Save.ga = u;
+  commitSave();
+  return true;
+}
 function playerNameSet(name, src){
   const nm = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().slice(0, AUTH_NAME_MAX);
   if (!nm) return false;                       // empty after trimming — keep the animal name
@@ -17448,7 +17507,7 @@ function identityRestore(){
   Save.gr = 0;
   Save.gid = Save.gp; Save.lk = Save.lp || '';
   Save.gp = ''; Save.lp = '';
-  Save.gn = ''; Save.gs = '';                  // the name belonged to the account; the animal comes back by itself
+  Save.gn = ''; Save.gs = ''; Save.ga = '';    // the name and the photo belonged to the account; the animal comes back by itself
   commitSave();
   return true;
 }
@@ -21646,6 +21705,12 @@ async function authApply(r){
   const adopted = (typeof identityAdopt === 'function') ? identityAdopt(r.gid, r.k) : false;
   // the name always — a sign-in that changes nothing else still brings the account's name
   if (typeof playerNameSet === 'function') playerNameSet(r.name, 'g');
+  // ⚠️ THE PHOTO IS WRITTEN EVEN WHEN IT IS EMPTY, and that is the point: an account with no photo
+  // must CLEAR whatever a previous account left, or the circle keeps a stranger's face.
+  // ⛔ AN OLD WORKER SENDS NO `pic` AT ALL — the field is simply absent, `playerPhotoSet` stores an
+  // empty string and the animal picture stays. The feature appears when the worker is deployed, and
+  // that deploy is the owner's action.
+  if (typeof playerPhotoSet === 'function') playerPhotoSet(r.pic);
   let lifted = 0, score = -1;
   if (adopted){
     // ⛔⛔ THE CACHE IS DROPPED BEFORE `lbMe`, NOT AFTER. `lbMe` serves a 20-second cache, and that
@@ -21712,7 +21777,7 @@ function authState(){
   return {
     on: authOn(), cid: authCfg ? (authCfg.cid || '') : '',
     signedIn: authSignedIn(), canRestore: authCanRestore(),
-    name: sv.gn || '', src: sv.gs || '', lift: sv.gr || 0, own: sv.gp || '',
+    name: sv.gn || '', src: sv.gs || '', photo: sv.ga || '', lift: sv.gr || 0, own: sv.gp || '',
     inited: authInited, tapped: authTapped,
     gid: (typeof guestId === 'function') ? guestId() : '',
     last: authLast,
@@ -21828,7 +21893,7 @@ try { addEventListener('resize', flowVars); } catch(e){}
 // removes them for the same reason).
 // ⚠️ THE MENU'S PLACE IS REMEMBERED ACROSS A DARK SCREEN (the review): the leaderboard and the ×5
 // screen hide the menu under them, and the first draft put it back at the top on every close — in
-// normal mode the inner scroller keeps its place, and the header's own «×5 Boost» exists only after
+// normal mode the inner scroller keeps its place, and the header's own «Boost» exists only after
 // the player has scrolled deep into the collection. The offset is NOTED ON REAL SCROLL EVENTS of the
 // visible menu (`flowNoteScroll`, from onMenuScroll) — not read at the transition: a dark screen
 // stands before the menu in the DOM, and the moment it is displayed the page's offset is no longer
@@ -22364,20 +22429,26 @@ function lbGapNext(m, live){
   }
   return best;
 }
-// ⚠️ THE NAME IS CAPPED — AND SINCE 2026-09-11-p THAT CAP GUARDS NOTHING ON SCREEN: this line is
-// no longer shown (the row says «on leaderboard»), so the string it builds is only ever tested for
-// being non-empty. It was a LAYOUT guard: the server accepts names up to 40 characters
-// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar) and the line used to be
-// `white-space:nowrap` in a row whose right side is the avatar. Kept because it costs nothing and
-// because the line comes back the day he asks for it; not described as a layout guard any more.
+// ⚠️⚠️ THE NAME IS CAPPED, AND IT IS A LAYOUT GUARD AGAIN. It stopped being one for a day: the gap
+// line that used to show it was retired on 2026-09-11-p, and this note said so. His word of
+// 2026-09-12 («Next players → Next + name, Next Mercury») puts a name back on the row — under the
+// face this time — so the cap is load-bearing once more, and it is now SHARED by the two writers
+// rather than copied into the second. Our own guest names top out at «Oystercatcher» (13
+// characters); the server accepts up to 40 (`server/leaderboard/src/index.js`: `n.length > 40` is
+// the only bar), and the caption is `nowrap` in a row whose right side is the avatar. 16 changes
+// nothing for a real player and bounds the crafted case; the caption's ellipsis catches the rest.
 const LB_GAP_NAME_MAX = 16;
+function lbNameCap(raw){
+  let name = String(raw == null ? '' : raw).trim();
+  if (name.length > LB_GAP_NAME_MAX) name = name.slice(0, LB_GAP_NAME_MAX - 1) + '\u2026';
+  return name;
+}
 function lbGapLine(next, live){
   if (!next) return '';
   const gap = (next.score | 0) - live;
   if (gap <= 0) return '';
-  let name = String(next.name == null ? '' : next.name).trim();
+  const name = lbNameCap(next.name);
   if (!name) return '';
-  if (name.length > LB_GAP_NAME_MAX) name = name.slice(0, LB_GAP_NAME_MAX - 1) + '\u2026';
   // ⚠️ THE SAME `winFmtScore` THE PLACE AND THE WALLET USE (12480 -> «12.5k»): a second number
   // format on one row would be a second truth about how this game writes a score.
   return winFmtScore(gap) + ' to ' + name;
@@ -22536,7 +22607,9 @@ function lbEntryRefresh(){
     boxes.forEach(b => b.classList.add('lb-ready'));
     ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
     // ⛔⛔ «340 to Godwit» IS CANCELLED BY HIS WORD OF 2026-09-11-p: «13 place, and under it `on
-    // leaderboard` — because the next player is on the RIGHT and his name does not matter». The
+    // leaderboard` — because the next player is on the RIGHT and his name does not matter». ⚠️ HALF
+    // OF THAT REASON LASTED ONE DAY: on 2026-09-12 the name came back — under his FACE, where the
+    // caption used to read «next players». The LINE stays static; that is what he asked for. The
     // line is static now, and that retires two earlier rules at once: the note of 2026-09-10 that
     // made «on leaderboard» a mere fallback, and the one of 2026-08-09 that put the gap into words
     // in the first place («300 points motivates»). The gap did not go anywhere — it became
@@ -22577,6 +22650,14 @@ function lbEntryRefresh(){
     lbEntryAll('.ms-lbe-score').forEach(sc => {
       sc.dataset.score = hasNext ? String(next.score | 0) : '';
       if (!hasNext) sc.textContent = '';
+    });
+    // ⚡ THE CAPTION NAMES HIM (his word 2026-09-12: «Next players → Next + name, Next Mercury»).
+    // ⛔ THIS REVERSES ONE HALF OF HIS OWN WORD OF THE DAY BEFORE — «the next player is on the right
+    // and his name does not matter» — and it reverses it exactly where it belongs: the name left the
+    // line UNDER THE PLACE and came back UNDER HIS FACE, beside his score. One derivation still, and
+    // the same `lbNameCap` the gap line uses, so the two can never name him differently.
+    lbEntryAll('.ms-lbe-cap').forEach(c => {
+      c.textContent = hasNext ? ('Next ' + lbNameCap(next.name)) : 'Next player';
     });
     lbEntryAll('.ms-lbe-avs').forEach(h => {
       h.innerHTML = '';
@@ -22644,8 +22725,22 @@ function lbEntryFitScore(){
     // above can report a clean `scrollWidth` while the number is already lying on its neighbour.
     // The number itself never clips (it is `nowrap` in a column that does not shrink), it PUSHES.
     const left = row.querySelector('.ms-lbe-left');
+    // ⛔⛔ AND THE NEIGHBOUR'S OWN COLUMN IS ASKED SINCE 2026-09-12, because that column started
+    // SHRINKING on the same day. It was `flex:none` — a number too wide pushed the row and the two
+    // tests above caught it. Now that the caption carries a NAME the column must be allowed to give
+    // way (or a long name pushes the face off a phone), and a shrinking column swallows the overflow
+    // instead of passing it up: the exact «1 000 900» sat silently on top of its neighbours at 320
+    // while both tests above reported a clean row. Caught by the POINTS dry run in one field.
+    // ⚠️ SCOPED TO `.ms-lbe-next`: the LEFT group's wrapper wears the same class, and it is the
+    // first one in the row — an unscoped query would measure the place and never the score.
+    const txt = row.querySelector('.ms-lbe-next .ms-lbe-txt');
     const over = () => row.scrollWidth > row.clientWidth + 1
-      || (!!left && left.scrollWidth > left.clientWidth + 1);
+      || (!!left && left.scrollWidth > left.clientWidth + 1)
+      || (!!txt && txt.scrollWidth > txt.clientWidth + 1)
+      // ⛔ AND THE NUMBER ITSELF, WHICH IS THE ONLY ONE OF THE FOUR THAT ANSWERS AT 320. The column
+      // above shrinks and its overflowing child (the caption) clips itself, so neither passes the
+      // overflow upward — the number sat on its neighbours while every other test read clean.
+      || sc.scrollWidth > sc.clientWidth;
     // ⚡ THE COMPACT FORM IS `fmtStars` AND NOT `winFmtScore` SINCE 2026-09-11-p: his «123,4k» has a
     // comma, and the wallet three centimetres above this number now writes it that way. Two
     // compact formats on one card would be the same drift the exact form was just spared.
@@ -24745,6 +24840,27 @@ function authFitLabel(){
 // («Oystercatcher» on a phone) or sail the name clean out of its own box.
 // ⚠️ A CLOSED MENU IS NOT A NARROW ONE: a zero box means «not laid out», and arming the fade for it
 // would leave a faded, sliding name waiting on screen for the next time the card opens.
+// ⚡⚡ ON A PHONE THE NAME IS ITS FIRST WORD (his word 2026-09-12, said over a screenshot of his own
+// 402px iPhone where «Ivan Korzun» was fading mid-surname: «leave only 1 word in the name, remove
+// the animation»). ⛔ `Save.gn` IS NOT TOUCHED: the account's full name is what the leaderboard row
+// carries and what the next device must inherit — this is a display form, derived on every write.
+// ⚠️ IT IS RE-DERIVED RATHER THAN CACHED, because the answer depends on the viewport: a rotation
+// changes it, which is why `headFit` calls this before it measures anything.
+const UNAME_ONE_WORD = '(max-width:767px)';
+function unameShown(name){
+  const s = String(name == null ? '' : name);
+  let one = false;
+  try { one = (typeof matchMedia === 'function') && matchMedia(UNAME_ONE_WORD).matches; } catch (e) {}
+  if (!one) return s;
+  const i = s.indexOf(' ');
+  return i > 0 ? s.slice(0, i) : s;
+}
+function unameWrite(){
+  const u = document.getElementById('msUser');
+  if (!u) return;
+  const show = unameShown((typeof guestName === 'function') ? guestName() : 'Guest');
+  if (u.textContent !== show) u.textContent = show;
+}
 function unameFit(){
   const box = document.querySelector('.ms-uname');
   if (!box) return;
@@ -24778,6 +24894,14 @@ function headFit(){
   // hands the long wording back the moment the number has made room for it.
   const lbl0 = document.querySelector('.ms-auth-lbl');
   if (lbl0) lbl0.textContent = AUTH_LBL_SHORT;
+  // ⚠️⚠️ AND THE NAME IS WRITTEN IN ITS SHOWN FORM **BEFORE** THE NUMBER IS DECIDED, for the same
+  // reason as the label: the number's fit asks whether that box overflows, and on a phone the box
+  // is about to hold ONE WORD instead of two (2026-09-12). Measured the other way round — which is
+  // where this line started — a rotation from desktop to phone weighed the number against a name
+  // that was already on its way out, and compacted it for nothing.
+  // ⛔ IT DOES NOT DEPEND ON THE NUMBER, only on the viewport, so it can be first; the FIT of the
+  // name (its fade) still comes last, because that one does depend on the width left over.
+  unameWrite();
   setWalletNumber($('msStars'), bal);
   const st2 = $('msStars2');
   if (st2) setWalletNumber(st2, bal);
@@ -24828,44 +24952,90 @@ function refreshAuthUi(){
   }
   band.hidden = !(host && host.childNodes.length);
 }
-// THE GUEST'S PROFILE: an animal name + an avatar in a pure colour from the name's hash
-// (the owner's word 2026-08-04; the 🫐 placeholder goes). HSL: the hue from the hash,
-// the saturation fixed — any name gives a readable circle.
+// ⚡⚡ THE ACCOUNT'S PHOTO IN THE CIRCLE (his word 2026-09-12: «instead of the picture pull the photo
+// from the account into the circle; if there is none — just a symbol on a background — keep the
+// picture»). Two halves, and the second is the one with a judgement in it.
+// ⛔ «THERE IS NONE» IS NOT AN ABSENT FIELD. Google answers with a `picture` URL for EVERY account:
+// when the player never uploaded one it is a generated monogram — his initial on a coloured disc —
+// served from a URL carrying `default-user`. That is the symbol-on-a-background he described, and
+// against our own animal portraits it is the poorer of the two. ⚠️ THE MARKER IS A HEURISTIC AND IT
+// IS NAMED AS ONE: it is the documented shape of that URL today, not a promise from Google. If a
+// letter ever shows up in the circle, inverting this one line is the whole fix — and he was told so
+// in STATUS, because his own account is the test case (no photo, hence the tiger he screenshotted).
+function avatarPhotoUrl(){
+  let u = '';
+  try { u = String((typeof Save === 'object' && Save && Save.ga) || ''); } catch (e) {}
+  if (!u || u.indexOf('default-user') >= 0) return '';
+  // the circle is 48pt, so a 3x phone wants 144 — Google serves `=s96-c` by default and resizes on
+  // demand through the same suffix
+  return u.replace(/=s\d+(-c)?$/, '=s144-c');
+}
+// the owner's own portraits — the fallback when there is no photo, and the fallback when one fails
+function avatarDrawAnimal(av, name){
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  // ⚠️ THE AVATAR FROM THE PLAYER'S KEY, and not from the name's hash (the owner's word
+  // 2026-08-07 «better to reduce it to one»): the identity is the same on all
+  // devices, because the key converges by a merge, and the name is derived from it.
+  const idx = (typeof guestAvatar === 'function') ? guestAvatar() : ((h % AVATAR_COUNT) + 1);
+  const img = document.createElement('img');
+  img.src = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
+  img.alt = ''; img.decoding = 'async';
+  // ⚠️ WITHOUT border-radius ON THE PICTURE (the owner's complaint 2026-08-06 «ragged
+  // pixels along the outline»): the avatar is ALREADY round and with a smoothed alpha
+  // (a measurement of the source: 48 gradations, 199 semi-transparent pixels along the edge).
+  // Our round clipping cut ON TOP OF that edge — the clip's boundary is
+  // stepped, and it is visible as a ragged outline. The owner's assets we
+  // do not touch: he explicitly forbade «optimising» them.
+  // ⛔ THAT BAN IS ABOUT HIS TRANSPARENT PNGs AND NOTHING ELSE: a Google photo is an opaque
+  // SQUARE and has to be clipped round, which is why the branch above carries a radius.
+  img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
+  av.appendChild(img);
+}
+// THE PROFILE: the account's photo if there is one, otherwise the owner's animal portrait chosen
+// by the player's key (his word 2026-08-04/08-07; the emoji placeholder went with it).
 function refreshGuestProfile(){
   try {
     const name = (typeof guestName === 'function') ? guestName() : 'Guest';
-    const u = document.getElementById('msUser');
-    if (u && u.textContent !== name) u.textContent = name;
+    // ⚠️ THE SHOWN FORM IS NOT THE STORED ONE (2026-09-12): `unameWrite` puts the first word on a
+    // phone and the whole name on a desktop. The AVATAR's cache key below stays the FULL name — it
+    // is the identity that picks the picture, not what happens to be on screen at this width.
+    unameWrite();
     const av = document.querySelector('.ms-av');
-    if (av && av.dataset.gn !== name){
-      let h = 0;
-      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-      av.dataset.gn = name;
-      av.textContent = '';                        // the 🫐 placeholder goes
-      // THE OWNER'S AVATARS (the avatars/ folder, his word 2026-08-05: «they must be
-      // fitted into the current size of the circle, but all be without a background, hence
-      // png»). The file is chosen DETERMINISTICALLY by the name: one guest — one
-      // avatar forever, just like his name. The coloured circle stays a BACKING:
-      // the pictures are transparent, and without it they would hang in a void.
+    const photo = avatarPhotoUrl();
+    // ⛔ THE CACHE KEY CARRIES BOTH. It used to be the name alone, and signing into an account whose
+    // display name matched the animal one would then have left the old face in place.
+    const key = name + '|' + photo;
+    if (av && av.dataset.gn !== key){
+      av.dataset.gn = key;
+      av.textContent = '';                        // the placeholder goes
       // ⚠️ WITHOUT A BACKING (the owner's word 2026-08-05: «under the picture there must
       // be no background at all»). The former coloured fill is cancelled — the owner's
       // avatars carry the shape and the colour themselves, and a circle under them gave a second rim.
       av.style.background = 'transparent';
-      // ⚠️ THE AVATAR FROM THE PLAYER'S KEY, and not from the name's hash (the owner's word
-      // 2026-08-07 «better to reduce it to one»): the identity is the same on all
-      // devices, because the key converges by a merge, and the name is derived from it.
-      const idx = (typeof guestAvatar === 'function') ? guestAvatar() : ((h % AVATAR_COUNT) + 1);
-      const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
-      const img = document.createElement('img');
-      img.src = file; img.alt = ''; img.decoding = 'async';
-      // ⚠️ WITHOUT border-radius ON THE PICTURE (the owner's complaint 2026-08-06 «ragged
-      // pixels along the outline»): the avatar is ALREADY round and with a smoothed alpha
-      // (a measurement of the source: 48 gradations, 199 semi-transparent pixels along the edge).
-      // Our round clipping cut ON TOP OF that edge — the clip's boundary is
-      // stepped, and it is visible as a ragged outline. The owner's assets we
-      // do not touch: he explicitly forbade «optimising» them.
-      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
-      av.appendChild(img);
+      if (photo){
+        const img = document.createElement('img');
+        // ⛔⛔ `no-referrer` IS LOAD-BEARING AND NOT A PRIVACY GESTURE: googleusercontent answers 403
+        // to a third-party Referer, so without it the photo simply never loads — and it fails the
+        // same way on every device, which is the kind of bug that reads as «Google changed
+        // something». It is also the honest setting: our domain has no business in their log.
+        img.referrerPolicy = 'no-referrer';
+        img.alt = ''; img.decoding = 'async';
+        // a photo is SQUARE and opaque — it is clipped round here, unlike his own PNGs below
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+        // ⚠️ AND IF IT DOES NOT LOAD, THE ANIMAL COMES BACK rather than a broken-image glyph: the
+        // URL is a third party we do not control, and a blank circle would read as a bug of ours.
+        // The key guard stops a slow failure from wiping a circle that has since been redrawn.
+        img.onerror = function (){
+          if (!av || av.dataset.gn !== key) return;
+          av.textContent = '';
+          avatarDrawAnimal(av, name);
+        };
+        img.src = photo;
+        av.appendChild(img);
+      } else {
+        avatarDrawAnimal(av, name);
+      }
     }
   } catch(e){}
 }
@@ -28356,6 +28526,9 @@ window.__game = {
   telemetryScreen(){ return Telemetry.screen.current(); },
   guestId(){ return guestId(); },        // the player key for his own table
   guestAvatar(){ return guestAvatar(); }, // the avatar number derived from the key
+  // the DERIVED photo url: '' when the account has none (Google's monogram) — the rule is a
+  // judgement about somebody else's URL shape, so it is reachable without a network round trip
+  avatarPhoto(){ return avatarPhotoUrl(); },
   // ⚠️ THE GUARD NEEDS THE NAME TO ASSEMBLE A SNAPSHOT WITH ITS OWN ROW: identification in
   // `lbLoadOurs` goes by name+avatar (there is no identifier in the snapshot rows),
   // and without that pair the mock would not reproduce the case «found ourselves in the snapshot» at all.

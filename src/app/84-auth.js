@@ -172,6 +172,12 @@ async function authApply(r){
   const adopted = (typeof identityAdopt === 'function') ? identityAdopt(r.gid, r.k) : false;
   // the name always — a sign-in that changes nothing else still brings the account's name
   if (typeof playerNameSet === 'function') playerNameSet(r.name, 'g');
+  // ⚠️ THE PHOTO IS WRITTEN EVEN WHEN IT IS EMPTY, and that is the point: an account with no photo
+  // must CLEAR whatever a previous account left, or the circle keeps a stranger's face.
+  // ⛔ AN OLD WORKER SENDS NO `pic` AT ALL — the field is simply absent, `playerPhotoSet` stores an
+  // empty string and the animal picture stays. The feature appears when the worker is deployed, and
+  // that deploy is the owner's action.
+  if (typeof playerPhotoSet === 'function') playerPhotoSet(r.pic);
   let lifted = 0, score = -1;
   if (adopted){
     // ⛔⛔ THE CACHE IS DROPPED BEFORE `lbMe`, NOT AFTER. `lbMe` serves a 20-second cache, and that
@@ -238,7 +244,7 @@ function authState(){
   return {
     on: authOn(), cid: authCfg ? (authCfg.cid || '') : '',
     signedIn: authSignedIn(), canRestore: authCanRestore(),
-    name: sv.gn || '', src: sv.gs || '', lift: sv.gr || 0, own: sv.gp || '',
+    name: sv.gn || '', src: sv.gs || '', photo: sv.ga || '', lift: sv.gr || 0, own: sv.gp || '',
     inited: authInited, tapped: authTapped,
     gid: (typeof guestId === 'function') ? guestId() : '',
     last: authLast,

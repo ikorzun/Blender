@@ -527,6 +527,27 @@ const rows = (e, gid) => e.DB._raw.prepare('SELECT * FROM ent WHERE gid = ? ORDE
       + ', pk ' + (pkA && pkA.k.slice(0, 6)) + '…  [acc.k === pk.k: '
       + !!(accA && pkA && accA.k === pkA.k) + ']');
 
+    // --- THE PHOTO PASSES THROUGH AND IS NEVER STORED (his word 2026-09-12) ---
+    // ⚡ The circle in the menu shows the account's photo; the URL reaches the device through this
+    // reply. ⛔⛔ TWO PROPERTIES, AND THE SECOND IS A SECURITY ONE: an `aud`-valid token still
+    // carries whatever `picture` its issuer put in it, and that string goes straight into an
+    // `<img src>` on our own page — so only Google's own CDN is passed on. And `acc` must NOT grow
+    // a column for it: the device needs it, this table does not.
+    {
+      const picTok = await mint({ claims: { sub: 'sub-pic', picture: 'https://lh3.googleusercontent.com/a/REAL=s96-c' } });
+      const rp = await authCall(worker, e, 'gidauthpic01', KEY_A, picTok);
+      const evilTok = await mint({ claims: { sub: 'sub-evil', picture: 'https://evil.example/track.gif' } });
+      const re = await authCall(worker, e, 'gidauthevil1', KEY_A, evilTok);
+      const rowP = e.DB._raw.prepare('SELECT * FROM acc WHERE sub = ?').get('sub-pic');
+      const cols = Object.keys(rowP || {});
+      expect(rp.json && rp.json.pic === 'https://lh3.googleusercontent.com/a/REAL=s96-c'
+        && re.json && re.json.ok === 1 && !re.json.pic
+        && cols.length > 0 && cols.indexOf('pic') < 0 && cols.indexOf('picture') < 0,
+        'THE PHOTO PASSES THROUGH GOOGLE-ONLY AND IS NEVER STORED: ours ' + (rp.json && rp.json.pic)
+        + ', a foreign host ' + JSON.stringify(re.json && re.json.pic) + ', acc columns ['
+        + cols.join(', ') + ']');
+    }
+
     // --- the second device: the SAME account, a fresh gid and a fresh key of its own ---
     const gidB = 'gidauth00002';
     const r2 = await authCall(worker, e, gidB, KEY_B, await mint({ claims: { sub: subA } }));

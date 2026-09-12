@@ -19590,3 +19590,114 @@ build is what turns a suspicion into an answer. Both cost minutes; a wrong push 
   changes anything. It is kept because it is the right order and costs nothing; it is not claimed to
   be guarded.
 
+## BATCH 2026-09-12: «Boost», ONE WORD IN THE NAME, THE ACCOUNT'S PHOTO, AND «Next Mercury» (his five items over a screenshot of his own iPhone: «1. leave only 1 word in the name, remove the animation · 2. rename ×5 Boost to Boost · 3. instead of the picture pull the photo from the account into the circle, if there is none (just a symbol on a background) keep the picture · 4. reduce the gap between the name and Logout by 2 pixels · 5. rename Next players to Next + name (Next Mercury)»)
+
+### THE SCREENSHOT IS 1206 WIDE AT 3x — 402 CSS PIXELS, AND THAT WIDTH WAS ABOVE EVERY BREAKPOINT TUNED THE NIGHT BEFORE
+«Для такого размера экрана» heads the list but scopes only ITEM 1 — it is the one item that is
+inherently about width. A rename, a data source, a 2px gap and a caption are not. **402 is now one of
+the frame widths**, because every breakpoint of the previous batch was measured at 320/360/390/1280
+and his phone sits between the last two.
+
+### ITEM 2 WAS DONE FIRST BECAUSE IT CHANGES THE ARITHMETIC EVERYTHING ELSE WAS MEASURED AGAINST
+«×5 Boost» was ~114px, and it is the number that forced BOTH narrow-width tiers of 2026-09-11-p.
+«Boost» gives back about 40. Measured afterwards across every width from 320 to 1280 with two
+wallets: **the avatar is 48 again at every width** (the 32 was the price of the longer button, never
+something he asked for), and 360-383 needs no reductions at all. What remains is one small block at
+≤359. ⚡ **THIS IS ALSO HIS ANSWER TO THE FORK I LEFT HIM IN STATUS** («say the word and I put the
+wrap back for 320»): he changed the button instead.
+⛔ **THE CLIFF IS GONE WITH THE BUTTON THAT CAUSED IT** — the 360-worse-than-320 trap of yesterday —
+but the guard that found it (the 94-measurement sweep) stays, and it is what proved the collapse safe.
+
+### ITEM 1 — TWO MECHANISMS, AND NEITHER OF THEM TOUCHES WHAT IS STORED
+The motion is CSS: the keyframe rule moved under `@media (min-width:768px)`, which is the same shape
+`prefers-reduced-motion` already had. **The fade stays on phones** — «убери анимацию» is the motion,
+and a name cut dead at the edge with nothing to say so is what the fade exists to prevent.
+The word is JS: `unameWrite()` puts `unameShown(name)` — the first word on a phone, the whole name
+above 768 — into `#msUser`. ⛔ **`Save.gn` IS NOT TOUCHED:** the account's full name is what the
+leaderboard row carries and what the next device inherits; a build that truncated at the SAVE would
+pass a `textContent` assert and quietly rename the player everywhere. The arm asserts both.
+⚠️ **AND IT IS WRITTEN BEFORE THE NUMBER IS DECIDED, NOT AFTER.** The wallet's fit asks whether the
+name's box overflows, and on a phone that box is about to hold one word instead of two — measured the
+other way round (where this line started), a rotation from desktop to phone weighed the number against
+a name already on its way out and compacted it for nothing.
+
+### ITEM 5 BRINGS THE NAME BACK — UNDER HIS FACE, NOT UNDER THE PLACE
+Yesterday's «the next player is on the RIGHT and his name does not matter» lasted one day, and only
+half of it was reversed: the LINE under the place is still the static «on leaderboard», and the
+CAPTION under his face now reads «Next Godwit». ⛔ **`LB_GAP_NAME_MAX` IS A LAYOUT GUARD AGAIN** —
+the note I rewrote last night («guards nothing on screen») was wrong within a day, and the cap is now
+SHARED (`lbNameCap`) by the gap line and the caption rather than copied into the second.
+⛔⛔ **AND THE COLUMN HAD TO LEARN TO SHRINK**, which broke two arms in a way worth recording: a
+caption carrying a NAME in a `flex:none` column pushes the neighbour's face off a phone. With
+`flex:0 1 auto; min-width:0` it gives way instead — and then **a nine-character number sat silently on
+top of its neighbours**, because a shrinking column swallows the overflow rather than passing it up.
+
+### ⛔⛔ `scrollWidth` LIES ON AN ELEMENT WITH `overflow:visible`, AND THAT IS THE FINDING OF THIS BATCH
+Measured at 320: «1 000 900» in a 79px column reported `scrollWidth === clientWidth === 79` while the
+text was 96px of ink lying across the avatar. **The clip is what makes the question answerable** —
+`.ms-uname` and `.ms-auth-lbl` have always carried `overflow:hidden` and that is exactly why THEIR
+fits work. `.ms-lbe-score` now carries it too, as a MEASUREMENT TOOL and not as a clip: the fit walks
+the number down its three rungs until it fits, so the clip itself never shows.
+⚠️ Two arms moved off «the score is compact at 320» and onto «the score is WHOLE», which is what the
+design actually promises; the old form-pinning arm went red on a sound build the moment the column
+learned to shrink.
+
+### ITEM 3 — THE ACCOUNT'S PHOTO, AND THE THREE THINGS THAT ARE NOT OBVIOUS
+1. ⛔⛔ **`referrerpolicy="no-referrer"` IS LOAD-BEARING, NOT A PRIVACY GESTURE.** googleusercontent
+   answers **403** to a third-party Referer — without it the circle is empty on every device, which
+   reads as «Google changed something». It is also the honest setting.
+2. ⛔ **«THERE IS NONE» IS NOT AN ABSENT FIELD.** Google answers with a `picture` for EVERY account;
+   an account that never uploaded one gets a generated monogram at a URL carrying `default-user`.
+   That is the symbol-on-a-background he described, and **his own account is that case** — the tiger
+   in his screenshot. ⚠️ THE MARKER IS A HEURISTIC AND IS NAMED AS ONE in the code and in STATUS: if
+   a letter ever appears in the circle, inverting one line is the whole fix.
+3. ⛔ **THE URL IS PASSED THROUGH AND NEVER STORED SERVER-SIDE.** `acc` keeps `sub`, `gid`, `k` and a
+   timestamp; the photo lives in the save, on the device where the circle is drawn. The worker pins
+   the HOST (`*.googleusercontent.com`) because an `aud`-valid token still carries whatever `picture`
+   its issuer put in it, and that string goes straight into an `<img src>` on our own page.
+⚠️ **THE PHOTO RIDES WITH THE NAME THROUGH `pickName`**, which now takes objects and returns the
+winning side whole: the photo belongs to the same account as the name, and a second rule could hand a
+player one account's name beside another's face.
+⚠️ **AND IT APPEARS ONLY AFTER HE DEPLOYS THE WORKER** — an old worker sends no `pic` at all, the
+client stores an empty string and the animal stays. A worker deploy is his action; the command is in
+STATUS.
+⛔ **A LENGTH CAP MUST REJECT, NOT TRIM.** `playerPhotoSet` used to `slice(0, 300)`, and a frame
+caught what that means: a url cut in half is a BROKEN url, and the circle showed a failed image where
+«no photo» was the honest answer. Found with a 302-character test photo; production never reaches it
+(the worker caps the same field at the same number).
+
+### THE GUARDS
+AUTH 37 → **42 green** (the photo: the picture fills the circle round and refererless; the monogram
+is refused; the size suffix is rewritten; a photo that fails to load falls back to the portrait; the
+sign-out forgets the url). The pay suite 40 → **41** (the photo passes through Google-only and `acc`
+grows no column for it).
+⛔⛔ **AND ONE ARM OF MINE WAS WRONG BEFORE THE BUILD WAS, AGAIN:** the size-suffix assert read the
+`<img>`'s src, and a real googleusercontent url cannot load from the stand — `onerror` had already
+swapped the portrait in, so the assert read the FALLBACK and went red on a sound build. The rule is a
+judgement about a URL's shape, so it is asked of the DERIVATION (`__game.avatarPhoto()`); the failed
+load became an arm of its own, which is the production case of a revoked photo.
+⛔⛔ **AND THE SABOTAGE PASS FOUND THREE FAULTS IN THE ARMS THEMSELVES — THAT IS WHAT IT IS FOR:**
+- **An arm that could not see its own sabotage.** The phone name arm used «Konstantin Ostrowski»,
+  whose first word fits — so nothing overflowed, `.over` was never set, and a build with the
+  keyframes UNSCOPED passed it. It now uses a name whose FIRST WORD overflows, and states the whole
+  property: it fades and it does not move.
+- **A FLAKY ARM, WHICH IS WORSE THAN NO ARM.** A15's 320 half pinned the compact wallet, and after
+  «Boost» the header has room for a nine-digit GROUPED number beside a one-word name — so it went red
+  under sabotages that could not possibly have touched it (the monogram check, the referrer policy).
+  No form is pinned there now; it states the promise (one row, the 20px floor, nothing clipped, no
+  scroll) and the rungs are guarded where they are deterministic.
+- **A term no fixture could reach.** The number's own overflow test stayed green when removed,
+  because a seven-digit neighbour happens to fit the 320 column (76.8px of ink in 79). A nine-digit
+  one does not — «999 999 999» is clipped by 29px without it — and that fixture is now an arm.
+**PROVEN SEVEN-SIDED**, each reddening its own arm and nothing else: the keyframes unscoped → the
+phone name arm; the first word dropped → the same; the monogram accepted as a photo → two photo arms;
+`no-referrer` replaced by `origin` → the photo arm; the caption made static again → the POINTS width
+arm; the name cap raised to 100 → the same; the number's overflow term dropped → the nine-digit arm.
+
+### THE FULL RUN WAS MY CALL AGAIN, AND IT IS RECORDED RATHER THAN IMPLIED
+His rule of 9 September stands: the dry-runs of the changed sections plus the sabotages gate a push,
+the full suite on his word. He did not give it this time. **Run 55: 1209 green, 0 red,
+`ERRORS(tail): none`, SUITE: PASS.** The reason I ran one: this batch changes the SAVE — a new field
+(`ga`) and a new signature for `pickName`, which every merge in the project goes through — and a
+merge is not confined to a marked section. If he would rather the dry-runs gated it alone, that is
+one word and the rule is unchanged.

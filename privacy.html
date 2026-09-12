@@ -46,10 +46,14 @@ addresses and we do not log requests with them.</p>
 with the same random player identifier, so that the purchase can be restored on that device. No card data
 reaches us: the payment page belongs to Stripe.</p>
 <p><strong>Signing in with Google.</strong> Signing in is optional — the game is fully playable without
-it. If you do sign in, Google gives us a signed token; we check it and keep two things from it: the stable
-account identifier Google issues for this game (a number, not your email) and the display name on your
-Google account. <strong>Your email address is never read and never stored.</strong> The display name replaces
-the animal nickname on your leaderboard row, so it becomes visible to other players. What signing in buys you
+it. If you do sign in, Google gives us a signed token; we check it and take three things from it: the stable
+account identifier Google issues for this game (a number, not your email), the display name on your Google
+account, and the web address of your profile picture. <strong>Your email address is never read and never
+stored.</strong> Of those three, only the identifier is kept on our server; the name and the picture's address
+are stored on your own device, and the picture itself is loaded straight from Google &mdash; without telling
+them which page you are on. If your account has no picture of its own, we show one of our animal portraits
+instead. The display name replaces the animal nickname on your leaderboard row, so it becomes visible to
+other players; your picture is not sent to the leaderboard and other players do not see it. What signing in buys you
 is that your purchases and your place in the table follow you to another device; your collection, your level
 and your boosts stay on the device they were earned on. Signing out on a shared device gives that device its
 own identity back. To delete the link, write to us at the address below.

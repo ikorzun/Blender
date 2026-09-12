@@ -6,7 +6,45 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-11-p (one row in the menu's top bar, «123 456» with a space, the name in a fade, «on leaderboard») on top of 2026-09-11-v, v2 = main** · **the full suite: 1202 green, 0 red** · **ten sabotages, each red on its own check** · ✅ **sign-in is live: your three steps are done and checked from here**
+**Build: batch 2026-09-12 («Boost», one word in the name, your Google photo in the circle, «Next Godwit») on top of 2026-09-11-p, v2 = main** · **the full suite: 1209 green, 0 red** · **seven sabotages, each red on its own check** · ✅ **sign-in is live: your three steps are done and checked from here**
+
+**12 SEPTEMBER — YOUR FIVE ITEMS OVER THE SCREENSHOT OF YOUR PHONE.**
+
+**«Boost», and it paid for more than itself.** The long name «×5 Boost» was about 40 pixels of the
+header, and those 40 pixels were the reason I shrank the avatar and the star on narrow phones
+yesterday. With the short word none of that is needed: **the avatar is full size again at every
+width**, and the only thing still tightened on the narrowest phones is a couple of gaps. The ×5 is
+still what the popup sells and what the in-game badge says — it left the button, not the product.
+
+**One word in the name on a phone, and it no longer drifts.** «Ivan Korzun» shows as «Ivan»; the full
+name is what the leaderboard still carries and what another device still inherits — only the header
+shows the short form. On a computer the whole name stays, and there it still fades and drifts if it
+does not fit.
+
+**Your Google photo in the circle.** If your account has a photo, it fills the circle. If it has
+none, you keep the animal portrait — and that is the case I want you to check, because **your account
+is exactly it**: Google hands out a generated letter-on-a-colour for accounts without a photo, and I
+tell those apart by the shape of the address Google gives. It works today; if a grey letter ever
+shows up where your tiger is, that is one line to invert — tell me and it is a minute.
+⚠️ **The photo needs the worker deployed, and that is your command** — the same one you ran last
+night. Until then nothing breaks: the game simply keeps the animal.
+
+```bash
+cd /Users/ikorzyn/Desktop/Claude/Blender && npx wrangler deploy --config server/pay/wrangler.toml
+```
+
+**The gap between the name and Logout is closed by the two pixels you asked for.** If it still reads
+wide, what is left is the line spacing of the text itself, not a gap — say the word and I will touch
+that instead.
+
+**«Next players» now names him: «Next Godwit».** The caption under his face carries his name, capped
+so a very long one cannot push his face off a narrow screen.
+
+**One thing I found while doing this, and it is the useful half.** A long number next to the new
+caption was lying silently on top of its neighbours on a narrow phone — and every check I had read
+«clean», because the browser reports the width of the BOX and not of the text unless the element is
+clipped. Three places in the menu are measured that way; two of them already had the clip, the number
+did not. It does now, the checks see it, and the number shortens itself before it can overlap.
 
 **12 SEPTEMBER, NIGHT — SIGN-IN IS LIVE. You ran the last two steps yourself; I checked the result.**
 

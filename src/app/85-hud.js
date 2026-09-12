@@ -107,7 +107,7 @@ try { addEventListener('resize', flowVars); } catch(e){}
 // removes them for the same reason).
 // ⚠️ THE MENU'S PLACE IS REMEMBERED ACROSS A DARK SCREEN (the review): the leaderboard and the ×5
 // screen hide the menu under them, and the first draft put it back at the top on every close — in
-// normal mode the inner scroller keeps its place, and the header's own «×5 Boost» exists only after
+// normal mode the inner scroller keeps its place, and the header's own «Boost» exists only after
 // the player has scrolled deep into the collection. The offset is NOTED ON REAL SCROLL EVENTS of the
 // visible menu (`flowNoteScroll`, from onMenuScroll) — not read at the transition: a dark screen
 // stands before the menu in the DOM, and the moment it is displayed the page's offset is no longer
@@ -643,20 +643,26 @@ function lbGapNext(m, live){
   }
   return best;
 }
-// ⚠️ THE NAME IS CAPPED — AND SINCE 2026-09-11-p THAT CAP GUARDS NOTHING ON SCREEN: this line is
-// no longer shown (the row says «on leaderboard»), so the string it builds is only ever tested for
-// being non-empty. It was a LAYOUT guard: the server accepts names up to 40 characters
-// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar) and the line used to be
-// `white-space:nowrap` in a row whose right side is the avatar. Kept because it costs nothing and
-// because the line comes back the day he asks for it; not described as a layout guard any more.
+// ⚠️⚠️ THE NAME IS CAPPED, AND IT IS A LAYOUT GUARD AGAIN. It stopped being one for a day: the gap
+// line that used to show it was retired on 2026-09-11-p, and this note said so. His word of
+// 2026-09-12 («Next players → Next + name, Next Mercury») puts a name back on the row — under the
+// face this time — so the cap is load-bearing once more, and it is now SHARED by the two writers
+// rather than copied into the second. Our own guest names top out at «Oystercatcher» (13
+// characters); the server accepts up to 40 (`server/leaderboard/src/index.js`: `n.length > 40` is
+// the only bar), and the caption is `nowrap` in a row whose right side is the avatar. 16 changes
+// nothing for a real player and bounds the crafted case; the caption's ellipsis catches the rest.
 const LB_GAP_NAME_MAX = 16;
+function lbNameCap(raw){
+  let name = String(raw == null ? '' : raw).trim();
+  if (name.length > LB_GAP_NAME_MAX) name = name.slice(0, LB_GAP_NAME_MAX - 1) + '\u2026';
+  return name;
+}
 function lbGapLine(next, live){
   if (!next) return '';
   const gap = (next.score | 0) - live;
   if (gap <= 0) return '';
-  let name = String(next.name == null ? '' : next.name).trim();
+  const name = lbNameCap(next.name);
   if (!name) return '';
-  if (name.length > LB_GAP_NAME_MAX) name = name.slice(0, LB_GAP_NAME_MAX - 1) + '\u2026';
   // ⚠️ THE SAME `winFmtScore` THE PLACE AND THE WALLET USE (12480 -> «12.5k»): a second number
   // format on one row would be a second truth about how this game writes a score.
   return winFmtScore(gap) + ' to ' + name;
@@ -815,7 +821,9 @@ function lbEntryRefresh(){
     boxes.forEach(b => b.classList.add('lb-ready'));
     ranks.forEach(rk => { rk.textContent = ok ? (winFmtScore(rank) + ' place') : 'Leaderboard'; });
     // ⛔⛔ «340 to Godwit» IS CANCELLED BY HIS WORD OF 2026-09-11-p: «13 place, and under it `on
-    // leaderboard` — because the next player is on the RIGHT and his name does not matter». The
+    // leaderboard` — because the next player is on the RIGHT and his name does not matter». ⚠️ HALF
+    // OF THAT REASON LASTED ONE DAY: on 2026-09-12 the name came back — under his FACE, where the
+    // caption used to read «next players». The LINE stays static; that is what he asked for. The
     // line is static now, and that retires two earlier rules at once: the note of 2026-09-10 that
     // made «on leaderboard» a mere fallback, and the one of 2026-08-09 that put the gap into words
     // in the first place («300 points motivates»). The gap did not go anywhere — it became
@@ -856,6 +864,14 @@ function lbEntryRefresh(){
     lbEntryAll('.ms-lbe-score').forEach(sc => {
       sc.dataset.score = hasNext ? String(next.score | 0) : '';
       if (!hasNext) sc.textContent = '';
+    });
+    // ⚡ THE CAPTION NAMES HIM (his word 2026-09-12: «Next players → Next + name, Next Mercury»).
+    // ⛔ THIS REVERSES ONE HALF OF HIS OWN WORD OF THE DAY BEFORE — «the next player is on the right
+    // and his name does not matter» — and it reverses it exactly where it belongs: the name left the
+    // line UNDER THE PLACE and came back UNDER HIS FACE, beside his score. One derivation still, and
+    // the same `lbNameCap` the gap line uses, so the two can never name him differently.
+    lbEntryAll('.ms-lbe-cap').forEach(c => {
+      c.textContent = hasNext ? ('Next ' + lbNameCap(next.name)) : 'Next player';
     });
     lbEntryAll('.ms-lbe-avs').forEach(h => {
       h.innerHTML = '';
@@ -923,8 +939,22 @@ function lbEntryFitScore(){
     // above can report a clean `scrollWidth` while the number is already lying on its neighbour.
     // The number itself never clips (it is `nowrap` in a column that does not shrink), it PUSHES.
     const left = row.querySelector('.ms-lbe-left');
+    // ⛔⛔ AND THE NEIGHBOUR'S OWN COLUMN IS ASKED SINCE 2026-09-12, because that column started
+    // SHRINKING on the same day. It was `flex:none` — a number too wide pushed the row and the two
+    // tests above caught it. Now that the caption carries a NAME the column must be allowed to give
+    // way (or a long name pushes the face off a phone), and a shrinking column swallows the overflow
+    // instead of passing it up: the exact «1 000 900» sat silently on top of its neighbours at 320
+    // while both tests above reported a clean row. Caught by the POINTS dry run in one field.
+    // ⚠️ SCOPED TO `.ms-lbe-next`: the LEFT group's wrapper wears the same class, and it is the
+    // first one in the row — an unscoped query would measure the place and never the score.
+    const txt = row.querySelector('.ms-lbe-next .ms-lbe-txt');
     const over = () => row.scrollWidth > row.clientWidth + 1
-      || (!!left && left.scrollWidth > left.clientWidth + 1);
+      || (!!left && left.scrollWidth > left.clientWidth + 1)
+      || (!!txt && txt.scrollWidth > txt.clientWidth + 1)
+      // ⛔ AND THE NUMBER ITSELF, WHICH IS THE ONLY ONE OF THE FOUR THAT ANSWERS AT 320. The column
+      // above shrinks and its overflowing child (the caption) clips itself, so neither passes the
+      // overflow upward — the number sat on its neighbours while every other test read clean.
+      || sc.scrollWidth > sc.clientWidth;
     // ⚡ THE COMPACT FORM IS `fmtStars` AND NOT `winFmtScore` SINCE 2026-09-11-p: his «123,4k» has a
     // comma, and the wallet three centimetres above this number now writes it that way. Two
     // compact formats on one card would be the same drift the exact form was just spared.
@@ -3024,6 +3054,27 @@ function authFitLabel(){
 // («Oystercatcher» on a phone) or sail the name clean out of its own box.
 // ⚠️ A CLOSED MENU IS NOT A NARROW ONE: a zero box means «not laid out», and arming the fade for it
 // would leave a faded, sliding name waiting on screen for the next time the card opens.
+// ⚡⚡ ON A PHONE THE NAME IS ITS FIRST WORD (his word 2026-09-12, said over a screenshot of his own
+// 402px iPhone where «Ivan Korzun» was fading mid-surname: «leave only 1 word in the name, remove
+// the animation»). ⛔ `Save.gn` IS NOT TOUCHED: the account's full name is what the leaderboard row
+// carries and what the next device must inherit — this is a display form, derived on every write.
+// ⚠️ IT IS RE-DERIVED RATHER THAN CACHED, because the answer depends on the viewport: a rotation
+// changes it, which is why `headFit` calls this before it measures anything.
+const UNAME_ONE_WORD = '(max-width:767px)';
+function unameShown(name){
+  const s = String(name == null ? '' : name);
+  let one = false;
+  try { one = (typeof matchMedia === 'function') && matchMedia(UNAME_ONE_WORD).matches; } catch (e) {}
+  if (!one) return s;
+  const i = s.indexOf(' ');
+  return i > 0 ? s.slice(0, i) : s;
+}
+function unameWrite(){
+  const u = document.getElementById('msUser');
+  if (!u) return;
+  const show = unameShown((typeof guestName === 'function') ? guestName() : 'Guest');
+  if (u.textContent !== show) u.textContent = show;
+}
 function unameFit(){
   const box = document.querySelector('.ms-uname');
   if (!box) return;
@@ -3057,6 +3108,14 @@ function headFit(){
   // hands the long wording back the moment the number has made room for it.
   const lbl0 = document.querySelector('.ms-auth-lbl');
   if (lbl0) lbl0.textContent = AUTH_LBL_SHORT;
+  // ⚠️⚠️ AND THE NAME IS WRITTEN IN ITS SHOWN FORM **BEFORE** THE NUMBER IS DECIDED, for the same
+  // reason as the label: the number's fit asks whether that box overflows, and on a phone the box
+  // is about to hold ONE WORD instead of two (2026-09-12). Measured the other way round — which is
+  // where this line started — a rotation from desktop to phone weighed the number against a name
+  // that was already on its way out, and compacted it for nothing.
+  // ⛔ IT DOES NOT DEPEND ON THE NUMBER, only on the viewport, so it can be first; the FIT of the
+  // name (its fade) still comes last, because that one does depend on the width left over.
+  unameWrite();
   setWalletNumber($('msStars'), bal);
   const st2 = $('msStars2');
   if (st2) setWalletNumber(st2, bal);
@@ -3107,44 +3166,90 @@ function refreshAuthUi(){
   }
   band.hidden = !(host && host.childNodes.length);
 }
-// THE GUEST'S PROFILE: an animal name + an avatar in a pure colour from the name's hash
-// (the owner's word 2026-08-04; the 🫐 placeholder goes). HSL: the hue from the hash,
-// the saturation fixed — any name gives a readable circle.
+// ⚡⚡ THE ACCOUNT'S PHOTO IN THE CIRCLE (his word 2026-09-12: «instead of the picture pull the photo
+// from the account into the circle; if there is none — just a symbol on a background — keep the
+// picture»). Two halves, and the second is the one with a judgement in it.
+// ⛔ «THERE IS NONE» IS NOT AN ABSENT FIELD. Google answers with a `picture` URL for EVERY account:
+// when the player never uploaded one it is a generated monogram — his initial on a coloured disc —
+// served from a URL carrying `default-user`. That is the symbol-on-a-background he described, and
+// against our own animal portraits it is the poorer of the two. ⚠️ THE MARKER IS A HEURISTIC AND IT
+// IS NAMED AS ONE: it is the documented shape of that URL today, not a promise from Google. If a
+// letter ever shows up in the circle, inverting this one line is the whole fix — and he was told so
+// in STATUS, because his own account is the test case (no photo, hence the tiger he screenshotted).
+function avatarPhotoUrl(){
+  let u = '';
+  try { u = String((typeof Save === 'object' && Save && Save.ga) || ''); } catch (e) {}
+  if (!u || u.indexOf('default-user') >= 0) return '';
+  // the circle is 48pt, so a 3x phone wants 144 — Google serves `=s96-c` by default and resizes on
+  // demand through the same suffix
+  return u.replace(/=s\d+(-c)?$/, '=s144-c');
+}
+// the owner's own portraits — the fallback when there is no photo, and the fallback when one fails
+function avatarDrawAnimal(av, name){
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  // ⚠️ THE AVATAR FROM THE PLAYER'S KEY, and not from the name's hash (the owner's word
+  // 2026-08-07 «better to reduce it to one»): the identity is the same on all
+  // devices, because the key converges by a merge, and the name is derived from it.
+  const idx = (typeof guestAvatar === 'function') ? guestAvatar() : ((h % AVATAR_COUNT) + 1);
+  const img = document.createElement('img');
+  img.src = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
+  img.alt = ''; img.decoding = 'async';
+  // ⚠️ WITHOUT border-radius ON THE PICTURE (the owner's complaint 2026-08-06 «ragged
+  // pixels along the outline»): the avatar is ALREADY round and with a smoothed alpha
+  // (a measurement of the source: 48 gradations, 199 semi-transparent pixels along the edge).
+  // Our round clipping cut ON TOP OF that edge — the clip's boundary is
+  // stepped, and it is visible as a ragged outline. The owner's assets we
+  // do not touch: he explicitly forbade «optimising» them.
+  // ⛔ THAT BAN IS ABOUT HIS TRANSPARENT PNGs AND NOTHING ELSE: a Google photo is an opaque
+  // SQUARE and has to be clipped round, which is why the branch above carries a radius.
+  img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
+  av.appendChild(img);
+}
+// THE PROFILE: the account's photo if there is one, otherwise the owner's animal portrait chosen
+// by the player's key (his word 2026-08-04/08-07; the emoji placeholder went with it).
 function refreshGuestProfile(){
   try {
     const name = (typeof guestName === 'function') ? guestName() : 'Guest';
-    const u = document.getElementById('msUser');
-    if (u && u.textContent !== name) u.textContent = name;
+    // ⚠️ THE SHOWN FORM IS NOT THE STORED ONE (2026-09-12): `unameWrite` puts the first word on a
+    // phone and the whole name on a desktop. The AVATAR's cache key below stays the FULL name — it
+    // is the identity that picks the picture, not what happens to be on screen at this width.
+    unameWrite();
     const av = document.querySelector('.ms-av');
-    if (av && av.dataset.gn !== name){
-      let h = 0;
-      for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-      av.dataset.gn = name;
-      av.textContent = '';                        // the 🫐 placeholder goes
-      // THE OWNER'S AVATARS (the avatars/ folder, his word 2026-08-05: «they must be
-      // fitted into the current size of the circle, but all be without a background, hence
-      // png»). The file is chosen DETERMINISTICALLY by the name: one guest — one
-      // avatar forever, just like his name. The coloured circle stays a BACKING:
-      // the pictures are transparent, and without it they would hang in a void.
+    const photo = avatarPhotoUrl();
+    // ⛔ THE CACHE KEY CARRIES BOTH. It used to be the name alone, and signing into an account whose
+    // display name matched the animal one would then have left the old face in place.
+    const key = name + '|' + photo;
+    if (av && av.dataset.gn !== key){
+      av.dataset.gn = key;
+      av.textContent = '';                        // the placeholder goes
       // ⚠️ WITHOUT A BACKING (the owner's word 2026-08-05: «under the picture there must
       // be no background at all»). The former coloured fill is cancelled — the owner's
       // avatars carry the shape and the colour themselves, and a circle under them gave a second rim.
       av.style.background = 'transparent';
-      // ⚠️ THE AVATAR FROM THE PLAYER'S KEY, and not from the name's hash (the owner's word
-      // 2026-08-07 «better to reduce it to one»): the identity is the same on all
-      // devices, because the key converges by a merge, and the name is derived from it.
-      const idx = (typeof guestAvatar === 'function') ? guestAvatar() : ((h % AVATAR_COUNT) + 1);
-      const file = 'avatars/Avatar' + String(idx).padStart(2, '0') + '.png';
-      const img = document.createElement('img');
-      img.src = file; img.alt = ''; img.decoding = 'async';
-      // ⚠️ WITHOUT border-radius ON THE PICTURE (the owner's complaint 2026-08-06 «ragged
-      // pixels along the outline»): the avatar is ALREADY round and with a smoothed alpha
-      // (a measurement of the source: 48 gradations, 199 semi-transparent pixels along the edge).
-      // Our round clipping cut ON TOP OF that edge — the clip's boundary is
-      // stepped, and it is visible as a ragged outline. The owner's assets we
-      // do not touch: he explicitly forbade «optimising» them.
-      img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block';
-      av.appendChild(img);
+      if (photo){
+        const img = document.createElement('img');
+        // ⛔⛔ `no-referrer` IS LOAD-BEARING AND NOT A PRIVACY GESTURE: googleusercontent answers 403
+        // to a third-party Referer, so without it the photo simply never loads — and it fails the
+        // same way on every device, which is the kind of bug that reads as «Google changed
+        // something». It is also the honest setting: our domain has no business in their log.
+        img.referrerPolicy = 'no-referrer';
+        img.alt = ''; img.decoding = 'async';
+        // a photo is SQUARE and opaque — it is clipped round here, unlike his own PNGs below
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+        // ⚠️ AND IF IT DOES NOT LOAD, THE ANIMAL COMES BACK rather than a broken-image glyph: the
+        // URL is a third party we do not control, and a blank circle would read as a bug of ours.
+        // The key guard stops a slow failure from wiping a circle that has since been redrawn.
+        img.onerror = function (){
+          if (!av || av.dataset.gn !== key) return;
+          av.textContent = '';
+          avatarDrawAnimal(av, name);
+        };
+        img.src = photo;
+        av.appendChild(img);
+      } else {
+        avatarDrawAnimal(av, name);
+      }
     }
   } catch(e){}
 }

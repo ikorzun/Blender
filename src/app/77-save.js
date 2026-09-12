@@ -86,7 +86,7 @@ function mergeSave(into, from, own){
     // naf — A FOREVER PURCHASE: survives even a generation change (a progress
     // reset does not cancel a paid product) — OR from BOTH sides
     into.naf = (from.naf || into.naf) ? 1 : 0;
-    { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
+    { const nm = pickName(into, from); into.gn = nm.gn; into.gs = nm.gs; into.ga = nm.ga; } // the name AND the photo of the gid that wins — BEFORE the gid line, see pickName
     into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
     into.gid = pickGid(into.gid, from.gid);   // the player key — see pickGid
     into.lv = Math.max(into.lv || 1, from.lv || 1); // level — max (the owner's word: synchronize the progress)
@@ -120,7 +120,7 @@ function mergeSave(into, from, own){
   into.ls = Math.max(into.ls || 0, from.ls || 0); // the time mark is monotonic — a clock rollback is not cured by switching devices
   into.na = Math.max(into.na || 0, from.na || 0); // the no-ad window — monotonic
   into.naf = (into.naf || from.naf) ? 1 : 0; // «no ads forever» — OR: a purchase is not cancelled by a lagging copy
-  { const nm = pickName(into.gid, into.gn, into.gs, from.gid, from.gn, from.gs); into.gn = nm.gn; into.gs = nm.gs; } // the name of the gid that wins — BEFORE the gid line, see pickName
+  { const nm = pickName(into, from); into.gn = nm.gn; into.gs = nm.gs; into.ga = nm.ga; } // the name AND the photo of the gid that wins — BEFORE the gid line, see pickName
   into.lk = pickLk(into.gid, into.lk, from.gid, from.lk); // the signing key of the gid that wins — BEFORE the gid line, see pickLk
   into.gid = pickGid(into.gid, from.gid);       // the player key — see pickGid
   into.lv = Math.max(into.lv || 1, from.lv || 1); // level: max — progress is not rolled back by a lagging copy
@@ -329,11 +329,18 @@ const GUEST_NAMES = ('Fox Owl Lynx Wolf Bear Hawk Crane Swan Raven Robin ' +
 // so «ours wins» would let a stale animal name sit on top of a signed-in identity for ever.
 // ⛔ NOT the old `into.gn || from.gn` rule: it knew nothing about the source and kept whichever
 // copy happened to be loaded first.
-function pickName(ag, an, as_, bg, bn, bs){
-  const a = { gn: an || '', gs: as_ || '' }, b = { gn: bn || '', gs: bs || '' };
+// ⚡ AND THE PHOTO RIDES WITH THE NAME SINCE 2026-09-12 (`ga`, his word «pull the photo from the
+// account into the circle»): it belongs to the same account, so it must not be picked by a second
+// rule that could hand a player one account's name beside another's face. The two call sites copy
+// whichever side this returns, whole.
+// ⚠️ THE SIGNATURE TAKES OBJECTS NOW, because three positional strings per side was already one
+// too many and four is where such a call starts silently swapping arguments.
+function pickName(a, b){
+  a = { gid: a.gid || '', gn: a.gn || '', gs: a.gs || '', ga: a.ga || '' };
+  b = { gid: b.gid || '', gn: b.gn || '', gs: b.gs || '', ga: b.ga || '' };
   if (!a.gn) return b;
   if (!b.gn) return a;
-  if (ag && bg && ag !== bg) return (ag < bg) ? a : b;   // different ids — the winner of pickGid
+  if (a.gid && b.gid && a.gid !== b.gid) return (a.gid < b.gid) ? a : b;  // different ids — the winner of pickGid
   if (a.gs === 'g' && b.gs !== 'g') return a;            // same id — the account's name beats the animal
   if (b.gs === 'g' && a.gs !== 'g') return b;
   return a;
@@ -393,6 +400,22 @@ function guestAvatar(){ return (gidHash() >>> 8) % AVATAR_COUNT + 1; } // the fi
 // ===== THE ACCOUNT'S IDENTITY ON THIS DEVICE =====
 // 84-auth does the talking (the token, the worker, the order of the steps); these four only touch
 // `Save`, so the arithmetic of the identity lives where the identity is stored.
+// ⚡ THE ACCOUNT'S PHOTO (2026-09-12). Kept beside the name and cleared with it; a separate writer
+// because a sign-in may bring one without the other — an account with no photo at all sends an
+// empty string, and that is a value worth storing rather than a reason to keep a stale face.
+const PLAYER_PHOTO_MAX = 300;
+function playerPhotoSet(url){
+  const raw = String(url == null ? '' : url).trim();
+  // ⛔ TOO LONG IS REJECTED, NOT TRIMMED. A url cut in half is not a shorter url — it is a BROKEN
+  // one, and the circle then shows a failed image where the honest answer is «no photo». Found by a
+  // frame: a test photo of 302 characters was stored as 300 and the picture silently fell back.
+  // The worker caps the same field at the same number, so production never reaches this line.
+  const u = raw.length > PLAYER_PHOTO_MAX ? '' : raw;
+  if (Save.ga === u) return false;
+  Save.ga = u;
+  commitSave();
+  return true;
+}
 function playerNameSet(name, src){
   const nm = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().slice(0, AUTH_NAME_MAX);
   if (!nm) return false;                       // empty after trimming — keep the animal name
@@ -440,7 +463,7 @@ function identityRestore(){
   Save.gr = 0;
   Save.gid = Save.gp; Save.lk = Save.lp || '';
   Save.gp = ''; Save.lp = '';
-  Save.gn = ''; Save.gs = '';                  // the name belonged to the account; the animal comes back by itself
+  Save.gn = ''; Save.gs = ''; Save.ga = '';    // the name and the photo belonged to the account; the animal comes back by itself
   commitSave();
   return true;
 }

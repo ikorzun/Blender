@@ -5781,7 +5781,10 @@ window.bridge = {
   expect(x5f.shopOpen === true && x5f.menuOpen === false && x5f.pausedUnderShop === true && x5f.resumedOnClose === true,
     'Boost opens the purchase popup DIRECTLY (no menu), the game is paused under it and resumes on close (' +
     JSON.stringify({ shop: x5f.shopOpen, menu: x5f.menuOpen, paused: x5f.pausedUnderShop, resumed: x5f.resumedOnClose }) + ')');
-  expect(x5f.menuLabel === '×5 Boost', 'the pause-menu button is named «×5 Boost» (' + x5f.menuLabel + ')');
+  // ⚡ «Boost» since 2026-09-12 (it was «×5 Boost» from -09-03, «More» before that). The rename is
+  // not cosmetic: that word is what shares the header row with the name and a six-digit score, and
+  // the ~40px it gave back is what retired the narrow-width avatar reduction.
+  expect(x5f.menuLabel === 'Boost', 'the pause-menu button is named «Boost» (' + x5f.menuLabel + ')');
   // THE ACTIVE STATE (957:3782): after a purchase the badge shows the remaining minutes (rounded up)
   // and the button is a progress bar = remaining / the streak's total; a second purchase on top
   // EXTENDS the total (15 of 30 left + 30 = 45 of 60 → 75%); spent to zero → back to «Boost».
@@ -10984,8 +10987,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       sub.textContent = keep; await sleep(60);
       const kid = avs.children[0];
       const scoreEl = document.getElementById(id + 'Score');
+      const capEl = document.getElementById(id + 'Next').querySelector('.ms-lbe-cap');
       return { live: g.leaderboardScore() | 0, rank: rank.textContent, sub: sub.textContent,
         score: scoreEl ? scoreEl.textContent : null,
+        // ⚠️ THE CLIP IS THE MEASUREMENT: both carry `overflow:hidden`, so `scrollWidth` answers
+        // honestly about their content — which it does NOT on an element with `overflow:visible`.
+        scoreCut: scoreEl ? scoreEl.scrollWidth - scoreEl.clientWidth : null,
+        cap: capEl ? capEl.textContent : null,
+        capCut: capEl ? capEl.scrollWidth - capEl.clientWidth : null,
         nextEmpty: document.getElementById(id + 'Next').classList.contains('empty'),
         horiz: (() => { const m = document.getElementById(win ? 'winWrap' : 'mainScreen');
           return m ? m.scrollWidth - m.clientWidth : -1; })(),
@@ -11024,6 +11033,12 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // 16. The line is static now; what varies is the NUMBER under the neighbour's face, and the
     // worst case is a seven-digit one on the narrowest screen.
     const wide = await gapPage(320, 568, [['Oystercatcherpseudonymissimusmaximus1234', 9, 1000900]], 1000);
+    // ⛔ AND A NINE-DIGIT NEIGHBOUR, WHICH IS THE ONLY FIXTURE THAT MAKES THE NUMBER'S OWN OVERFLOW
+    // TEST BITE. With a seven-digit one the grouped form happens to fit the column at 320 (76.8px of
+    // ink in 79), so a build that never asked whether the NUMBER was clipped still passed — the term
+    // was insurance and the sabotage proving it stayed green. «999 999 999» does not fit, and the
+    // fit has to walk it down to «1000M» or leave it lying on the face.
+    const huge = await gapPage(320, 568, [['Mercury', 9, 999999999]], 1000);
     const win = await gapPage(390, 844, UP, 1000, true);
     console.log('points/gap:', JSON.stringify({ mob, desk, none, wide, win }));
 
@@ -11072,15 +11087,27 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'caption collapse and the circle is the neutral slot, no borrowed face (' +
       JSON.stringify({ rank: none.rank, sub: none.sub, score: none.score, empty: none.nextEmpty, tag: none.avTag }) + ')');
 
-    // ⚠️⚠️ THE WORST NUMBER AT THE NARROWEST WIDTH: 1 000 900 grouped is nine characters, and at
-    // 320 they do not fit — the compact «1M» is taken, the left group still ends BEFORE the circle,
-    // and the screen does not gain a horizontal scroll. ⛔ THE THREE TERMS ARE ONE PROPERTY: a
-    // build that «fell back» by letting the row overflow satisfies a text assert and breaks the
-    // menu, which is why `clear` and `horiz` stand beside the string.
-    expect(wide.score === '1M' && wide.sub === 'on leaderboard' && wide.clear > 4 && wide.horiz === 0,
-      '⚡ THE SEVEN-DIGIT NEIGHBOUR AT 320 TAKES THE COMPACT «1M», CLEARS THE CIRCLE AND DOES NOT ' +
-      'SCROLL THE SCREEN (' + JSON.stringify({ score: wide.score, clearPx: wide.clear, horiz: wide.horiz }) +
-      '). ⛔ SABOTAGE: keep the exact form here — the number lies on the circle');
+    // ⚠️⚠️ THE WORST ROW AT THE NARROWEST WIDTH: a seven-digit neighbour AND a 40-character name,
+    // which since 2026-09-12 share one column («Next Mercury», his word). The property is not which
+    // FORM the number takes — that moved the day the column learned to shrink, and an arm that
+    // pinned «1M» went red on a sound build — but that **everything on the row is whole or honestly
+    // trimmed**: the NUMBER is never clipped (its own fit walks it down the rungs until it fits),
+    // the NAME is capped at 16 and the ellipsis catches the rest, the left group still ends BEFORE
+    // the circle, and the screen gains no horizontal scroll.
+    // ⛔ `clear` AND `horiz` STAND BESIDE THE STRINGS ON PURPOSE: a build that «coped» by letting the
+    // row overflow satisfies every text assert and breaks the menu.
+    expect(wide.scoreCut <= 0 && /^Next /.test(wide.cap || '') && (wide.cap || '').length <= 21 &&
+           wide.sub === 'on leaderboard' && wide.clear > 4 && wide.horiz === 0,
+      '⚡ THE SEVEN-DIGIT NEIGHBOUR WITH A 40-CHARACTER NAME AT 320: the number is shown WHOLE, the ' +
+      'name is capped and ellipsised, the group clears the circle and the screen does not scroll (' +
+      JSON.stringify({ score: wide.score, cut: wide.scoreCut, cap: wide.cap, capCut: wide.capCut,
+        clearPx: wide.clear, horiz: wide.horiz }) + '). ⛔ SABOTAGE: drop the name cap — the column ' +
+      'grows and pushes the face; or make that column `flex:none` again — the number lies on it');
+    expect(huge.scoreCut <= 0 && huge.cap === 'Next Mercury' && huge.clear > 4 && huge.horiz === 0,
+      '⚡ AND A NINE-DIGIT NEIGHBOUR AT 320 IS WALKED DOWN UNTIL IT FITS — shown whole, clearing the ' +
+      'circle, no scroll (' + JSON.stringify({ score: huge.score, cut: huge.scoreCut, cap: huge.cap,
+        clearPx: huge.clear, horiz: huge.horiz }) + '). ⛔ SABOTAGE: drop the number\'s own overflow ' +
+      'term from the entry fit — every other test reads clean while it lies across the face');
 
     // ⚠️⚠️ THE WIN ROW SHOWS THE SAME NEIGHBOUR — asked whether the next player belongs there too,
     // he answered «нужен» (2026-09-10), which cancels his own word of 2026-08-21-r («instead of
@@ -20599,11 +20626,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // also the old no-neighbour fallback — so it is asserted TOGETHER with the neighbour being
       // shown: his face, his exact score. A build that lost the neighbour reads the same line with
       // a neutral circle and an empty number, and fails here.
-      expect(d.score === '123 456' && d.sub === 'on leaderboard' && d.cap === 'next players'
+      expect(d.score === '123 456' && d.sub === 'on leaderboard' && d.cap === 'Next Godwit'
         && d.capColour === 'rgb(162, 162, 168)' && d.ruleW === 1 && d.ruleH > 20
         && d.avTag === 'IMG' && d.avSrc.indexOf('Avatar07') >= 0 && d.order && d.inLeft,
         'AUTH: the entry point carries the next player — his face, his EXACT score «123 456», the ' +
-        'hairline rule, «next players» in Carbon 600; under the place the static «on leaderboard»',
+        'hairline rule, «Next Godwit» in Carbon 600; under the place the static «on leaderboard»',
         JSON.stringify(d));
       // ⛔ AND THE CONTROL: no neighbour (the first place, a guest, no connection) collapses the
       // NUMBER and the caption — but never the circle, whose geometry this row guarantees in the
@@ -20687,23 +20714,31 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         window.__lb.invalidate(); __game.lbEntryRefresh();
         await new Promise(r => setTimeout(r, 800));
       });
-      const tight = await pg.evaluate(() => ({
+      const tight = await pg.evaluate(() => { const sc = document.getElementById('msLbeScore');
+        return {
         label: (document.querySelector('.ms-auth-lbl') || {}).textContent,
-        score: (document.getElementById('msLbeScore') || {}).textContent,
+        score: sc ? sc.textContent : null,
+        scoreCut: sc ? sc.scrollWidth - sc.clientWidth : null,
         horiz: (() => { const m = document.getElementById('mainScreen');
-          return m ? m.scrollWidth - m.clientWidth : -1; })() }));
+          return m ? m.scrollWidth - m.clientWidth : -1; })() }; });
       expect(wide.label === 'Sign in with Google' && wide.score === '123 456' && wide.horiz === 0,
         'AUTH: with room, both are written in full — «Sign in with Google» and the exact «123 456»',
         JSON.stringify(wide));
       // ⛔ THE CONTROL IS `horiz === 0`: a build that «fell back» by letting the row overflow
       // instead of shortening would satisfy a text assert and break the menu.
-      // ⚠️ THE COMPACT FORM IS `fmtStars`, WHICH IS «k» **OR** «M» — the first draft of this assert
-      // demanded a «k» and went red on a sound build against a nine-digit neighbour. The property
-      // is «compact», i.e. no grouping spaces, and that is what is asked.
-      // ⚡ AND THE FRACTION IS A COMMA SINCE 2026-09-11-p («123,4k»), which the pattern pins: a
-      // build that reverted to `winFmtScore` here writes «123.5k» and reddens this line.
-      expect(tight.label === 'Sign in' && /^\d+(,\d)?[kM]$/.test(tight.score || '') && tight.horiz === 0,
-        'AUTH: with the room gone, both fall back — «Sign in» and the compact score — and nothing overflows',
+      // ⛔⛔ THIS ARM USED TO DEMAND THE COMPACT FORM OF THE SCORE, AND THAT WENT RED ON A SOUND
+      // BUILD ON 2026-09-12: once the neighbour's column learned to shrink (it carries his NAME
+      // now, and a `flex:none` column would push his face off a phone), a six-digit score fits at
+      // 320 without being shortened at all. The property was never «it is compact» — it is «it is
+      // WHOLE»: the fit walks it down its three rungs until it fits, and what must never happen is
+      // a clipped number or a scrolled menu. The label's fallback is unchanged and still asserted.
+      // ⚠️ `scoreCut` IS READABLE ONLY BECAUSE THAT ELEMENT CARRIES `overflow:hidden` — on an
+      // element with `overflow:visible` `scrollWidth` reports the box and not the content, which is
+      // exactly how a nine-character number sat on its neighbours with every test reading clean.
+      expect(tight.label === 'Sign in' && tight.scoreCut <= 0 && (tight.score || '').length > 0 &&
+             tight.horiz === 0,
+        'AUTH: with the room gone the wording falls back to «Sign in», the neighbour\'s score is ' +
+        'still shown WHOLE, and nothing overflows',
         JSON.stringify(tight));
       await ctx.close();
     }
@@ -20818,6 +20853,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
             return m ? m.scrollWidth - m.clientWidth : -1; })() };
       });
       const wideH = await head();
+      // ⛔⛔ NO FORM IS PINNED AT 320 ANY MORE, AND THAT IS THE LESSON OF THIS ARM. It used to demand
+      // the compact wallet, and after «×5 Boost» became «Boost» (2026-09-12) the header has room for
+      // a NINE-DIGIT grouped number beside a one-word name — so the arm went red under sabotages
+      // that could not possibly have touched it, which is a flaky arm and worse than no arm. What
+      // this half states is the PROMISE: one row, the 20px floor, nothing clipped, no scroll. Which
+      // rung the number lands on is guarded where it is deterministic — the 1280 half above, the
+      // entry point's two POINTS arms, and A14.
+      await pg.evaluate(() => { __game.mergeRaw({ se: 9876543 }); });
       await pg.setViewportSize({ width: 320, height: 640 });
       await pg.evaluate(async () => { await new Promise(r => setTimeout(r, 400)); });
       const tightH = await head();
@@ -20831,10 +20874,10 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // ⛔⛔ AND AT 320 THE ROW STAYS ONE ROW — this is the term the wrap breaks. The number gives
       // way instead (his «123,4k»), the 20px floor holds, the sign-in slot is not clipped, and the
       // menu gains no horizontal scroll.
-      expect(tightH.oneRow && tightH.gap >= 20 && /^\d+(,\d)?[kM]$/.test(tightH.wallet || '') &&
+      expect(tightH.oneRow && tightH.gap >= 20 && (tightH.wallet || '').length > 0 &&
              tightH.slotCut <= 0 && tightH.horiz === 0 && tightH.rows <= tightH.oneRowH + 1,
-        'AUTH HEAD 320: still ONE row — the number falls back to the comma-compact form, the 20px ' +
-        'floor holds and nothing is clipped or scrolled',
+        'AUTH HEAD 320: with a nine-digit balance it is still ONE row — the 20px floor holds, the ' +
+        'sign-in slot is not clipped and nothing scrolls',
         JSON.stringify(tightH));
       await ctx.close();
     }
@@ -20854,10 +20897,15 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
           shift: box.style.getPropertyValue('--un-shift').trim(),
           need: box.scrollWidth - box.clientWidth,
           mask: (cs.webkitMaskImage && cs.webkitMaskImage !== 'none' ? cs.webkitMaskImage : cs.maskImage) || 'none',
-          anim: is.animationName, inClip: inr.parentElement === box };
+          anim: is.animationName, inClip: inr.parentElement === box,
+          // what the SAVE holds, as against what the header shows
+          stored: (window.__game.authState() || {}).name || '' };
       });
       const namePage = async (name, opts) => {
-        const ctx = await browser.newContext(Object.assign({ viewport: { width: 390, height: 780 } }, opts || {}));
+        opts = opts || {};
+        const w = opts.width || 390, h = opts.height || 780;
+        delete opts.width; delete opts.height;
+        const ctx = await browser.newContext(Object.assign({ viewport: { width: w, height: h } }, opts));
         await ctx.addInitScript(hideBotFlag); await ctx.addInitScript(authStub);
         const pg = await ctx.newPage();
         pg.on('pageerror', (e) => errors.push('AUTH ' + e.message));
@@ -20876,16 +20924,36 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         await ctx.close();
         return out;
       };
-      const long = await namePage('Konstantin Ostrowski');
-      const short = await namePage('Ivo');
-      const calm = await namePage('Konstantin Ostrowski', { reducedMotion: 'reduce' });
-      console.log('auth name:', JSON.stringify({ long, short, calm }));
+      // ⛔⛔ THE FIRST WORD IS ITSELF LONG ENOUGH TO OVERFLOW AT 390, AND THAT IS DELIBERATE. With an
+      // ordinary name the phone shows «Ivan», nothing overflows, `.over` is never set and the
+      // animation rule is unobservable — a build with the keyframes unscoped passed this arm. The
+      // property here is «it FADES but does not MOVE», which needs a name that actually clips.
+      const phone = await namePage('Konstantinopolitanischer Dudelsack');
+      // ⚠️ A LONGER NAME THAN THE PHONE ARM'S, AND MEASURED RATHER THAN GUESSED: «Konstantin
+      // Ostrowski» used to overflow the desktop column and stopped doing so the day «×5 Boost»
+      // became «Boost» and handed the profile ~17px back. The cap on a stored name is 40.
+      const LONG_NAME = 'Konstantin Ostrowski-Wielkopolski Jr';
+      const long = await namePage(LONG_NAME, { width: 1280, height: 900 });
+      const short = await namePage('Ivo', { width: 1280, height: 900 });
+      const calm = await namePage(LONG_NAME, { width: 1280, height: 900, reducedMotion: 'reduce' });
+      console.log('auth name:', JSON.stringify({ phone, long, short, calm }));
+      // ⚡⚡ ON A PHONE THE NAME IS ITS FIRST WORD AND IT DOES NOT MOVE (his word 2026-09-12, said
+      // over a screenshot of his own 402px iPhone where «Ivan Korzun» was fading mid-surname).
+      // ⛔ THE STORED NAME IS NOT TOUCHED — this is a display form. `Save.gn` still carries the
+      // account's full name, which is what the leaderboard row shows and what the next device
+      // inherits; a build that truncated at the SAVE would pass a textContent assert and quietly
+      // rename the player everywhere.
+      expect(phone.text === 'Konstantinopolitanischer' && phone.anim === 'none' && phone.over &&
+             /gradient/.test(phone.mask) && phone.stored === 'Konstantinopolitanischer Dudelsack',
+        'AUTH NAME 390: on a phone only the first word is shown and it FADES WITHOUT MOVING — the ' +
+        'account\'s full name is still what is stored',
+        JSON.stringify(phone));
       // ⛔ THE TRAVEL IS THE OVERFLOW ITSELF: a distance typed into the keyframes stops short of the
       // last letters or sails the name out of its box, and both look like «it animates».
-      expect(long.text === 'Konstantin Ostrowski' && long.inClip && long.over && long.need > 1 &&
+      expect(long.text === LONG_NAME && long.inClip && long.over && long.need > 1 &&
              long.shift === '-' + long.need + 'px' && /gradient/.test(long.mask) && long.anim === 'msUnameScroll',
-        'AUTH NAME: a name that does not fit fades and scrolls by exactly its own overflow, and ' +
-        '`#msUser` still carries the text',
+        'AUTH NAME 1280: the whole name, and when it does not fit it fades and scrolls by exactly ' +
+        'its own overflow — `#msUser` still carrying the text',
         JSON.stringify(long));
       // ⛔⛔ THE DISCRIMINATOR: without this an «always faded» build passes every other term here.
       expect(short.text === 'Ivo' && !short.over && short.need <= 1 &&
@@ -20897,6 +20965,99 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       expect(calm.over && /gradient/.test(calm.mask) && calm.anim === 'none',
         'AUTH NAME: under prefers-reduced-motion the scroll stops and the fade stays',
         JSON.stringify(calm));
+    }
+
+    // ---- A17: THE ACCOUNT'S PHOTO IN THE CIRCLE (his word 2026-09-12)
+    // ⚡ «Instead of the picture pull the photo from the account into the circle; if there is none
+    // — just a symbol on a background — keep the picture.»
+    // ⛔⛔ «THERE IS NONE» IS NOT AN ABSENT FIELD, and that is the whole judgement in this item:
+    // Google answers with a `picture` for EVERY account, and an account that never uploaded one
+    // gets a generated monogram at a URL carrying `default-user`. That is the symbol-on-a-background
+    // he described, and his own account is exactly that case — the tiger in his screenshot.
+    // ⚠️ THE PHOTO IS A `data:` URI HERE because the stand serves one file and one file only; the
+    // HOST is pinned in the WORKER (`server/pay`), which has its own arm for it, and the client
+    // renders whatever its own worker returned.
+    {
+      const PHOTO = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+      const avPage = async (pic) => {
+        const { pg, ctx } = await authPage();
+        await pg.evaluate(async (a) => {
+          window.__auth.authAns = { ok: 1, gid: 'accPIC', k: a.k, fresh: 0, name: 'Ivan Korzyn', pic: a.pic };
+          await __game.authSignIn('h.p.s');
+          try { __game.skipIntro(); } catch (e) {}
+        }, { k: AK, pic: pic });
+        await pg.click('#pauseBtn');
+        await pg.waitForTimeout(700);
+        const read = () => pg.evaluate(() => {
+          const img = document.querySelector('.ms-av img');
+          const cs = img ? getComputedStyle(img) : null;
+          return { src: img ? img.getAttribute('src') : null,
+            ref: img ? img.referrerPolicy : null,
+            round: cs ? cs.borderRadius : null, fit: cs ? cs.objectFit : null,
+            stored: (__game.authState() || {}).photo || '' };
+        });
+        const on = await read();
+        const out = await pg.evaluate(async () => { __game.authOut();
+          await new Promise(r => setTimeout(r, 300)); return null; });
+        const off = await read();
+        await ctx.close();
+        return { on, off };
+      };
+      const withPhoto = await avPage(PHOTO);
+      const monogram = await avPage('https://lh3.googleusercontent.com/a/default-user=s96-c');
+      const sized = await avPage('https://lh3.googleusercontent.com/a/ACg8ocPHOTO=s96-c');
+      console.log('auth photo:', JSON.stringify({ withPhoto: withPhoto, monogram: monogram.on, sized: sized.on.src }));
+      // ⛔⛔ `no-referrer` IS LOAD-BEARING AND NOT A PRIVACY GESTURE: googleusercontent answers 403 to
+      // a third-party Referer, so a build without it shows an empty circle on EVERY device — the
+      // kind of fault that reads as «Google changed something». The round clip and `cover` are the
+      // other half: a photo is a square, unlike his own transparent portraits.
+      expect(withPhoto.on.src === PHOTO && withPhoto.on.ref === 'no-referrer' &&
+             withPhoto.on.round === '50%' && withPhoto.on.fit === 'cover' && withPhoto.on.stored === PHOTO,
+        'AUTH PHOTO: the account\'s photo fills the circle — clipped round, cropped to cover, and ' +
+        'requested WITHOUT a Referer',
+        JSON.stringify(withPhoto.on));
+      // ⛔ THE DISCRIMINATOR FOR HIS ACTUAL CASE: a build that took every `picture` at face value
+      // would put a grey letter where his tiger is, and every other term above would still pass.
+      expect(/avatars\/Avatar\d\d\.png$/.test(String(monogram.on.src)),
+        'AUTH PHOTO: Google\'s generated monogram is NOT a photo — the owner\'s portrait stays',
+        JSON.stringify(monogram.on));
+      // ⛔⛔ THE SIZE AND THE MONOGRAM RULE ARE ASKED OF THE DERIVATION, NOT OF THE `<img>`, and the
+      // first draft of this arm taught me why: a real `googleusercontent` URL cannot load from the
+      // stand, `onerror` swaps the animal in, and the assert then read the FALLBACK'S src and went
+      // red on a sound build. The DOM arms above already prove the url reaches the picture.
+      const derived = await (async () => {
+        const { pg, ctx } = await authPage();
+        const out = await pg.evaluate(async (a) => {
+          const r = {};
+          for (const c of a.cases){
+            window.__auth.authAns = { ok: 1, gid: 'accD', k: a.k, fresh: 0, name: 'Ivan', pic: c };
+            await __game.authSignIn('h.p.s');
+            r[c] = __game.avatarPhoto();
+            __game.authOut();
+          }
+          return r;
+        }, { k: AK, cases: ['https://lh3.googleusercontent.com/a/ACg8ocPHOTO=s96-c',
+                            'https://lh3.googleusercontent.com/a/default-user=s96-c', ''] });
+        await ctx.close();
+        return out;
+      })();
+      console.log('auth photo derived:', JSON.stringify(derived));
+      expect(derived['https://lh3.googleusercontent.com/a/ACg8ocPHOTO=s96-c'] === 'https://lh3.googleusercontent.com/a/ACg8ocPHOTO=s144-c' &&
+             derived['https://lh3.googleusercontent.com/a/default-user=s96-c'] === '' && derived[''] === '',
+        'AUTH PHOTO: the photo is asked for at the size the circle needs (=s96-c → =s144-c), and a ' +
+        'monogram or an empty field derives to nothing at all',
+        JSON.stringify(derived));
+      // ⚠️ AND A PHOTO THAT DOES NOT LOAD IS NOT AN EMPTY CIRCLE: `sized` points at a real Google
+      // URL the stand cannot reach, so `onerror` has fired by the time it is read — which is
+      // exactly the production case of a revoked or moved photo.
+      expect(/avatars\/Avatar\d\d\.png$/.test(String(sized.on.src)),
+        'AUTH PHOTO: a photo that fails to load falls back to the owner\'s portrait, not to a hole',
+        JSON.stringify({ src: sized.on.src }));
+      // ⛔ AND IT GOES WITH THE ACCOUNT: a face left behind after a sign-out is a stranger's face on
+      // a shared phone — the very thing the sign-out exists for.
+      expect(/avatars\/Avatar\d\d\.png$/.test(String(withPhoto.off.src)) && withPhoto.off.stored === '',
+        'AUTH PHOTO: signing out gives the circle back to the owner\'s portrait and forgets the URL',
+        JSON.stringify(withPhoto.off));
     }
 
     // ---- A9: the name follows the ID, and the way back never travels from a cloud copy

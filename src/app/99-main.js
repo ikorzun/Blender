@@ -1428,6 +1428,9 @@ window.__game = {
   telemetryScreen(){ return Telemetry.screen.current(); },
   guestId(){ return guestId(); },        // the player key for his own table
   guestAvatar(){ return guestAvatar(); }, // the avatar number derived from the key
+  // the DERIVED photo url: '' when the account has none (Google's monogram) — the rule is a
+  // judgement about somebody else's URL shape, so it is reachable without a network round trip
+  avatarPhoto(){ return avatarPhotoUrl(); },
   // ⚠️ THE GUARD NEEDS THE NAME TO ASSEMBLE A SNAPSHOT WITH ITS OWN ROW: identification in
   // `lbLoadOurs` goes by name+avatar (there is no identifier in the snapshot rows),
   // and without that pair the mock would not reproduce the case «found ourselves in the snapshot» at all.
