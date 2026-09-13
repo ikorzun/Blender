@@ -1462,7 +1462,7 @@ the stub «enable Dev Mode»; the live endpoint is `http://127.0.0.1:3845/mcp`
   open at the maximum. `#chainBar` was removed.
 - THE REACTIONS WITHOUT EDITS IN THE CORE: `tickFace` watches `stats.score` —
   a growth (a match/a surprise) gives a pupil pulse, a drop (a miss −10,
-  grinding −20; under a booster ×the multiplier) gives a squint.
+  grinding −20 ⛔ 2 since 2026-09-12; ⛔ no boost multiplies a penalty since 2026-09-03-h) gives a squint.
 - THE HUD PER THE MOBILE MOCKUP 741:1738 (393×852, it is the main one — the
   desktop 741:1497 was a draft): on the left ⏸ 56, on the right a VERTICAL
   STACK of 22px each (items / the green game time / ★ points with a gradient
@@ -2378,7 +2378,7 @@ with the platform.
   ⚠️ A DEADLOCK → THE GRINDING BAILOUT, NOT A DEFEAT (the owner's decision 2026-07-27
   «the grinding = a penalty, not a death», v1-test-111): there are pairs, but they are inaccessible and
   there are no shakes → level.deadlock → the grinding takes the pile apart until
-  a reachable pair appears. The price is points (−20/grinding, under a booster ×the multiplier).
+  a reachable pair appears. The price is points (⛔ since 2026-09-12 the eaten pair's value per grind, 2 points; no boost multiplies it since 2026-09-03-h).
   The defeat screen (showLose) from a deadlock is NO LONGER CALLED — normally the level
   is unlosable; the defeat UI is alive but unreachable by gameplay (the former
   text «→ the defeat screen with Look around» is CANCELED).
@@ -2872,8 +2872,8 @@ MEASURED: the formula «pairs×2 + 1 = 181» went stale with the arrival of the 
 rungs **10-11-12-13-14-15** and then back to 10 (`MISS_PENALTY_MAX`=**15**, 2026-08-24-b; the
 length of the cycle is DERIVED from base/step/max, never written as a literal); the ordinal `n` is
 `stats.missRun` — mistakes SINCE THE LAST MERGE, zeroed in `doMatch` and by `genLevel`;
-`MIXER_PERIOD`=2; `MIXER_PENALTY`=20 (does NOT climb);
-⚠️ THE PENALTIES ARE MULTIPLIED BY THE BOOSTER (2026-07-28, the single point scorePenalty).
+`MIXER_PERIOD`=2; ⛔ `MIXER_PENALTY`=20 IS GONE (2026-09-12) — the grinder charges `pairScoreAt(level)`, the eaten pair's base value (2), and does NOT climb;
+⛔ «THE PENALTIES ARE MULTIPLIED BY THE BOOSTER (2026-07-28)» IS CANCELLED — since 2026-09-03-h (re-affirmed 2026-09-12: «a boost never multiplies penalties») scorePenalty charges the plain amount under any boost.
 `SURPRISE_BONUS`=150; the mixer's patience by DIFFICULTY `MIXER_IDLE_EASY/HARD`=
 **15/10 s** (retuned in `304fdf0` 2026-07-27; the former 10/3.3 went stale in the canon); the progression: `LEVEL_TYPES_MIN`=9 +1/level
 up to TYPES.length; combo/chain: COMBO_RADIUS=1.1 (the ceiling EVERYWHERE), COMBO_MS=4000,
@@ -10231,7 +10231,7 @@ shown**, so a mistake now costs FIVE PAIRS where it used to cost half of one.
 Together with 2026-08-23-a — where a tap on a pairless item became a full mistake —
 searching the pile by poking is now genuinely expensive. Named to him.
 ⚠️ **TWO CONSUMERS RODE ALONG, NEITHER NAMED BY HIM:** the early tap on an ice block
-is 2× (→ 20 shown), and the paid ×5 booster multiplies penalties (his decision
+is 2× (→ 20 shown), and the paid ×5 booster multiplies penalties (⛔ CANCELLED 2026-09-03-h; his decision
 2026-07-28), so one miss under it reads −50.
 ⛔ **`MIXER_PENALTY` WAS NOT RE-BASED AND IS NOW THE ODD ONE OUT:** the grinder still
 takes 20 raw = 2 shown per pair, i.e. a mistake is now five times worse than letting
@@ -10357,7 +10357,7 @@ used to live a hundred lines lower, which is exactly why the balance table of
 |---|---|---|---|
 | a pair | 20 raw | `1 * PT` ×N×(N−1) | **+2** |
 | a mistake | 100 raw | `10 * PT` | **−10 … −15** ⛔ A LADDER, see 2026-08-24 / -b |
-| the grinder, per pair | 20 raw | `20 * PT` | **−20** |
+| the grinder, per pair | 20 raw | `20 * PT` | **−20** ⛔ −2 since 2026-09-12 (the eaten pair's value) |
 | the golden fish | 150 raw | `15 * PT` | +15 |
 
 ⛔ **THE GRINDER MOVED 2 → 20 POINTS AND ITS LITERAL NEVER CHANGED — ITS UNIT DID.** It
@@ -17802,7 +17802,7 @@ are kept, and the comment says so instead of claiming the wrong one is the prote
 player keeps yesterday's game until the second launch. The small allowlist is cache-first. Nothing else is
 touched at all. There is NO install-time precache: 12.7 MB fetched a second time at install buys nothing
 the first navigation has not already put in the HTTP cache.
-⚠️ THE CACHE NAME CARRIES THE MD5 OF THE BUILT index.html, written by `build.py` into `src/sw.js`'s
+⚠️ THE CACHE NAME CARRIES THE MD5 OF THE BUILT index.html (⛔ since 2026-09-12: of the build with its dev-panel label left blank — the label carries the same stamp), written by `build.py` into `src/sw.js`'s
 `__BUILD__` placeholder. A hand-bumped version is the defect this canon has paid for five times: whoever
 forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on
 screen says so. `build.py` REFUSES to build if the placeholder is gone. Activation deletes only caches
@@ -18024,7 +18024,7 @@ that it does; the comment in the worker had promised «the ETag makes that a 304
 
 **THE FIX IS A VALIDATOR, NOT A LONGER `max-age`.** `no-cache` is the promise that a release reaches the next
 load, and a window would break exactly that for its length. `tools/site-pack.py` writes `site/build.txt` = the
-md5 of index.html (the same stamp `sw.js` carries), and the site worker hands it out as the document's ETag,
+md5 of index.html (⛔ not the same stamp as `sw.js` since 2026-09-12 — that one hashes the build with its label blank; `build.txt` keeps the md5 of the shipped bytes, which is what a validator must key on), and the site worker hands it out as the document's ETag,
 answering a matching `If-None-Match` itself with a 304 of zero bytes. Faster than Pages on a repeat visit AND
 still instant on a release. The stamp is read ONCE per isolate; a failure is memoised too, or a store packed
 before this batch would be asked on every request.
@@ -19701,3 +19701,155 @@ the full suite on his word. He did not give it this time. **Run 55: 1209 green, 
 (`ga`) and a new signature for `pickName`, which every merge in the project goes through — and a
 merge is not confined to a marked section. If he would rather the dry-runs gated it alone, that is
 one word and the rule is unchanged.
+
+## BATCH 2026-09-12-b: THE EATEN PAIR COSTS WHAT A MERGED ONE PAYS, «NEVER» MADE STRUCTURAL, THE MERGE CURVE AT HIS STEP 0.05, THE BUILD LABEL STAMPED BY THE BUILD (his words: «after level 17 the price of a merge must go up and a growth curve invented, otherwise it is hard and not interesting to play» / «also check which version is on the domain and why the version may differ for players»; mid-turn: «important: a boost never multiplies penalties» and «lower the cost of an eaten pair to the cost of a merged one, on every level»; and his pick off the table: «0,05»)
+
+### THE VERSION CHECK: ONE BUILD EVERYWHERE — WHAT A PLAYER SEES DIFFERENTLY IS NEVER A WRONG DEPLOY
+Measured by md5 against the local HEAD before this batch: blendo.monster, GitHub Pages and the tree
+carried the same document (BUILD `45ea4c6b95ba`); the Playgama cabinet says DRAFT with no archive and no
+sandbox, so nobody plays it there. The site worker was read for the one trap that could make a deploy
+uneven across colos — a `caches.default` keyed by URL — and there is none: the document goes through
+the ASSETS binding and the 2026-09-09-m validator only. The five mechanisms by which a player still
+sees another build, each named to him:
+1. **The cache-first document** (2026-09-10-i, his price): the first launch after a release shows the
+   previous build.
+2. **`registration.update()` runs once per boot**: a tab left open, or an installed app resumed from
+   the background, never re-checks and keeps its build until a real relaunch. The only one that lasts days.
+3. **GitHub Pages is another origin**: its own worker, cache and save, plus `max-age=600`.
+4. **The dev panel's `#buildVer` was a hand-typed literal** («build v1-test-239 · 2026-08-01»), so
+   neither the perf report (`perfReport().build`) nor telemetry could name a device's build. Fixed below.
+5. **Telemetry is off** (`79-telemetry.js`, `URL = ''`): there is no server-side view of versions at all.
+⛔ OFFERED, NOT DONE: `update()` on `visibilitychange → visible` (throttled) for case 2; a «new version —
+tap to restart» prompt; telemetry. Each is his word.
+
+### THE BUILD LABEL IS THE STAMP OF THE BUILD WITH ITS OWN LABEL BLANK
+`src/shell.html` carries `id="buildVer">__BUILDVER__<`; `build.py` hashes the assembled document WITH
+the placeholder, writes «build <stamp> · <date>» into it, and hands the SAME stamp to `sw.js`'s `BUILD`.
+⚠️⚠️ A LABEL CANNOT CARRY THE HASH OF A DOCUMENT THAT CONTAINS THE LABEL — hence the blank. Same
+sources → same stamp → same bytes: two builds of one source gave a byte-identical `index.html` and `sw.js`.
+⚠️ THE DATE IS READ BACK FROM THE PREVIOUS `index.html` AND REUSED WHILE THE STAMP IS UNCHANGED: a label
+taking today's date on every run would change the document's bytes on every rebuild of the same sources,
+and `site/build.txt` — the validator of 2026-09-09-m — keys on those bytes, i.e. every returning player
+would re-download the document for a build that did not change.
+⚠️ `build.py` REFUSES TO BUILD without exactly one placeholder: a label typed back by hand is a build error,
+not a silently frozen label.
+⛔ `site/build.txt` NO LONGER EQUALS `sw.js`'s BUILD: it stays the md5 of the shipped bytes, which is what
+a validator must key on. The two canon sentences that promised equality (-h, -k) carry tombstones.
+The PWA section moved with the rule: arm 6 derives the stamp by putting the placeholder back before
+hashing, and a new arm 6b states that the label names the worker's own stamp and a real date.
+
+### «A BOOST NEVER MULTIPLIES PENALTIES»: RIGHT IN THE CODE SINCE 09-03-h, WRONG IN THE PROSE FOR NINE DAYS
+`scorePenalty` has charged the plain `n` since 2026-09-03-h, and the NO SYMMETRY arm proves a live ×5
+miss costs its plain rung. The prose said the opposite in 00-config («TWO CONSUMERS … one miss under it
+reads −50»), 80-gameplay's doMatch («IT MULTIPLIES THE PENALTIES TOO»), test.js's penalty-symmetry header
+(«Symmetry: the booster multiplies both»), test.js's rescue-measurement header («−100 per turn instead of
+−20»), and the canon (the Tuning map, the rules section, the eyes section, batch -v). All tombstoned
+where they stood; 00-config's fire-reward note («the paid booster multiplies») is about a REWARD and is
+correct, so it was left alone. His «важно» re-affirms 09-03-h; nothing in the code had to change.
+⚡ **AND «NEVER» IS STRUCTURAL NOW (SCOREMATH S1):** exactly one CODE line of the build lowers the score,
+it sits inside `scorePenalty`, and `scorePenalty`'s code reads no reward multiplier. Before, the rule could
+be walked around by a penalty charged with a `-=` of its own anywhere else; that is what the arm stops.
+⚠️ THE ARM COUNTS CODE ONLY — a hit standing after `//` on its line is prose — and the tombstone at
+scorePenalty quotes the old line without its operator anyway, so even a plain grep over the build finds
+exactly one. ⛔ A `/* */` block comment would still be counted; the codebase uses them rarely.
+
+### THE EATEN PAIR = THE MERGED PAIR — `MIXER_PENALTY` IS GONE
+`mixerGrind` charges `pairScoreAt(levelNum)` = `MATCH_SCORE · 2 · levelMergeMult(lv)` — 20 raw = 2 points
+through level 17, then on the curve (33 raw at level 30, 53 at level 50) — through the same `scorePenalty`
+(so levels ≤5 are free and ≤10 clamp at zero). Its history: 20 raw (2 shown) until 2026-08-23-d re-based it
+to 20 SHOWN («the mixer eats 20 points per pair»).
+⚠️⚠️ THE BASE VALUE AND NOT THE EATEN TYPE'S MULTIPLIER, AND IT IS HIS RULE RATHER THAN A CHOICE: the
+collection's Boost buys exactly the type tiers `accMult` reads, so pricing the pair at its type's
+multiplier would let a bought boost raise a penalty. No series, fire or rival multiplier touches it either.
+⚠️ THE PRICE, NAMED TO HIM: the grinder becomes the CHEAPEST penalty of the game (2 against a mistake's
+10-15 on the early levels, so the order of 2026-08-23-d inverts); idling costs about a point a second (a
+pair every `MIXER_PERIOD`); the deadlock rescue costs a tenth of what it did; the real cost of an eaten pair
+is its price PLUS the merge not made. `finaleGrind` still charges nothing.
+THE GUARDS THAT MOVED: the points-as-seen probe pins the grind at the door's own price (`grindPriceAt`, 20
+raw at its level 11, pop «−2») instead of the literal −200/«−20»; its message and the «two things do not
+climb» message dropped «level 1» for «levels 1-5»; the rescue-measurement header. The `< 2×` rescue arm
+needed no change — both runs now cost about the same small amount, and it reddens if a multiplier comes back.
+
+### THE MERGE CURVE: ONE FUNCTION, SEVEN CONSUMERS, AT HIS STEP 0.05
+THE MEASUREMENT, on 00-config's own `expectedGroup`/`typicalMergeScore`: from level 11 the bowl holds a
+flat 180 items while the dealt types keep growing (the `levelDistinctCap` ramp), the expected group
+shrinks, and a merge is QUADRATIC in the group — the base total of a level falls 302 → 269 → 246 → 225
+across levels 11 / 17 / 30 / 100 while a mistake stays 10-15. That is his «hard and not interesting».
+THE MECHANISM: `levelMergeMult(lv, step)` = 1 through `MERGE_CURVE_FROM = 17`, `1 + step·(lv − 17)` above;
+a zero, negative or NaN step pays ×1. `pairScoreAt(lv)` is the base value of one merged pair on the curve.
+Consumers: doMatch's gain, the ice break, the bowl collect-all, the type charge, the level goal
+(`finalizeFill`'s parBase — the goal must grow with the price, or it becomes trivial), `typicalMergeScore`
+(the mistake's tie from level 30), and the grinder. Refill pairs get it too: it is not series-based.
+⛔⛔ IT NEVER TOUCHES A MISTAKE: the ladder is untouched, so «a boost never multiplies penalties» stays
+literally true — the curve is not a boost, it is what a pair is worth on that level.
+⚠️⚠️ **THE STEP IS HIS: `MERGE_CURVE_STEP = 0.05`**, picked off a table of 0 / 0.05 / 0.10 the same day.
+The numbers he chose on (base points, a merge / a level):
+
+| Level | Before (step 0) | Step 0.05 (shipped) | Step 0.10 |
+|---:|---|---|---|
+| 18 | 3.6 / 265 | 3.8 / 278 | 4.0 / 292 |
+| 30 | 3.2 / 246 | 5.3 / 406 | 7.4 / 565 |
+| 50 | 3.1 / 239 | 8.2 / 634 | 13.3 / 1028 |
+| 100 | 2.8 / 225 | 14.4 / 1156 | 26.1 / 2088 |
+
+A first mistake (10 points) is worth 2.62 merges at level 18, 1.88 at 30, 1.22 at 50 and 0.69 at 100 — it
+crosses one merge at about level 63, which fits his «on the edge of hard»; at 0.10 it would be cheaper than
+a single merge from level 40. A retune is this one number.
+`CFG.mergeStep` carries it at runtime FOR ONE REASON: a guard at the shipped step alone cannot tell a curve
+wired into a consumer from one that reads the constant (a level-21 pair pays 24 against an unwired 20 — a
+margin a rounding can hide), so the guard drives a step of 0.5 and measures real merges.
+⚠️ `levelMergeMult` reads `CFG` at CALL time and `CFG` is declared at the end of 00-config — so no top-level
+code above that line may call it (none does). The level is an argument, never read from scope (the
+`missPenaltyFor` rule).
+⚠️ THE TIE CONSEQUENCE: with merges worth more, «a mistake costs at most four typical merges» stops binding
+from level ~30 — the mistake returns to its bare 10-15 while costing FEWER merges. Named to him.
+⚠️ THE PRICES, NAMED: the leaderboard inflates for new play past 17 while players who already passed those
+levels keep their old points; the collection's 2000-star upgrade gets cheaper in levels (~8 today → ~5 at
+level 30 and ~3 at level 50).
+⛔ NOT GUARDED, NAMED: the ice break, the collect-all, the charge and the goal read the curve by the same
+one-term pattern as a merge; only a merge, the grinder and the tie are measured at a driven step.
+⚠️ Doors: `__game.mergeMultAt(lv, step)` (pure; step omitted = live) and `__game.grindPriceAt(lv)`
+(`{raw, shown}`); both names were checked against the literal before being added. No identifier carries
+«bonus» — the no-bonus-level guard greps the build for `*bonus*(` and `BONUS_*`.
+
+### A CENSUS BEFORE THE STEP MOVED: NO OTHER GUARD PINS A MERGE SCORE ABOVE LEVEL 17
+Every `setLevel` of the suite at a literal level ≥ 18, every `setLevel` driven by a variable or a level array
+(the canon's own rule: grep the ENUMERATIONS, not one form), and every guard formula that recomputes a merge
+price were read one by one. None pins a merge score above 17: the unlock price matrix (L51) is its own formula;
+the shake ladder, the tail types, the ring families, the chain threshold and the bowl counters measure no score;
+the charge price arm (`10·N·(N−1)`, no curve) runs at level 3; the ice points arm is a lower bound (`>= 30`)
+that a bigger merge only satisfies harder; the miss-rung reads (`missPenaltyAt(n)`) run at levels ≤ 11.
+SCOREMATH is the only section the step moves. ⚠️ Re-do this census the day the curve starts below 17.
+
+### THE GUARDS, THE SABOTAGES, THE RUNS
+SCOREMATH (new, `⟦SCOREMATH-SECTION⟧`, 7 arms, its own 390 page): S1 the one charging line; S2 the curve at
+his shipped step (0.05, levels 18..150 lit, the level-30 grind 33 raw) and its shape at a named step; S3 a
+pair on level 21 at step 0.5 pays 60 raw and an eaten pair costs 60, level 16 stays 20, step 0 stays 20, and
+under a live ×5 the pair pays 300 while the eaten pair still costs 60; S4 the level-30 tie is below 150 at
+step 0 and the plain 150 at step 0.5, the first rung 100 either way. S3 and S4 PUT THE SHIPPED STEP BACK
+(read before, restored after) — never a literal 0, or every later arm on that page runs dark.
+⚠️ S3's readings regen before each merge (genLevel resets the series) and put the fire out in the same task
+as the merge (a burning type would pay ×2).
+PWA 11 green (6b new).
+PROVEN AGAINST ELEVEN VARIANTS (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`), each
+red on its own arm(s): doMatch without the curve → the merge and the boost arms; the grinder a constant 20 →
+the grind and the boost arms; `typicalMergeScore` without the curve → the tie arm alone; a second `-=` line →
+S1 alone; a boost multiplier inside `scorePenalty` → S1 and the boost arm (the grind 300); the curve reading
+the CONSTANT instead of `CFG.mergeStep` → the merge, grind, boost and tie arms (on both the step-0 and the
+step-0.05 builds); the build label's stamp replaced → PWA 6b alone; the step back to 0 → S2 alone (`lit []`,
+`p30 20`); a comment edit → none, twice. The tree's `index.html` md5 was verified identical before and after.
+⛔ NO FULL SUITE: his rule of 9 September, and on 2026-09-12 he rejected a full run started on my own
+judgement — the rule is now «never unasked». The sections this batch touches were dry-run (SCOREMATH 7,
+PWA 11) and the census above replaced a run for the arms outside them.
+⚠️ HELD ON 09-12 BY HIS WORD («do not release yet»), RELEASED 2026-09-13 BY HIS WORD («build the latest version
+for prod; do not add the level-stretching request yet, I am still thinking»). It went out exactly as verified: a
+rebuild from the same sources was byte-identical (index.html md5 2500d1c8…, BUILD 01dfdf14238c), SCOREMATH 7 and
+PWA 11 dry-run green again on that tree, no full suite. Pushed to v2 and v2:main, then `npm run site:deploy`, the
+domain's document checked by md5 against the local file.
+⛔ WHAT DID NOT SHIP, BY HIS WORD: THE LEVEL PACING. Between the two words he asked for an analysis of «show a new
+item every second level» and of why upgrading old items feels pointless to a player. The analysis went to him
+with four packages (A: show the value that already exists; B: A plus one old item close to its next tier dealt
+double; C1/C2: a new model every second level from level 21 / from level 1) and five questions; the lag was
+measured as the item count during the pour and the shakes, not the small sizes. NOTHING OF IT IS IN THE CODE, and
+none of it goes in until he picks. The intro video's sound after the loader is also still open: the four
+questions of 09-12 await his answers.

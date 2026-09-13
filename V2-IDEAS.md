@@ -182,3 +182,30 @@ first level exists; (3) whether a SECOND purchase (the boost stacks — 45 minut
 ⛔ AND THE ONE TRAP: the screen must never be the thing that CONFIRMS a purchase to the player — the grant
 is confirmed by the server's webhook and the ledger, and a screen that appears on the redirect alone would
 lie about a delayed method (MB WAY pays minutes later). Hang it on the grant, never on the return.
+
+## THREE DEBTS DICTATED 2026-09-12 (his words: «record it as a debt: a screen for a successful booster purchase, and as soon as the time runs out a screen offering to buy another booster; and ads need to be wired in for when the shakes and the hints run out»)
+
+### 1. THE «BOOSTER BOUGHT» SCREEN
+The same item as «A PAYMENT WENT THROUGH SCREEN» above (2026-09-10), now named as a debt. The seam: `buyBundle`
+(77-save) is provider-independent and every grant ends there — the bridge, StoreKit's restore pass and the web
+worker's claim — so the screen hangs on the GRANT, never on a provider's redirect. The trap recorded above
+stands: the screen must never be what confirms a purchase. Its content comes from `STAR_BUNDLES`: ×5 for 30
+minutes of play, +9 Shake's, +13 Tips (read from the table, never typed into the markup).
+
+### 2. THE «BOOST IS OVER — BUY AGAIN» SCREEN
+The moment already exists and is exact: `boostTick` burns the play-time budget (`Save.bb − Save.bu`) and a
+heartbeat commit fires when the budget reaches zero (2026-09-03-c); the corner badge already turns back to
+«Boost» at that moment (2026-09-03-f). Questions for him before building: shown at once (pausing the level) or at
+the next level end / menu open; once per expiry or on every level until he buys; whether a «no thanks» silences
+it for the session. ⚠️ His standing «I am not chasing money» — an offer that returns must be his explicit
+design, and this item is exactly that word.
+
+### 3. REWARDED ADS WHEN THE SHAKES AND THE HINTS RUN OUT — ON OUR OWN DOMAIN
+The mechanic already exists: 2026-09-03-c kept exactly two rewarded placements (a shake and a hint, offered only
+when the stock is empty — «Watch» for +1). In the Playgama portal they go through the bridge; on blendo.monster
+there is NO ad provider, so the `Ads` adapter (78-ads) falls to its stub. The debt is a provider for the web
+domain. The natural candidate is Google's H5 Games Ads (the Ad Placement API, `adBreak({ type: 'reward' })`,
+which needs an AdSense account approved for games), added to `Ads` as a third mode beside bridge and stub and
+gated like the web payments (our own origin, not inside an iframe, not the app wrapper — ads there are a
+separate App Store question). ⚠️ The prices to name before building: a Google script on the page, a consent
+banner for EU players, and `privacy.html`, which today says there are no ads and no cookies.

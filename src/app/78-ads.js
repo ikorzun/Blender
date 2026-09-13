@@ -161,7 +161,7 @@ const Ads = (function(){
   // false (a guard in 99-main). One attempt was never enough: pausedByAd
   // stayed false, and WHEN THE INTRO ENDED, the game turned out to be ALIVE under
   // an opaque ad — the mixer, by idleLimit, started EATING the player's items
-  // (−20 per grind), and the platform did not get LEVEL_PAUSED.
+  // (the eaten pair's value per grind), and the platform did not get LEVEL_PAUSED.
   // ⚠️ WHY NOT "apply it in finishIntro": that call is about to move to a
   // third point (the platform's curtain), that is, inside the intro — binding to it
   // would break silently. Pressing through is self-sufficient and does not depend on

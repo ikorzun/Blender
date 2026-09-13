@@ -162,7 +162,7 @@ drawn on top, as in the mockup); `#eyes` got `overflow:visible`.
   the punishment for idling; the eyes get angry on their own, grinding overrides all states).
   It is stopped by any match/shake. Outside a game (intro/pause/victory) —
   only the hop. The 'match' sound on the tap is REMOVED (it lied "matched", AUDIO-PLAN §1);
-  the grinding itself sounds. The cost = the cost of grinding (−20 per bite, lv.1 without penalties).
+  the grinding itself sounds. The cost = the cost of grinding (the eaten pair's value per bite — 2 points since 2026-09-12; levels 1-5 without penalties).
 
 - 2026-07-22 · dropping the construction to make room for the fire crown (the owner's decision):
   #face.dropped on --fireLift, the modes FIRE_DROP_MODE; on notches the lift is 0.

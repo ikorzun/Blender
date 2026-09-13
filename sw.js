@@ -1,5 +1,5 @@
 /* Blendo — the service worker. SOURCE: src/sw.js; build.py writes the served copy to the
-   repo root with the build placeholder replaced by the md5 of THIS build's index.html. Do not
+   repo root with the build placeholder replaced by the md5 of THIS build (its index.html with the dev panel's build label left blank). Do not
    edit the root sw.js by hand — it is a build artifact, like index.html.
    ⚠️ THE PLACEHOLDER IS SPELLED OUT NOWHERE IN THIS PROSE ON PURPOSE: build.py replaces EVERY
    occurrence, so a comment that named it would ship carrying the stamp — the served file's first
@@ -26,7 +26,7 @@
      TO HIM IN THOSE WORDS AND HE TOOK IT: «после выпуска новой версии вы один раз увидите старую» —
      a release reaches him on the NEXT launch, not this one. Whoever wants that back changes one
      line (`docFromCache` → `docFromNetwork` in the navigate branch) and gives up the instant start.
-   - THE UPDATE RIDES sw.js, NOT THE DOCUMENT. `BUILD` carries the md5 of this build's index.html,
+   - THE UPDATE RIDES sw.js, NOT THE DOCUMENT. `BUILD` carries the md5 of this build (label blank),
      so a release changes THIS FILE — and the game calls `navigator.serviceWorker.register('sw.js')`
      at EVERY boot (99-main), which byte-checks the script, installs the new one, and lets the
      install PREFETCH the document into the NEW cache while the player is still playing the old
@@ -52,7 +52,7 @@
    page. Both halves are guarded, and the fetch handler's own catch searches EVERY `blendo-` cache
    for a document rather than only this build's.  */
 
-const BUILD = '45ea4c6b95ba';
+const BUILD = '01dfdf14238c';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
 

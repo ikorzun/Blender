@@ -6,7 +6,85 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-12 («Boost», one word in the name, your Google photo in the circle, «Next Godwit») on top of 2026-09-11-p, v2 = main** · **the full suite: 1209 green, 0 red** · **seven sabotages, each red on its own check** · ✅ **sign-in is live: your three steps are done and checked from here**
+**Build: batch 2026-09-12-b (an eaten pair costs what a merged one pays, a boost never multiplies penalties, the merge curve at your 0.05, the build label) on top of 2026-09-12, v2 = main, released 13 September** · **checked: the score and the version sections green (7 + 11 checks), eleven sabotages each red on its own check; no full suite, by your rule** · ✅ **sign-in is live: your three steps are done and checked from here** · ⏸ **the level pacing (a new item every second level and the other options): analysed, nothing built — your «do not add it yet, I am still thinking»**
+
+**12 SEPTEMBER, SECOND BATCH — WHICH VERSION IS LIVE, THE GRINDER, THE BOOST RULE, AND THE MERGE CURVE AT YOUR STEP 0.05. RELEASED 13 SEPTEMBER, ON YOUR WORD.**
+
+**Which version is live: the same one everywhere.** Measured before this batch: blendo.monster, GitHub
+Pages and the build on my disk are byte for byte one file (build 45ea4c6b95ba). Playgama has no
+uploaded build at all (the game there is still a draft), so nobody plays it. A player can still be on
+an older version for five reasons, and none of them is a wrong deploy:
+1. After a release the FIRST launch shows the previous version — that is the instant start you chose
+   on 10 September; the next launch is the new one.
+2. The game checks for a new version once, when it starts. A tab left open for days, or the installed
+   app coming back from the background without being closed, keeps its version until it is really
+   restarted. This is the only one that can last for days.
+3. The GitHub Pages address is a separate site for the browser: its own copy, its own save, its own
+   version.
+4. The build label in the developer panel was typed by hand in August and never changed — so even the
+   performance report you copy on your phone named a build from six weeks ago. **Fixed:** the label is
+   now written by the build itself, with the same code the update mechanism uses and the date — for
+   example «build 01dfdf14238c · 2026-09-12».
+5. Game telemetry is switched off, so there is no server-side list of who runs which version.
+Two small things would close case 2 and let you see versions — check for an update every time the game
+comes back to the screen, and show a quiet «new version — tap to restart». Say the word if you want them.
+
+**An eaten pair now costs exactly what a merged pair pays — on every level.** The grinder took 20 per
+pair; now it takes the pair's own base value: 2 points up to level 17, and from level 18 it follows the
+curve below (about 3 points at level 30, about 5 at level 50). No boost, series or item-type upgrade makes it
+bigger (the collection's upgrades are exactly what makes a merge pay more, which is why the eaten pair
+is priced at its base value). Levels 1-5 still charge nothing and levels up to 10 still never go below
+zero. What this changes: the grinder is now the cheapest penalty in the game — standing idle costs
+about a point a second on the early levels, and being stuck with no moves costs a tenth of what it did.
+The real price of an eaten pair is its value plus the merge you did not make.
+
+**«A boost never multiplies penalties» — true in the game since 3 September.** Five notes in the code
+and the tests still said the opposite; they are corrected, and a new check counts that exactly one line
+in the whole game can take points away — and that line never looks at any boost.
+
+**The merge curve after level 17 — built, and set to your step 0.05.** Why it was needed, measured on
+the game's own formulas: from level 11 the bowl holds the same 180 items while the number of item types
+keeps growing, so identical items meet less often and each merge pays less — a level's base total fell
+from 269 points at level 17 to 225 at level 100, while a mistake still cost 10-15. Now every merge from
+level 18 pays «1 + 0.05 × (level − 17)» times more: about 5% more per level. Up to level 17 nothing
+changes at all.
+
+Base points — without series, item-type upgrades or boosts. Those multiply both columns equally.
+
+| Level | Before: a merge / a level | Now (0.05): a merge / a level |
+|---:|---|---|
+| 18 | 3.6 / 265 | 3.8 / 278 |
+| 20 | 3.5 / 257 | 4.0 / 295 |
+| 25 | 3.3 / 249 | 4.6 / 349 |
+| 30 | 3.2 / 246 | 5.3 / 406 |
+| 40 | 3.2 / 242 | 6.8 / 521 |
+| 50 | 3.1 / 239 | 8.2 / 634 |
+| 75 | 3.0 / 233 | 11.6 / 909 |
+| 100 | 2.8 / 225 | 14.4 / 1156 |
+
+A first mistake (10 points) is worth 2.6 merges at level 18, 1.9 at level 30, 1.2 at level 50 and 0.7
+at level 100 — the game keeps punishing carelessness until about level 60.
+
+What the curve also does, so none of it is a surprise:
+- **The leaderboard:** points earned after level 17 grow; players who already passed those levels
+  earned less there, and their old points do not change.
+- **Upgrades in the collection get cheaper in playing time:** a 2000-star upgrade costs about 8 levels
+  of base points today; now it is about 5 levels at level 30 and 3 at level 50.
+- **From level 30 the cap on a mistake goes back to 15.** Before, a mistake there was capped at four
+  typical merges (about 13 points); with merges worth more that cap stops mattering — a mistake can
+  cost the full 15 again, but it costs fewer merges than it did.
+
+A different step is one number — say it and it changes.
+
+**Released on 13 September**, on your word «build the latest version for prod»: GitHub and blendo.monster
+carry build 01dfdf14238c. On a device that already played, the first launch after the release still shows
+the previous build and the next launch is the new one (the instant start you chose on 10 September). The
+developer panel reads «build 01dfdf14238c · 2026-09-12» — that date is the day this build was first made,
+not the release day.
+**Not in this release, by your word:** the level pacing (a new item every second level, the item that
+returns, fewer items in the bowl). It is analysed and waiting for your pick. The intro video's sound after
+the loader is waiting for your four answers.
+
 
 **12 SEPTEMBER — YOUR FIVE ITEMS OVER THE SCREENSHOT OF YOUR PHONE.**
 

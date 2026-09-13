@@ -62,6 +62,40 @@ const SCORE_DENOM = 10;
 // either not a score or it is a bug.
 const PT = SCORE_DENOM;
 const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a pair = 2 points
+// ⚡ THE MERGE CURVE AFTER LEVEL 17 (the owner's word 2026-09-12: «after level 17 the price of a
+// merge must go up — come up with a growth curve, otherwise it is hard and not interesting to play»).
+// THE MEASUREMENT BEHIND IT, on this file's own formulas: from level 11 the bowl holds a flat 180
+// items while the dealt types keep growing (the `levelDistinctCap` ramp), so the expected group
+// shrinks — and the merge is QUADRATIC in the group. The base total of a level falls 302 → 269 →
+// 246 → 225 across levels 11 / 17 / 30 / 100, while the price of a mistake stays 10-15.
+// ⚠️ THE CURVE IS A MULTIPLIER OF A MERGE'S BASE PRICE: ×1 through `MERGE_CURVE_FROM`, and
+// `1 + step·(lv − FROM)` above it. Every reward priced in merges reads it — a match, the ice break,
+// the bowl collect-all, the type charge, the level goal, and the typical merge a mistake is tied to
+// from level 30 — and so does the grinder's price (an eaten pair = a merged pair, his word of the
+// same day). Refill pairs get it too: it is not series-based.
+// ⛔⛔ IT NEVER TOUCHES A MISTAKE: `missPenaltyFor` keeps its ladder, and «a boost never multiplies
+// penalties» (his word, the same day) stays literally true — the curve is not a boost, it is what a
+// pair is worth on that level.
+// ⚠️ THE STEP IS HIS: 0.05, picked the same day off a table of 0 / 0.05 / 0.10 (a mistake stays worth
+// more than a whole merge until about level 60 — «on the edge of hard»). Levels up to 17 pay exactly
+// what they did; a retune is this one number. `CFG.mergeStep` carries it at runtime so a guard can
+// drive any step and prove every consumer reads it — a guard at the shipped step alone could not
+// tell a curve wired into a consumer from one that is not.
+// ⚠️ THE LEVEL IS AN ARGUMENT, NEVER READ FROM SCOPE (the `missPenaltyFor` rule: a `let` of a later
+// module read at the top level is in the temporal dead zone). And `CFG` is read at CALL time — it
+// is declared at the end of this file, so no top-level code above that line may call this.
+const MERGE_CURVE_FROM = 17;
+const MERGE_CURVE_STEP = 0.05;   // his step (2026-09-12)
+function levelMergeMult(lv, step){
+  const s = (typeof step === 'number') ? step : CFG.mergeStep;
+  if (!(s > 0)) return 1;                          // 0, a negative or a NaN step: the plain price
+  return (lv > MERGE_CURVE_FROM) ? 1 + s * (lv - MERGE_CURVE_FROM) : 1;
+}
+// THE BASE VALUE OF ONE MERGED PAIR ON A LEVEL, IN RAW UNITS: MATCH_SCORE·2·1 on the curve — no
+// series, no type upgrade, no boost. The grinder charges exactly this for every pair it eats (the
+// owner's word 2026-09-12: «lower the cost of an eaten pair to the cost of a merged one, on every
+// level»); see the tombstone at MIXER_PENALTY for why it is the BASE value.
+function pairScoreAt(lv){ return Math.round(MATCH_SCORE * 2 * levelMergeMult(lv)); }
 // NEW BALANCE TABLE (the owner's spec 2026-07-22, via the dispatcher):
 // a miss got more expensive 7 -> 10; levels 1..SCORE_NO_PENALTY_LEVELS — NO score penalties at
 // all (his window, widened to 5 on 2026-09-09);
@@ -79,9 +113,14 @@ const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a 
 // pays 10·2·1 = 20 raw = 2 shown, so a miss now costs FIVE PAIRS where it used to cost half of
 // one. Combined with 2026-08-23-a — where a tap on a pairless item became a full mistake —
 // searching the pile by poking is now genuinely expensive.
-// ⚠️ TWO CONSUMERS RIDE ALONG AND NEITHER WAS NAMED BY HIM: `penalizeDouble` (the early tap on
-// an ice block) is 2×, so it becomes 20 shown; and the paid ×5 booster multiplies penalties
-// too (his own decision 2026-07-28), so one miss under it reads −50.
+// ⚠️ ONE CONSUMER RIDES ALONG AND WAS NOT NAMED BY HIM: `penalizeDouble` (the early tap on an
+// ice block) is 2×, so it becomes 20 shown.
+// ⛔⛔ «AND THE PAID ×5 BOOSTER MULTIPLIES PENALTIES TOO (his decision 2026-07-28), SO ONE MISS
+// UNDER IT READS −50» STOOD HERE UNTIL 2026-09-12 — NINE DAYS AFTER scorePenalty STOPPED DOING
+// IT (2026-09-03-h, «the cost of a mistake must not grow 5× when the bonus is bought»). He
+// re-affirmed the rule on 2026-09-12 in so many words: «a boost never multiplies penalties».
+// Under a live ×5 a miss costs its plain rung; the suite states the rule (the NO SYMMETRY arm)
+// and states that no second line lowers the score (the SCOREMATH section).
 // ⛔⛔ THE PARAGRAPH THAT USED TO STAND HERE WAS STALE AND CONTRADICTED ITS OWN NEIGHBOUR
 // TWENTY LINES BELOW — cleared 2026-08-24. It said «MIXER_PENALTY was NOT re-based, the
 // grinder still takes 20 raw = 2 shown», while `MIXER_PENALTY = 20 * PT` (i.e. 20 SHOWN) sits
@@ -105,11 +144,11 @@ const MISS_PENALTY = 10 * PT;   // ten points, as he sees them (2026-08-23-v/d) 
 // ⚠️ THE ORDINAL IS 1-BASED and both call sites increment FIRST, so they pass the ordinal of the
 // miss being charged: first miss → n=1 → 10.
 // ⛔ THE COUNTER USED TO BE `stats.misses` AND IS NOW `stats.missRun` (2026-08-24-b) — see below.
-// ⛔ THE GRINDER DOES NOT CLIMB: `MIXER_PENALTY` is not a mistake, he named the mistake only.
-//    ⛔⛔ AND THE CONSEQUENCE THAT STOOD HERE — «the grinder is 20, so from the ELEVENTH miss a
-//    mistake costs more than letting the mixer eat a pair» — DIED THE SAME DAY IT WAS WRITTEN:
-//    the ceiling of 2026-08-24-b is 15, so a single mistake never overtakes the grinder again.
-//    The ICE TAP still can, at 2× the rung — up to 30.
+// ⛔ THE GRINDER DOES NOT CLIMB: it is not a mistake, he named the mistake only.
+//    ⛔⛔ AND THE ORDER BETWEEN THE TWO IS INVERTED SINCE 2026-09-12: the grinder charges the value
+//    of the pair it eats (`pairScoreAt`, 2 points at the base price), so every mistake (10-15) now
+//    costs more than letting the mixer eat a pair. What stood here argued the opposite order
+//    («the grinder is 20, a single mistake never overtakes it») — see MIXER_PENALTY's tombstone.
 const MISS_PENALTY_STEP = 1 * PT;   // +1 point for each further mistake of the same level
 // ⛔⛔ THE LADDER HAS A CEILING AND IT WRAPS (the owner's word 2026-08-24-b: «the maximum cost
 // of a mistake per round reaches −15 and then resets to −10»). Six rungs — 10, 11, 12, 13,
@@ -177,13 +216,19 @@ const SCORE_CLAMP_LEVELS = 10;      // levels <= N: the score does not go below 
 const MIXER_PERIOD = 2.0;    // seconds between "ground up" pairs (PUNISHMENT)
 const FINALE_GRIND_MS = 220; // ms between leftovers in the FINALE (was 500; the owner's
 // word 2026-08-05 "the blender must grind the leftovers faster")
-// ⛔⛔ 2 → 20 POINTS PER PAIR (the owner's word 2026-08-23-d: «the mixer eats 20 points per
-// pair»). ⚠️ THE LITERAL DID NOT MOVE — ITS UNIT DID: it used to be 20 RAW, i.e. 2 points on
-// screen, and the owner's number has always been twenty. This is the same re-basing that
-// MISS_PENALTY got, on the constant right beside it.
-// ⚠️ THE ORDER IS RESTORED BY IT: letting the grinder eat a pair (−20) is now twice as bad as
-// a mistake (−10), which is how it read before the denomination silently halved one of them.
-const MIXER_PENALTY = 20 * PT;   // score penalty per pair
+// ⛔⛔ `MIXER_PENALTY = 20 * PT` IS GONE (the owner's word 2026-09-12: «lower the cost of an eaten
+// pair to the cost of a merged one, on every level»). The grinder now charges `pairScoreAt(level)` —
+// the base value of the pair it eats, 2 points today, and it follows the merge curve. Its history:
+// 20 raw (2 shown) until the denomination re-basing of 2026-08-23-d made it 20 SHOWN («the mixer
+// eats 20 points per pair»), which put letting the mixer eat a pair at twice a mistake.
+// ⚠️ THE PRICE, NAMED TO HIM: the grinder becomes the CHEAPEST penalty of the game — idling costs
+// about a point a second (a pair every MIXER_PERIOD), and the deadlock rescue grinding costs a tenth
+// of what it did. What an eaten pair really costs a player is now its price PLUS the merge he did
+// not make. `scorePenalty`'s free window (<=5) and zero clamp (<=10) still apply.
+// ⚠️ THE BASE VALUE AND NOT THE EATEN TYPE'S MULTIPLIER, and that is his own rule rather than a
+// choice: «a boost never multiplies penalties», and the collection's Boost buys exactly the type
+// tiers `accMult` reads — pricing the pair at its type's multiplier would let a bought boost raise
+// a penalty. No series, fire or rival multiplier touches it either.
 // ⚠️ FROM THIS LEVEL ON, EVERY WIN PAYS A SHAKE AS WELL AS A HINT (his word 2026-09-01-i «after
 // level 10 give not only +1 hint but also +1 shake»). Below it the old every-5th rule still
 // applies, so levels 5 and 10 are unchanged.
@@ -297,9 +342,13 @@ function levelDistinctCap(lv){ return DISTINCT_BASE + Math.floor((lv || 1) / DIS
 // is a different regime, and forcing the curve through it wrecks the range that actually matters.
 // The floor of 2 is structural - a match is at least a pair.
 function expectedGroup(copies){ return Math.max(2, 1.42 + 0.479 * Math.log(Math.max(2, copies || 2))); }
+// ⚠️ ON THE MERGE CURVE SINCE 2026-09-12: the tie below says «a mistake costs at most four TYPICAL
+// merges», so the merge it counts is the merge the level actually pays (`levelMergeMult`). With a
+// step above zero the tie stops binding from level ~30 — four merges outgrow the ladder's 15 — and a
+// mistake returns to its bare 10-15 while costing FEWER merges than before. Named to him.
 function typicalMergeScore(lv, distinct){
   const g = expectedGroup((PAIRS * 2) / Math.max(1, distinct));
-  return MATCH_SCORE * g * (g - 1);
+  return MATCH_SCORE * g * (g - 1) * levelMergeMult(lv);
 }
 // ⛔⛔ FROM THIS LEVEL THE MISTAKE IS PRICED IN MERGES, NOT IN POINTS (his word 2026-09-01-i:
 // «from this level let the price of a mistake be tied to the price of a merge and not be so
@@ -1774,6 +1823,7 @@ const CFG = {
   perfTier: 'high',   // 'high' | 'low' — set by applyPerfTier (10-stage)
   fxScale: 1,         // a multiplier of the particle count; 70-fx reads it on every effect
   fxSlow: 1,          // a divider of the effects' clock — ONLY for filming/debugging (see stepFX)
+  mergeStep: MERGE_CURVE_STEP, // the merge curve's live step (levelMergeMult): the shipped value, or what a guard drives
   // Difficulty (the owner's spec 2026-07): by default ANY pair matches
   // (overlaps are not checked, there is no veil); Hard enables the mechanic
   // of physical accessibility (the ray fan + the grey veil). ⚙️ + localStorage.

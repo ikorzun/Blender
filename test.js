@@ -1828,7 +1828,7 @@ page.on('response', (r) => {
     'SCOPE: the ladder resets per LEVEL because `stats` is rebuilt in `genLevel`; a build that ' +
     'carried the ordinal across levels would be caught only by this arm. ' +
     '⛔ TWO THINGS DELIBERATELY DO NOT CLIMB AND ARE GUARDED ELSEWHERE: the grinder ' +
-    '(`MIXER_PENALTY`, not a mistake) and level 1 (no penalties at all)');
+    '(its price is the value of the pair it eats since 2026-09-12, not a mistake) and levels 1-5 (no penalties at all)');
 
   // ══ THE LADDER HAS A CEILING, AND A MERGE PUTS IT BACK (the owner 2026-08-24-b) ══
   // «The maximum cost of a mistake per round reaches −15 and then resets to −10.»
@@ -1977,6 +1977,8 @@ page.on('response', (r) => {
   // «Why do I see +0 points from a merge and still −1 on a mistake? The mixer eats 20 points per
   //  pair. Stop thinking about the denomination, it has already happened and we count points on
   //  the basis of it.»
+  // ⛔ «THE MIXER EATS 20 POINTS PER PAIR» WAS HIS NUMBER UNTIL 2026-09-12 («lower the cost of an eaten pair to the
+  // cost of a merged one, on every level»): the grinder now charges the eaten pair's own value — 2 at the base price.
   // ⚠️⚠️ EVERYTHING BELOW IS ASSERTED IN **POINTS**, i.e. what flies out of the item, and the raw
   // score is only the bridge. That is the whole subject of his complaint: for a month this file
   // and the owner quoted different numbers to each other in good faith, because the constants
@@ -2011,7 +2013,7 @@ page.on('response', (r) => {
     const miss = { raw: g.stats().score - b3, pop: popOf(), n: missN, run: missRun,
                    rung: g.missPenaltyAt(missRun) };
     clear(); const b4 = g.stats().score; g.grindNow(); await sleep(600);
-    const grind = { raw: g.stats().score - b4, pop: popOf() };
+    const grind = { raw: g.stats().score - b4, pop: popOf(), price: g.grindPriceAt(g.levelNum()).raw };
     return { up, upNeg, negAt, miss, grind };
   });
   console.log('points as seen:', JSON.stringify(ptsProbe));
@@ -2036,8 +2038,8 @@ page.on('response', (r) => {
   expect(ptsProbe.miss.n === 4 && ptsProbe.miss.run === 1 &&
          ptsProbe.miss.raw === -ptsProbe.miss.rung.raw &&
          ptsProbe.miss.pop === '-' + ptsProbe.miss.rung.shown && ptsProbe.miss.rung.shown === 10 &&
-         ptsProbe.grind.raw === -200 && ptsProbe.grind.pop === '-20',
-    '⚠️⚠️ A MISTAKE COSTS ITS RUNG OF THE LADDER AND THE GRINDER 20 PER PAIR — both as the ' +
+         ptsProbe.grind.raw === -ptsProbe.grind.price && ptsProbe.grind.price === 20 && ptsProbe.grind.pop === '-2',
+    '⚠️⚠️ A MISTAKE COSTS ITS RUNG OF THE LADDER AND THE GRINDER THE VALUE OF THE PAIR IT EATS (2 at the base price; 20 per pair until 2026-09-12) — both as the ' +
     'player sees them (the owner 2026-08-23-v/-d and 2026-08-24). ' +
     '⛔⛔ AND THE PAIR `n === 4, run === 1` IS THE WHOLE STATEMENT OF THE RESET (2026-08-24-b: ' +
     '«the cost of a mistake resets to the base if the player has collected at least one pair»). ' +
@@ -6026,9 +6028,11 @@ window.bridge = {
     '⚠️ THE x5 PACKAGE MULTIPLIES EXACTLY: the treasure ' + sbBoostedFinale + ' = 5×(150+5×' + sbBoosted.lv + ')');
   await page.evaluate(() => { window.__game.boostClear(); });
 
-  // ── PENALTIES UNDER THE BOOSTER (the owner's decision 2026-07-28) ───────────────────
-  // Symmetry: the booster multiplies both the reward and the punishment. Flat −10/−20 against the background
-  // of «+700» made the punitive side noise exactly inside the paid window.
+  // ── PENALTIES UNDER THE BOOSTER (the owner's word 2026-09-03, re-affirmed 2026-09-12: «a boost never multiplies
+  // penalties») ───────────────────
+  // ⛔⛔ THE HEADER THAT STOOD HERE UNTIL 2026-09-12 SAID THE OPPOSITE («Symmetry: the booster multiplies both the
+  // reward and the punishment», his decision of 2026-07-28) — nine days after the assert below had been inverted
+  // to state the rule in force. A header that contradicts its own assert is a false order to the next reader.
   const penSym = await page.evaluate(async () => {
     const g = window.__game;
     g.boostClear(); g.boostSetClock(0);
@@ -6101,8 +6105,10 @@ window.bridge = {
   expect(penClamp.lv1 === 0,
     'lv.1 without penalties at all — the booster does not change that (' + penClamp.lv1 + ')');
 
-  // ⚠️ A MEASUREMENT FOR THE OWNER: the price of the grinding rescue under the booster. Under x5 the tax is
-  // −100 per turn instead of −20 — how deep a stuck player goes.
+  // ⚠️ A MEASUREMENT FOR THE OWNER: the price of the grinding rescue under the booster. ⛔ «Under x5 the tax is
+  // −100 per turn instead of −20» stood here until 2026-09-12: since 2026-09-03 the boost does not touch the tax,
+  // and since 2026-09-12 the tax itself is the eaten pair's value (2 per pair at the base price) — both runs below
+  // cost the same small amount, and the `< 2×` arm is what reddens if a multiplier ever comes back.
   // ⚠️ The shake stock from the bundle has to be DRAINED: our own guard does not
   // recognize a deadlock while the player has something to move with (that is exactly what is checked above).
   const stuckRun = async (withBoost) => {
@@ -12117,6 +12123,94 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦INTRO-SECTION-END⟧
 
+  // ⟦SCOREMATH-SECTION-BEGIN⟧ — THE PRICE RULES OF 2026-09-12 (his three words: «a boost never multiplies penalties»;
+  // «lower the cost of an eaten pair to the cost of a merged one, on every level»; «after level 17 the price of a
+  // merge must go up — come up with a growth curve»). `tools/section-dryrun.js` with SECTION=SCOREMATH runs this block
+  // alone; keep the markers.
+  // ⚠️ NOT GUARDED HERE, NAMED RATHER THAN IMPLIED: the ice break, the bowl collect-all, the type charge and the level
+  // goal read the curve by the same one-term pattern as a merge; only a merge, the grinder and the tie are measured.
+  {
+    // a line of CODE only: a hit that stands after a `//` on its own line is prose, not a charge
+    const codeHits = (text, re) => { let n = 0; for (const line of text.split('\n')){ const c = line.indexOf('//');
+      const rg = new RegExp(re.source, 'g'); let m; while ((m = rg.exec(line))){ if (c < 0 || m.index < c) n++; } } return n; };
+    // ---- S1. «NEVER», STRUCTURALLY: exactly one line of the build lowers the score, it is the one inside
+    // scorePenalty, and scorePenalty reads no reward multiplier. The rule itself is stated by the NO SYMMETRY arm (a
+    // live ×5 miss costs its plain rung); this arm stops a SECOND charging line from walking around it — a penalty
+    // charged by a `-=` of its own anywhere else would never pass through the single point at all.
+    {
+      const html = fs.readFileSync(PAGE_FILE, 'utf8');
+      const a0 = html.indexOf('function scorePenalty(');
+      const a1 = a0 >= 0 ? html.indexOf('\nfunction ', a0 + 10) : -1;
+      const body = (a0 >= 0 && a1 > a0) ? html.slice(a0, a1) : '';
+      const r = { all: codeHits(html, /stats\.score\s*-=/), inBody: codeHits(body, /stats\.score\s*-=/),
+        dec: codeHits(html, /stats\.score\s*--|stats\.score\s*=\s*stats\.score\s*-/),
+        mult: codeHits(body, /scoreBoostMult|rewardMult|seriesMult|accMult|rivalMultNow/), bodyLen: body.length };
+      console.log('scoremath/one-charging-line:', JSON.stringify(r));
+      expect(r.bodyLen > 0 && r.all === 1 && r.inBody === 1 && r.dec === 0 && r.mult === 0,
+        'SCOREMATH: exactly one line of the build lowers the score, it lives in scorePenalty, and scorePenalty reads no reward multiplier (' + JSON.stringify(r) + '). ⛔ SABOTAGE: charge a penalty with a `-=` of its own anywhere else; multiply inside scorePenalty by scoreBoostMult()');
+    }
+    const sp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    sp.on('pageerror', e => errors.push('PAGEERROR(scoremath): ' + e.message));
+    await sp.goto('file://' + PAGE_FILE + '?dev=1');
+    await sp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 });
+    await sp.evaluate(() => window.__game.skipIntro());
+    // ---- S2. THE CURVE ITSELF, PURE: his step as shipped (0.05 — levels up to 17 pay ×1, every level above more), and
+    // its shape at a step the arm names. ⚠️ THE `step === 0.05` HALF IS HIS DECISION, NOT A TRUTH: it moved from 0 the day
+    // he picked it, and it moves again with his word.
+    const door = await sp.evaluate(() => {
+      const g = window.__game; const at = (lv, s) => +g.mergeMultAt(lv, s).toFixed(4);
+      const lit = []; for (let lv = 1; lv <= 150; lv++) if (g.mergeMultAt(lv) !== 1) lit.push(lv);
+      return { step: g.cfg.mergeStep, lit, l1: at(1, 0.1), l17: at(17, 0.1), l18: at(18, 0.1), l20: at(20, 0.1), l30: at(30, 0.1),
+               neg: at(30, -1), nan: at(30, NaN), p30: g.grindPriceAt(30).raw };
+    });
+    console.log('scoremath/curve:', JSON.stringify(door));
+    expect(door.step === 0.05 && door.lit.length === 133 && door.lit[0] === 18 && door.p30 === 33,
+      'SCOREMATH: the merge curve ships at his step 0.05 — levels 1..17 pay ×1, every level from 18 to 150 pays more, and an eaten pair on level 30 costs 33 raw (20 × 1.65) (' + JSON.stringify({ step: door.step, lit: door.lit.slice(0, 5), p30: door.p30 }) + '). ⚠️ The step is his to choose; this arm moves with his word');
+    expect(door.l1 === 1 && door.l17 === 1 && door.l18 === 1.1 && door.l20 === 1.3 && door.l30 === 2.3 && door.neg === 1 && door.nan === 1,
+      'SCOREMATH: the curve\'s shape — ×1 through level 17 at ANY step, 1 + step·(lv − 17) above it, and a negative or NaN step pays the plain price (' + JSON.stringify(door) + ')');
+    // ---- S3. EVERY MEASURED CONSUMER READS THE LIVE STEP, AND THE BOOST STAYS OUT OF THE PENALTY. The shipped 0.05
+    // gives a level-21 pair 24 raw against an unwired 20 — a margin a rounding can hide — and a build that reads the
+    // CONSTANT instead of `cfg.mergeStep` is invisible at the shipped value, so the arm DRIVES a step of 0.5 and measures
+    // a real merge and a real grind, then puts the shipped step back. ⚠️ `regen` before each reading resets the series (genLevel), so a pair pays its base;
+    // the fire is put out in the SAME task as the merge, so a burning type cannot pay its ×2 in between; autoMatch
+    // merges exactly a pair; both charges land synchronously.
+    const wire = await sp.evaluate(async () => {
+      const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms)); const step0 = g.cfg.mergeStep;
+      const at = async (lv, step, boost) => {
+        g.boostClear(); g.cfg.mergeStep = step;
+        g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(300);
+        if (boost) g.buyBundle('bundle5');
+        g.extinguish(); const b1 = g.stats().score; const ok = g.autoMatch(); const gain = g.stats().score - b1;
+        const b2 = g.stats().score; g.grindNow(); const grind = b2 - g.stats().score;
+        const r = { lv, step, ok, gain, grind, price: g.grindPriceAt(lv).raw, boost: g.scoreBoostMult() };
+        await sleep(700);                                // the grind's removal finishes before the next regen
+        return r;
+      };
+      const out = { hi: await at(21, 0.5), lo: await at(16, 0.5), off: await at(21, 0), boost: await at(21, 0.5, true) };
+      g.boostClear(); g.cfg.mergeStep = step0;               // back to the shipped step, whatever it is
+      return out;
+    });
+    console.log('scoremath/wired:', JSON.stringify(wire));
+    expect(wire.hi.ok && wire.hi.gain === 60 && wire.lo.ok && wire.lo.gain === 20 && wire.off.ok && wire.off.gain === 20,
+      'SCOREMATH: a merge reads the live step — a pair on level 21 at step 0.5 pays 60 raw (×3), on level 16 20 (at or below 17 the step does nothing), at step 0 20 (' + JSON.stringify(wire) + '). ⛔ SABOTAGE: drop levelMergeMult from doMatch');
+    expect(wire.hi.grind === 60 && wire.hi.price === 60 && wire.lo.grind === 20 && wire.off.grind === 20,
+      'SCOREMATH: an eaten pair costs what a merged pair pays on that level — 60 on level 21 at step 0.5, 20 on level 16, 20 at step 0 (' + JSON.stringify({ hi: wire.hi.grind, lo: wire.lo.grind, off: wire.off.grind }) + '). ⛔ SABOTAGE: charge the grinder a constant');
+    expect(wire.boost.boost === 5 && wire.boost.ok && wire.boost.gain === 300 && wire.boost.grind === 60,
+      'SCOREMATH: under a live ×5 the merged pair pays ×5 (300) and the eaten pair still costs its plain 60 — «a boost never multiplies penalties» (' + JSON.stringify(wire.boost) + '). ⛔ SABOTAGE: multiply inside scorePenalty by scoreBoostMult()');
+    // ---- S4. THE MISTAKE'S TIE COUNTS THE MERGE THE LEVEL PAYS: on level 30 the top rung is tied to four typical
+    // merges (below 150 at step 0); at step 0.5 those merges are worth ×7.5 and the tie stops binding — the top rung
+    // is back to its plain 150, and the first rung is 100 either way. The curve lifts a cap; it never raises a price.
+    const tie = await sp.evaluate(() => { const g = window.__game; const s0 = g.cfg.mergeStep;
+      g.cfg.mergeStep = 0; const off = g.missPenaltyAt(6, 30).raw, first = g.missPenaltyAt(1, 30).raw;
+      g.cfg.mergeStep = 0.5; const on = g.missPenaltyAt(6, 30).raw, firstOn = g.missPenaltyAt(1, 30).raw;
+      g.cfg.mergeStep = s0; return { off, on, first, firstOn }; });
+    console.log('scoremath/tie:', JSON.stringify(tie));
+    expect(tie.off < 150 && tie.on === 150 && tie.first === 100 && tie.firstOn === 100,
+      'SCOREMATH: the mistake\'s tie on level 30 counts the merge the level pays — capped below 150 at step 0 (' + tie.off + '), the plain 150 at step 0.5, the first rung 100 either way (' + JSON.stringify(tie) + '). ⛔ SABOTAGE: drop levelMergeMult from typicalMergeScore');
+    await sp.close();
+  }
+  // ⟦SCOREMATH-SECTION-END⟧
+
   // ⟦OG-SECTION-BEGIN⟧ — THE SHARE CARD (2026-09-09-f, his word «use this picture for the share»): the OG/Twitter metas in
   // the build point at https://blendo.monster/og.jpg; the file is tracked at the root (GitHub Pages serves it) and packed
   // into the site by tools/site-pack.py; the meta's width/height are the JPEG's own (read off its SOF marker), so a
@@ -12324,7 +12418,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ON PURPOSE: «делаем 1 пункт» against «долго все грузится», with the cost named to him in his own words
     // beforehand, «после выпуска новой версии вы один раз увидите старую». A guard states a DECISION, not a
     // truth: it moves with his word and is not «repaired».
-    const stamp = crypto.createHash('md5').update(fs.readFileSync(PAGE_FILE)).digest('hex').slice(0, 12);
+    // ⚠️ SINCE 2026-09-12 THE STAMP IS THE MD5 OF THE BUILD WITH ITS LABEL BLANK (build.py): the dev panel's
+    // `#buildVer` carries the stamp itself, and a document cannot contain the hash of itself — so the arm puts the
+    // placeholder back before hashing, the same derivation build.py performed, from the artefact.
+    const html12 = fs.readFileSync(PAGE_FILE, 'utf8');
+    const stamp = crypto.createHash('md5').update(html12.replace(/id="buildVer">[^<]*</, 'id="buildVer">__BUILDVER__<')).digest('hex').slice(0, 12);
     const BUILD_CACHE = 'blendo-' + stamp;
     {
       const warmSw = runSw();
@@ -12408,7 +12506,18 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       await s6.activate();
       expect(swTxt.indexOf("'" + stamp + "'") >= 0 && !/__BUILD__/.test(swTxt) && /const CACHE = 'blendo-' \+ BUILD/.test(swTxt) &&
         s6.calls.indexOf('delete:blendo-old') >= 0 && s6.calls.indexOf('delete:other') < 0 && s6.calls.indexOf('claim') >= 0,
-        'PWA: the cache name carries the md5 of THIS index.html (' + stamp + '), the placeholder is spent, and once the new cache holds the document activation deletes the previous blendo cache and only ours (' + JSON.stringify({ calls: s6.calls }) + '). ⛔ WHY IT IS DERIVED AND NOT A HAND-BUMPED VERSION: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on screen says so. ⛔ SABOTAGE: freeze BUILD to a literal; delete every cache, including a neighbour\'s');
+        'PWA: the cache name carries THIS build\'s stamp — the md5 of index.html with its label blank (' + stamp + '), the placeholder is spent, and once the new cache holds the document activation deletes the previous blendo cache and only ours (' + JSON.stringify({ calls: s6.calls }) + '). ⛔ WHY IT IS DERIVED AND NOT A HAND-BUMPED VERSION: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every installed player, and nothing on screen says so. ⛔ SABOTAGE: freeze BUILD to a literal; delete every cache, including a neighbour\'s');
+    }
+    // ---- 6b. THE BUILD LABEL NAMES THE SAME BUILD AS THE WORKER (2026-09-12, his «check which version is on the
+    // domain and why the version may differ for players»). The dev panel's `#buildVer` — what the perf report and
+    // telemetry read — was a hand-typed literal frozen since August, so every report named a build that no longer
+    // existed. Now build.py writes the worker's own stamp into it, and the date that stamp first appeared.
+    // ⛔ SABOTAGE: stamp the label from a different hash than sw.js's (red here); type a literal back into
+    // shell.html (build.py refuses to build — no placeholder).
+    {
+      const lab = html12.match(/id="buildVer">build ([0-9a-f]{12}) \u00b7 (\d{4}-\d{2}-\d{2})</) || [];
+      expect(lab[1] === stamp && swTxt.indexOf("'" + stamp + "'") >= 0 && /^\d{4}-\d{2}-\d{2}$/.test(lab[2] || ''),
+        'PWA: the build label in the dev panel names THIS build — the same stamp as sw.js (' + stamp + ') and a date (' + (lab[0] || 'no label') + ')');
     }
   }
 

@@ -13,12 +13,18 @@
 function scorePenalty(n){
   if (levelNum <= SCORE_NO_PENALTY_LEVELS) return false;
   // ⛔⛔ THE BOOSTER DOES NOT MULTIPLY THE PUNISHMENT (the owner's word 2026-09-03: «the cost
-  // of a mistake must not grow 5× when the bonus is bought»). This CANCELS his 2026-07-28
-  // symmetry («under x5 a miss is −50, a grind −100» — the flat −10/−20 read as noise against a
-  // «+700» backdrop); the line was `stats.score -= Math.round(n * scoreBoostMult())`. Every
-  // punishment goes through here — the miss, the ice double, the grind tax — so all of them
-  // stay at their plain rung under a live ×5; the reward keeps its multiplier (doMatch and the
-  // treasure bonus read scoreBoostMult on their own). The zero clamp below is unchanged.
+  // of a mistake must not grow 5× when the bonus is bought»; re-affirmed 2026-09-12 in so many
+  // words: «a boost never multiplies penalties»). This CANCELS his 2026-07-28 symmetry («under x5
+  // a miss is −50, a grind −100» — the flat −10/−20 read as noise against a «+700» backdrop); the
+  // old line subtracted `Math.round(n * scoreBoostMult())` from the score. Every punishment goes
+  // through here — the miss, the ice double, the grind tax — so all of them stay at their plain
+  // price under a live ×5; the rewards keep their multipliers (they read `rewardMult()` on their
+  // own). The zero clamp below is unchanged.
+  // ⚠️⚠️ THE LINE BELOW IS THE ONLY ONE IN THE GAME THAT LOWERS THE SCORE, AND A SUITE ARM COUNTS
+  // IT (the SCOREMATH section, code lines only): a penalty charged by a line of its own anywhere
+  // else would never pass through this single point, i.e. it would be a way around the rule. The
+  // old line above is quoted without its operator all the same, so even a plain grep over the
+  // build finds exactly one.
   stats.score -= n;
   if (levelNum <= SCORE_CLAMP_LEVELS && stats.score < 0) stats.score = 0;
   return true;
@@ -166,10 +172,11 @@ function doMatch(list){
   frozenCredit(typeName, n);                 // credit of pairs into the ice blocks of this type
   tapAccMs += performance.now() - _ta0;      // the type's accumulation + writing the save
   // ⚠️ The purchased booster is the LAST multiplier of the stack (combo ×2 × accumulation
-  // up to ×3.25 × booster up to ×5). ⚠️ IT MULTIPLIES THE PENALTIES TOO (the owner's
-  // decision 2026-07-28, the single point scorePenalty above) — the former caveat «the
-  // punishment is not touched» is CANCELLED: flat −10/−20 against a «+700» backdrop made
-  // the punitive side noise exactly inside the paid window.
+  // up to ×3.25 × booster up to ×5 × the rival's ×3, all through `rewardMult`), and since
+  // 2026-09-12 the level's merge curve (`levelMergeMult`, ×1 through level 17).
+  // ⛔⛔ «IT MULTIPLIES THE PENALTIES TOO (the owner's decision 2026-07-28)» STOOD HERE UNTIL
+  // 2026-09-12, nine days after scorePenalty stopped doing it (2026-09-03-h). The rule in force is
+  // his, re-affirmed that day: «a boost never multiplies penalties» — rewards only.
   // THE TEMPO LADDER instead of a flat ×2 (the owner's spec 2026-07-31): ×2 from the
   // ignition, ×3 from the SERIES_X3_AT-th match of the series, ×4 in turbo. The single
   // point is seriesMult; by this line comboCount is already incremented (a match that
@@ -182,10 +189,10 @@ function doMatch(list){
   const fireHot = typeName === burningName();
   if (fireHot) extinguishAll();
   // A pair from the FINAL TOP-UP (the refill mark, 40-items): base price only — the series
-  // and fire multipliers do not work (a promise to the owner); the type's upgrade and the
-  // purchased booster stay — they are not series-based.
+  // and fire multipliers do not work (a promise to the owner); the type's upgrade, the
+  // purchased booster and the level's merge curve stay — none of them is series-based.
   const hasRefill = list.some(i => i.refill);
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * rewardMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * levelMergeMult(levelNum) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * rewardMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
   // the multiplier toast under the eyes (node 829:1242): only for upgraded types
   // ⚠️ ONLY WHEN THE MULTIPLIER GREW DURING THIS RUN (the owner's word 2026-08-05:
   // «the toast under the eyes is shown only if the item's multiplier was increased
@@ -387,12 +394,12 @@ function breakIce(it, byBomb){
   try { shardFX(it.p.clone(), 0xbfe8ff, { count: 12, size: 0.07, life: 0.6 }); } catch(e){}
   it.frozen = false; it.frozenReady = false;
   it.key = it.frozenKey;                             // the item is PAIRABLE again
-  // «the item's clean score ×3» — MATCH_SCORE × 3 × the type's multiplier × the booster.
+  // «the item's clean score ×3» — MATCH_SCORE × 3 × the level's merge curve × the type's multiplier × the booster.
   // ⚠️ BY BOMB — NO SCORE (the default, stated to the owner): an early thaw without the
   // condition being fulfilled is not paid for.
   if (!byBomb){
     const before = stats.score;
-    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
+    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * levelMergeMult(levelNum) * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
                               type.name (every accAdd passes a name) - so accTier was 0 and this multiplier was
                               exactly 1, always, against a comment promising «x the type's multiplier».
                               frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * rewardMult());
@@ -577,7 +584,7 @@ function bowlCollectAll(){
   for (const [name, list] of Object.entries(byType)){
     const k = list.length;
     const kk = Math.min(k, MATCH_MAX_N);
-    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * accMult(name) * rewardMult());
+    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * levelMergeMult(levelNum) * accMult(name) * rewardMult());
     accAdd(name, k, list[0]);
   }
   stats.score += gainedTotal;
@@ -667,7 +674,7 @@ function detonateCharge(){
   const N = Math.min(n, MATCH_MAX_N);            // the price cap — as with a group
   // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
   // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * accMult(name) * rewardMult());
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * levelMergeMult(levelNum) * accMult(name) * rewardMult());
   const chargeScoreBefore = stats.score;   // for the pop below: the SHOWN delta, not the raw one
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n
@@ -1325,11 +1332,11 @@ function mixerGrind(){
   group.forEach(it => { it.animating = true; destroyItemBody(it); });
   wakePhysics('gameplay:L182');
   const grindBefore = stats.score;
-  if (scorePenalty(MIXER_PENALTY)){ // lv.1 without penalties; lv.<=5 clamped at zero (the balance table 2026-07-22)
+  if (scorePenalty(pairScoreAt(levelNum))){ // the eaten pair's own base value (2026-09-12); scorePenalty's window: lv.<=5 free, lv.<=10 clamped at zero
     const shown = scoreShownDelta(stats.score, grindBefore); // denom. drop of the chip (#10)
     // ⛔ THE GRINDER TAKES THE COLOUR AND **NOT** THE REDDENING CHIP: it is not a mistake —
     // his own standing position, held through the ladder of 2026-08-24 as well, where
-    // `MIXER_PENALTY` deliberately did not climb. He said «if the player MISSES».
+    // the grinder's price deliberately did not climb. He said «if the player MISSES».
     if (shown > 0) scorePop('-' + shown, low.p.clone().setY(low.p.y + 0.8), MISS_COLOR, true);
   }
   Sound.play('grind');

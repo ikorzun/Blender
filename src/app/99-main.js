@@ -276,7 +276,9 @@ function finalizeFill(){
   for (const it of items) if (it.alive && !it.surprise && !it.bomb && !it.frozen && !it.rival)
     accPerType[it.type.name] = (accPerType[it.type.name] || 0) + 1;
   let accPar = 0;
-  for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k);
+  // ⚠️ ON THE MERGE CURVE (2026-09-12): the goal grows with the price of a merge, by the same rule as
+  // the type multipliers above — so the threshold stays about skill, not about the level number.
+  for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k) * levelMergeMult(levelNum);
   level.parBase = Math.round(accPar);
   refreshAccessibility(); updateHUD();
 }
@@ -1012,7 +1014,7 @@ function loop(){
     // we wait for 2 stable checks (~1.2 s, so that the mass settles; in the finale and while
     // moving it does not fire), then we set level.deadlock → the per-frame gate
     // above drives mixerGrind, taking the pile apart until a reachable pair appears.
-    // The price of the rescue is points (−20/grinding), and it also affects the leaderboard. The defeat
+    // The price of the rescue is points (the eaten pair's value per grind — 2 points at the base price since 2026-09-12), and it also affects the leaderboard. The defeat
     // screen (showLose) is no longer called from a deadlock; the UI is alive for the future.
     // ⚠️ A PURCHASED STOCK OF SHAKES = AGENCY: while it exists there is NO deadlock —
     // the player has something to sort it out with, and the rescue grinding (it costs points) must not
@@ -1417,6 +1419,11 @@ window.__game = {
   // bare ladder, which is what the ladder arms assert; passing a level exercises the tie added
   // 2026-09-01-i. A hook that silently defaulted to the CURRENT level would have made the
   // ladder arms depend on wherever the suite happened to leave the game.
+  // ⚠️ THE MERGE CURVE, PURE (2026-09-12): the multiplier a level applies to every merge-priced reward
+  // and to the grinder's price; `step` omitted = the live `cfg.mergeStep`. The grinder's price is the
+  // eaten pair's base value on that level, raw and as shown.
+  mergeMultAt(lv, step){ return levelMergeMult(lv, step); },
+  grindPriceAt(lv){ const r = pairScoreAt(lv); return { raw: r, shown: Math.floor(r / SCORE_DENOM) }; },
   missPenaltyAt(n, lv){ return { raw: missPenaltyFor(n, lv), shown: Math.floor(missPenaltyFor(n, lv) / SCORE_DENOM),
                                  tieFrom: MISS_TIE_FROM, tieMerges: MISS_TIE_MERGES }; },
   distinctCap(lv){ return levelDistinctCap(lv); },

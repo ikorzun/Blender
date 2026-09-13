@@ -30,14 +30,40 @@ out = (shell
        .replace('/*THREE_JS_INLINE*/', three)
        .replace('/*RAPIER_JS_INLINE*/', rapier)
        .replace('/*APP_JS_INLINE*/', app))
+# ── THE BUILD LABEL (2026-09-12, the owner's «check which version is on the domain and why the version may differ
+# for players»): the dev panel's `#buildVer` — read by the perf report and by telemetry — was a hand-typed literal
+# frozen since August, so every report named a build that no longer existed. It now carries THE SAME STAMP AS
+# sw.js's `BUILD` and the date that stamp first appeared.
+# ⚠️ THE STAMP IS THE MD5 OF THIS BUILD WITH ITS OWN LABEL LEFT AS THE PLACEHOLDER: a label cannot carry the hash
+# of a document that contains the label. Same sources -> same stamp -> same bytes.
+# ⚠️ THE DATE IS REUSED WHILE THE STAMP IS UNCHANGED (read back from the previous index.html): a label taking
+# today's date on every run would change index.html's bytes on every rebuild of the same sources — and the site's
+# `build.txt` validator (tools/site-pack.py) keys on those bytes, so every returning player would re-download the
+# whole document for a build that did not change.
+import datetime, re as _re
+LABEL_PH = 'id="buildVer">__BUILDVER__<'
+if out.count(LABEL_PH) != 1:
+    raise SystemExit('src/shell.html: the build label placeholder must occur exactly once (found %d)' % out.count(LABEL_PH))
+BUILD_STAMP = hashlib.md5(out.encode('utf-8')).hexdigest()[:12]
+label_date = datetime.date.today().isoformat()
+try:
+    with open(os.path.join(root, 'index.html'), encoding='utf-8') as _fh:
+        _m = _re.search(r'id="buildVer">build ([0-9a-f]{12}) \u00b7 (\d{4}-\d{2}-\d{2})<', _fh.read())
+    if _m and _m.group(1) == BUILD_STAMP:
+        label_date = _m.group(2)
+except OSError:
+    pass
+out = out.replace(LABEL_PH, 'id="buildVer">build ' + BUILD_STAMP + ' \u00b7 ' + label_date + '<')
 open(os.path.join(root, 'index.html'), 'w', encoding='utf-8').write(out)
-print('index.html:', os.path.getsize(os.path.join(root, 'index.html')), 'bytes,', len(modules), 'modules')
+print('index.html:', os.path.getsize(os.path.join(root, 'index.html')), 'bytes,', len(modules), 'modules, build', BUILD_STAMP, label_date)
 
 # ── THE SERVICE WORKER: src/sw.js -> ./sw.js, with THIS build's hash baked in ─────────────────
 # ⚠️⚠️ THE CACHE NAME CARRIES THE HASH OF THE BUILT index.html, AND THAT IS THE WHOLE VERSIONING
 # STORY. A hand-bumped version string is the "second copy that drifts" this canon has paid for
 # five times: whoever forgets to bump it ships a worker that serves the PREVIOUS build to every
 # installed player, and nothing on screen says so. Derived from the artefact, it cannot be forgotten.
+# ⚠️ SINCE 2026-09-12 THE HASH IS TAKEN WITH THE DEV PANEL'S BUILD LABEL LEFT BLANK: the label carries the same
+# stamp, and a document cannot contain the hash of itself. See the label block above.
 # ⚠️ THE ROOT sw.js IS A BUILD ARTEFACT AND IS COMMITTED, exactly like index.html and music.mp3 —
 # GitHub Pages and the site Worker both serve the repository. Do not edit it by hand; edit src/sw.js.
 SW_SRC = os.path.join(root, 'src', 'sw.js')
@@ -47,7 +73,7 @@ if os.path.exists(SW_SRC):
     if '__BUILD__' not in sw:
         raise SystemExit('src/sw.js has no __BUILD__ placeholder - the cache name would freeze '
                          'across releases and installed players would keep the old build.')
-    stamp = hashlib.md5(out.encode('utf-8')).hexdigest()[:12]
+    stamp = BUILD_STAMP   # the md5 of the build with its label blank — the same stamp the label shows (2026-09-12)
     open(SW_DST, 'w', encoding='utf-8').write(sw.replace('__BUILD__', stamp))
     print('sw.js: written from src/sw.js, build', stamp)
 else:
