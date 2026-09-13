@@ -20714,3 +20714,22 @@ c4c848937a18186f19dcc9912ae1c38f.
 NB: THE LAW THIS RED ADDS: once a constant is multiplied by an irrational factor, every guard that rounds a
 reading and then compares it with that constant is a coin toss at the boundary — compare the raw value.
 THE RELEASE, BY HIS WORD THIS TIME: commit and push v2 and v2:main after a green run; the site deploy is HIS command (he asked «write the command so I update prod on the web»), given to him with the md5 to check. This does not change the standing rule that I deploy the site myself; it is his instruction for this batch.
+
+## BATCH 2026-09-14: THE UPGRADED-ITEMS LINE REMOVED FROM THE WIN SCREEN (his word over a screenshot of the win screen on GitHub Pages, level 5, the line struck out in red: «this line is not needed here, remove it and update without a full run»)
+
+**What went (package A's item (a) of 2026-09-13, the line only):** the `#winUpg` node in `.win-top`, its CSS (the
+rule, the `[hidden]` override, the `winRise` entry and its reduced-motion entry), the block in `renderWinScreen`
+that wrote it, the `winUpgText` wording in 77-save and the `__game.winUpgText` hook. Tombstones stand at each place.
+**What stays:** `stats.tierRaw`, counted at the four reward sites (doMatch, breakIce, bowlCollectAll, detonateCharge),
+readable through `stats()` and guarded by TIERSHARE; the quiet Boost toast; the charge on the most upgraded kind;
+package B's «Returned» / «Upgraded» pill on the win row. Nothing on screen states the tier share now.
+**The guard, inverted (TIERSHARE, 8 arms):** on a level whose tier share is > 0 (50 raw under ×5, where the removed
+line would have shown) the overlay has no `#winUpg` node, no `.win-upg` element, no «upgraded items» text anywhere
+in `#winOverlay` (so a line brought back under another id is caught too), no `winUpgText` hook, and Top Items is the
+first child of `.win-top`; the older win-screen rules (buttons under the list, no heading, one header row) are
+still read on that level. The hidden-at-zero and the banked-points cap arms went with the line.
+**Proven:** healthy TIERSHARE 8 green, RETURN 21 green, BOOSTPIN 6 green; variants built outside the tree — the node
+put back → the absence arm alone red; the same text inserted above the list from 85-hud under another id → the
+absence arm alone red; a comment edit → 8 green. The tree's index.html md5 be2f5dcef7d32ae1c4e87c4355b1ce31 before and
+after the variants (build 065112db06ec).
+**No full suite, by his word.** The site deploy is mine again (his «update»).

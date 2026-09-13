@@ -193,7 +193,8 @@ function doMatch(list){
   // and fire multipliers do not work (a promise to the owner); the type's upgrade, the
   // purchased booster and the level's merge curve stay — none of them is series-based.
   const hasRefill = list.some(i => i.refill);
-  // THE TIER SHARE (the owner's decision 7, 2026-09-13: the win screen says «Your upgraded items: +N points»). Every
+  // THE TIER SHARE (the owner's decision 7, 2026-09-13; the win-screen line that stated it was removed by his word of
+  // 2026-09-14 - «this line is not needed here» - and the counter stays, read by stats() and the TIERSHARE guard). Every
   // factor is read ONCE into a name, so the payout and the same payout WITHOUT the type multiplier see identical
   // numbers (rewardMult reads the clock; a second read could land on the other side of a window's edge). The
   // product order of `gained` is the one it always had - at tier 0 am is exactly 1 and the share is exactly 0.

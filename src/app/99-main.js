@@ -1464,9 +1464,8 @@ window.__game = {
   // ⛔ The winLbStub/winLbInfo hooks were cut out together with the inset cluster (85-hud).
   winScreen(on){ if (on){ show('winOverlay'); try { fitWinTopRow(); } catch (e) {} }
     else hide('winOverlay'); },
-  // the wordings of the owner's decision 7 (2026-09-13), read by the TIERSHARE and BOOSTPIN guards so a guard never
-  // keeps a second copy of a string that lives in 77-save
-  winUpgText(n){ return winUpgText(n); },
+  // the wording of the owner's decision 7 (2026-09-13), read by the BOOSTPIN guard so a guard never keeps a second copy
+  // of a string that lives in 77-save (the tier line's wording hook went with the line, his word 2026-09-14)
   boostPinText(){ return BOOST_PIN_TEXT; },
   // ⚠️ A LOAD-BEARING HOOK, NOT A CONVENIENCE: the guard «the feature is off — there is no entry point to
   // the menu» stands on it. Without it the guard WOULD WAIT for somebody to open the menu with the module

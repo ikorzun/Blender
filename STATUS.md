@@ -28,8 +28,8 @@ never an item already at the top tier; the choice is fixed for the level (a rest
 level's one tier-up notice is kept for that item, and on the win screen its row carries «Returned», or
 «Upgraded» once it reached the tier.
 
-**What upgrades paid is now visible.** The win screen shows «Your upgraded items: +N points» — exactly what the
-tiers added this level (hidden when there is nothing to show). After buying a Boost a quiet message says «This
+**Upgrades made visible.** ~~The win screen shows «Your upgraded items: +N points»~~ — removed on 14 September by
+your word («this line is not needed here»). After buying a Boost a quiet message says «This
 item will come to every level». The lightning now lands on your most upgraded item that has enough copies; when
 it appears is still random. The New Object screen is unchanged, as you asked.
 

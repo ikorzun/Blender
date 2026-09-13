@@ -868,10 +868,8 @@ function accMultText(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // One line under the portrait: «Tiger · 300 saved». The name + the count turn a
 // bare «×1.5» into an understandable quantity.
 function accToastLine(name){ return accLabel(name) + ' · ' + accSavedText(name); }
-// THE WIN SCREEN'S TIER LINE (the owner's decision 7, 2026-09-13): what the type multipliers added this level, in
-// shown points. It lives HERE with the other META wordings for the reason this block opens with - one set of words.
-// «point» at exactly 1; the caller never asks for 0 (the line is hidden then).
-function winUpgText(n){ return 'Your upgraded items: +' + n + (n === 1 ? ' point' : ' points'); }
+// THE WIN SCREEN'S TIER LINE (the owner's decision 7, 2026-09-13) kept its wording here. The line is removed by his
+// word of 2026-09-14 («this line is not needed here», over a screenshot of the win screen), and its wording with it.
 // THE BOOST PROMISE (the same decision): a toast after a SUCCESSFUL Boost purchase. It states the pin genLevel
 // already keeps - a boosted type is dealt into every level (the pin loop in 40-items).
 const BOOST_PIN_TEXT = 'This item will come to every level';

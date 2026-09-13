@@ -12244,8 +12244,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦SCOREMATH-SECTION-END⟧
 
-  // ⟦TIERSHARE-SECTION-BEGIN⟧ — THE TIER SHARE AND THE WIN SCREEN'S LINE (the owner's decision 7, 2026-09-13: «Your
-  // upgraded items: +N points» above Top Items; N is what the type multipliers added this level, never a pop or a toast).
+  // ⟦TIERSHARE-SECTION-BEGIN⟧ — THE TIER SHARE (the owner's decision 7, 2026-09-13: what the type multipliers added this
+  // level, counted at the four reward sites, never a pop or a toast). Its win-screen line «Your upgraded items: +N points»
+  // is REMOVED by his word of 2026-09-14 over a screenshot («this line is not needed here»): the section pins the absence.
   // `tools/section-dryrun.js` with SECTION=TIERSHARE runs this block alone; keep the markers. Its own page.
   {
     const codeHits = (text, re) => { let n = 0; for (const line of text.split('\n')){ const c = line.indexOf('//');
@@ -12292,15 +12293,16 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       await at(); const one = merge();
       await at(); g.buyBundle('bundle5'); const boost = g.scoreBoostMult(); const five = merge();
       g.winScreen(true); await sleep(80);
-      const up = document.getElementById('winUpg'), list = document.getElementById('winTopList'), top = up && up.parentElement;
-      const rU = up ? up.getBoundingClientRect() : null, rL = list.getBoundingClientRect(), rA = document.querySelector('.win-actions').getBoundingClientRect();
-      const score5 = g.stats().score, tr5 = g.stats().tierRaw;
-      const line = { text: up ? up.textContent : null, want: g.winUpgText(Math.min(Math.floor(tr5 / 10), Math.floor(score5 / 10))),
-        hidden: up ? up.hidden : null, h: rU ? Math.round(rU.height) : 0, first: !!(top && top.classList.contains('win-top') && top.firstElementChild === up),
-        // LAYOUT offsets, not rects: the line enters on a transform (winRise), and a rect read inside the entrance
-        // carries the flight - the first dry run read the line 'below' the list 80 ms into it
-        above: up ? up.offsetTop + up.offsetHeight <= list.offsetTop : false, buttonsBelow: rA.top >= rL.bottom - 0.5,
-        labels: document.querySelectorAll('.win-top-label').length, rows: document.querySelectorAll('.win-toprow').length, score5, tr5 };
+      // THE LINE IS GONE (his word 2026-09-14): read on a level whose share is > 0, where the removed line would have shown.
+      // The text search covers the whole overlay, so a line brought back under another id or class is still caught.
+      const list = document.getElementById('winTopList'), top = list && list.parentElement;
+      const rL = list.getBoundingClientRect(), rA = document.querySelector('.win-actions').getBoundingClientRect();
+      const ov = document.getElementById('winOverlay');
+      const line = { tr5: g.stats().tierRaw, node: !!document.getElementById('winUpg'), cls: document.querySelectorAll('.win-upg').length,
+        text: /upgraded items/i.test(ov ? ov.textContent : ''), hook: typeof g.winUpgText,
+        listFirst: !!(top && top.classList.contains('win-top') && top.firstElementChild === list),
+        buttonsBelow: rA.top >= rL.bottom - 0.5,
+        labels: document.querySelectorAll('.win-top-label').length, rows: document.querySelectorAll('.win-toprow').length };
       g.winScreen(false);
       // the charge site: the most generous group in the bowl, detonated through the production path
       await at();
@@ -12308,22 +12310,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const gave = g.chargeGive(k); const s0 = g.stats().score, t0 = g.stats().tierRaw; g.detonateCharge();
       const cgain = g.stats().score - s0, ctr = g.stats().tierRaw - t0, cam = g.accGrant(k, 0).mult;
       await sleep(700);
-      // the control: a level with no share hides the line and it takes no room
-      await at();
-      g.winScreen(true); await sleep(80);
-      const u2 = document.getElementById('winUpg');
-      const off = { hidden: u2.hidden, h: Math.round(u2.getBoundingClientRect().height), display: getComputedStyle(u2).display, text: u2.textContent, tr: g.stats().tierRaw };
-      g.winScreen(false);
-      // the cap: a share of 1 point on a level whose score fell below zero banks nothing and shows no line
-      await at(); const capMerge = merge(); g.grindNow(); await sleep(700); g.grindNow(); await sleep(700);
-      g.winScreen(true); await sleep(80);
-      const u3 = document.getElementById('winUpg');
-      const cap = { capMerge, score: g.stats().score, tr: g.stats().tierRaw, hidden: u3.hidden, text: u3.textContent };
-      g.winScreen(false); g.boostClear();
+      g.boostClear();
       // the base price of a merged pair on this level READ LIVE (pairScoreAt = MATCH_SCORE·2·the merge curve) - a literal
       // 20 here would go red on a sound build the day MATCH_SCORE or MERGE_CURVE_FROM moves (2026-09-13 review)
       const base = g.grindPriceAt(16).raw;
-      return { zero, kinds: kinds.length, tiers, mult, one, boost, five, line, charge: { k, gave, cgain, ctr, cam }, off, cap, base };
+      return { zero, kinds: kinds.length, tiers, mult, one, boost, five, line, charge: { k, gave, cgain, ctr, cam }, base };
     }) : null;
     console.log('tiershare/share:', JSON.stringify(share));
     const step = share ? share.mult - 1 : NaN;
@@ -12339,14 +12330,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(!!share && share.charge.gave && share.charge.cgain > 0 && share.charge.ctr > 0 &&
            share.charge.ctr === share.charge.cgain - Math.round(share.charge.cgain / share.charge.cam),
       'TIERSHARE: the type charge adds its tier share too (' + JSON.stringify(share && share.charge) + '). SABOTAGE: drop the accumulator from detonateCharge');
-    expect(!!share && share.line.hidden === false && share.line.h > 0 && share.line.text === share.line.want && share.line.first && share.line.above,
-      'TIERSHARE: the win screen states the share as its own line, the FIRST child of .win-top, above the list, from stats(): "' + (share && share.line.text) + '" (' + JSON.stringify(share && share.line) + ')');
+    expect(!!share && share.line.tr5 > 0 && !share.line.node && share.line.cls === 0 && !share.line.text &&
+           share.line.hook === 'undefined' && share.line.listFirst,
+      'TIERSHARE: the win screen states NO upgraded-items line, even on a level whose tier share is ' + (share && share.line.tr5) + ' raw - removed by the owner\'s word of 2026-09-14 («this line is not needed here»); Top Items is the first child of .win-top again (' + JSON.stringify(share && share.line) + '). SABOTAGE: put the line back');
     expect(!!share && share.line.buttonsBelow && share.line.labels === 0 && share.line.rows === 1,
-      'TIERSHARE: with the line shown the older win-screen rules still hold - the buttons under the list, no Top Items heading, one header row (' + JSON.stringify(share && share.line) + ')');
-    expect(!!share && share.off.tr === 0 && share.off.hidden === true && share.off.h === 0 && share.off.display === 'none' && share.off.text === '',
-      'TIERSHARE: a level with no share hides the line and it takes no height - computed display none (' + JSON.stringify(share && share.off) + '). SABOTAGE: drop the .win-upg[hidden] rule; always write the text');
-    expect(!!share && share.cap.capMerge.tr > 0 && share.cap.score < 0 && share.cap.hidden === true && share.cap.text === '',
-      'TIERSHARE: the line is capped at the level\'s banked points - a share on a level that ended below zero shows nothing (' + JSON.stringify(share && share.cap) + ')');
+      'TIERSHARE: on a level with a tier share the older win-screen rules still hold - the buttons under the list, no Top Items heading, one header row (' + JSON.stringify(share && share.line) + ')');
     await tp.close();
   }
   // ⟦TIERSHARE-SECTION-END⟧

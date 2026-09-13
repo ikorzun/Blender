@@ -2733,12 +2733,8 @@
   @media (hover:hover) and (pointer:fine){ .win-next:hover { background:#d2ff7e; } }
   .win-in .win-next { animation:winRise .4s ease-out .94s both; }
   .win-in .win-top-label { animation:winRise .35s ease-out 1s both; }
-  /* THE TIER LINE (the owner's decision 7, 2026-09-13): a line of its own above the Top Items list. It enters just
-     before the list's plate (1 s). The [hidden] rule is load-bearing: `display` is set here, and an author display
-     beats the UA's [hidden] - without it a line with nothing to say would still take its row. */
-  .win-upg { display:block; color:#fff; font-weight:800; font-size:18px; line-height:1.25; text-align:center; }
-  .win-upg[hidden] { display:none; }
-  .win-in .win-upg { animation:winRise .35s ease-out .97s both; }
+  /* THE TIER LINE'S RULES (the owner's decision 7, 2026-09-13) ARE REMOVED WITH THE LINE: his word of 2026-09-14,
+     over a screenshot of this screen, «this line is not needed here». Top Items is the first child of .win-top again. */
   .win-in .wt-row { animation:winRowIn .42s cubic-bezier(.34,1.56,.64,1) both; }
   /* ===== THE MOBILE COMPLETION SCREEN — mock-up 783:711 =====
      ⛔⛔ BOTH DIFFERENCES THIS BLOCK WAS BUILT FOR ARE GONE, AND THE BLOCK IS STILL NEEDED.
@@ -2778,7 +2774,7 @@
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
     .win-rw-n.bump { animation:none; }
     .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row,
-    .win-in .win-top-list::before, .win-in .win-upg,
+    .win-in .win-top-list::before,
     .win-in .win-lbslot { animation:none; }
     /* ⚠️ HERE THEY RESTORE THE STATIC ROTATION, WHICH OTHERWISE WOULD BE REMOVED BY
        the switched-off entry animation (`animation:none` returns the element to the
@@ -5440,9 +5436,8 @@
       </section>
     </div>
     <div class="win-top">
-      <!-- THE TIER LINE (the owner's decision 7, 2026-09-13): a line of its own ABOVE the list, never a score pop or
-           a toast. Hidden until renderWinScreen has a non-zero share to state. -->
-      <div class="win-upg" id="winUpg" hidden></div>
+      <!-- The tier line of the owner's decision 7 (2026-09-13) stood here; removed by his word of 2026-09-14
+           («this line is not needed here»). -->
       <div class="win-top-list" id="winTopList"></div>
     </div>
     <!-- ⚠️⚠️ THE BUTTONS STAND UNDER TOP ITEMS (the owner's word 2026-08-11:

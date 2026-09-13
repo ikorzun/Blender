@@ -418,17 +418,10 @@ function renderWinScreen(){
   // as much as went into the balance (bankLevelScore) and by how much the chip grew. A single
   // balance: chip/wallet/leaderboard/win — one scale (dispatcher's decision v113)
   const bal = Math.floor(score / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10));
-  // THE TIER LINE (the owner's decision 7, 2026-09-13): «Your upgraded items: +N points», above the Top Items list.
-  // N is stats.tierRaw floored ONCE here (each merge adds its raw share, so no rounding piles up per merge), and
-  // CAPPED at the level's banked points: a share cannot claim more than the level actually paid (a level that
-  // ended below zero banks 0 and shows no line). Hidden at 0 - a line saying «+0» is noise, not information.
-  const upg = $('winUpg');
-  if (upg){
-    const tr = (typeof stats !== 'undefined' && stats) ? Math.max(0, stats.tierRaw || 0) : 0;
-    const nUp = Math.max(0, Math.min(Math.floor(tr / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10)), bal));
-    upg.textContent = nUp > 0 ? winUpgText(nUp) : '';
-    upg.hidden = !(nUp > 0);
-  }
+  // THE TIER LINE STOOD HERE (the owner's decision 7, 2026-09-13: «Your upgraded items: +N points» above Top Items)
+  // AND IS REMOVED BY HIS WORD OF 2026-09-14, over a screenshot of this screen: «this line is not needed here».
+  // stats.tierRaw is still counted at the four reward sites (read by stats() and the TIERSHARE guard); nothing on
+  // screen states it. The TIERSHARE guard pins the absence, so the line does not creep back in.
   const secs = (typeof stats !== 'undefined' && stats && stats.t0)
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
