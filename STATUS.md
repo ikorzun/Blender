@@ -6,7 +6,47 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-12-b (an eaten pair costs what a merged one pays, a boost never multiplies penalties, the merge curve at your 0.05, the build label) on top of 2026-09-12, v2 = main, released 13 September** · **checked: the score and the version sections green (7 + 11 checks), eleven sabotages each red on its own check; no full suite, by your rule** · ✅ **sign-in is live: your three steps are done and checked from here** · ⏸ **the level pacing (a new item every second level and the other options): analysed, nothing built — your «do not add it yet, I am still thinking»**
+**Build: batch 2026-09-13 (upgrades ×0.5 per tier, 140 bigger items, «your item returns», the upgraded-items line, the silent update check) on top of 2026-09-12-b, v2 = main** · **the full suite, run 57: 1288 green, 0 red** · **31 sabotages, each red on its own check** · **sign-in is live** · **on GitHub; blendo.monster updates when you run the deploy command** · **the level pacing (a new model every second level): not built — you are still thinking**
+
+**13 SEPTEMBER — YOUR SEVEN ITEMS: UPGRADES WORTH MORE, 140 BIGGER ITEMS, «YOUR ITEM RETURNS», THE UPGRADED-ITEMS LINE, THE SILENT UPDATE CHECK.**
+
+**Upgrades are worth twice as much.** Every tier of an item now adds +50% to its merges instead of +25%: ×1.5,
+×2, ×2.5 … up to ×5.5 at the top tier (was ×3.25). Bought tiers count the same way, so five bought tiers alone
+give ×3.5. Your testers' existing tiers doubled in value on their next level — nothing to migrate.
+
+**The bowl holds 140 items, and they are 9% bigger.** The pile keeps its height at your red line (measured
+7.6–8.3). The bowl grows +10 items per level as before and is full from level 7, so levels 8–10 are a little
+smaller than they were. The distance at which two items count as neighbours grew by the same 9%, so merging
+feels the same. The bomb and the golden fish grew with everything else. The ice block now needs 2 pairs instead
+of 3, otherwise it would have vanished from level 22. The lightning still needs 6 copies (it thins out past
+level 100, as you chose). Points per level fall about 22% from the item cut; the doubled upgrades give back
+roughly half. The level goal is counted from the bowl's contents, so the difficulty does not change.
+
+**«Your item returns».** From level 11, when one of your older items is close to its next tier, the game deals it
+in double quantity — only if those copies are enough to reach the tier. Never the newest item, never a car,
+never an item already at the top tier; the choice is fixed for the level (a restart does not re-roll it). The
+level's one tier-up notice is kept for that item, and on the win screen its row carries «Returned», or
+«Upgraded» once it reached the tier.
+
+**What upgrades paid is now visible.** The win screen shows «Your upgraded items: +N points» — exactly what the
+tiers added this level (hidden when there is nothing to show). After buying a Boost a quiet message says «This
+item will come to every level». The lightning now lands on your most upgraded item that has enough copies; when
+it appears is still random. The New Object screen is unchanged, as you asked.
+
+**Updates.** The game now checks for a new version whenever it comes back to the screen (at most every 5 minutes,
+after at least 30 seconds away). A tab or an installed app left in the background picks up a release and opens it
+on the next launch. No prompt, no reload.
+
+**Item 7, ads:** the bridge is current (2.1.0). The track is written in [docs/ADS-TRACK.md](docs/ADS-TRACK.md) and
+waits for your decisions. Two things found and not touched: the game does not tell the portal which ad is playing,
+and on your site and in the iPhone app the «Ad» button gives a shake or a tip at once, without a limit.
+
+**Not in this batch, by your word:** the new-model-every-second-level pace (you are still thinking) and the intro sound.
+
+**Checked:** the full suite, run 57: 1288 green, 0 red. Run 56 had one red — a check that rounded the radius
+reading, not the game; fixed. Every new check was also run against 31 deliberately broken builds, and each one
+went red on its own check.
+
 
 **12 SEPTEMBER, SECOND BATCH — WHICH VERSION IS LIVE, THE GRINDER, THE BOOST RULE, AND THE MERGE CURVE AT YOUR STEP 0.05. RELEASED 13 SEPTEMBER, ON YOUR WORD.**
 

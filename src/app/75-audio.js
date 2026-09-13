@@ -290,7 +290,8 @@ const Sound = (function(){
       // carries both the caliber of the type and the size spread of the level.
       // ⚠️⚠️ THE PIVOT IS `MESH_SCALE`, NOT ONE, AND THIS IS NOT COSMETICS. `it.r` is
       // `rc · levelSize · MESH_SCALE` (40-items:117), that is, for a typical
-      // item (`rc:1.0`, and there are 107 such out of 120) it equals 0.62, not 1. A pivot
+      // item (`rc:1.0`, and there are 107 such out of 120) it equals 0.62 (0.6742 since the
+      // items grew ×cbrt(180/140) on 2026-09-13 — the pivot moved with them), not 1. A pivot
       // at one baked in a constant multiplier of 1/√0.62 = 1.27: THE MEASUREMENT on live
       // matches gave 12 values out of 12 ABOVE one (median 1.12), that is,
       // «bigger — lower» degenerated into «everything is sped up, the big ones a bit less».

@@ -572,7 +572,7 @@ function addMatcapEmissive(mat){
 }
 // The highlight from the alpha + emissive — on top of the multiplication. The function is ONE for all materials,
 // so the program cache (keyed by onBeforeCompile.toString()) gives ONE
-// compiled shader for all 181, not 181 of them.
+// compiled shader for every item material (181 when this was written at the 180-item bowl; ~141 since 2026-09-13), not one each.
 const matcapSpecPatch = function (sh) {
   sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
   // BRIGHTNESS and CONTRAST are the owner's knobs, they live in 00-config. The uniform is per
@@ -594,7 +594,7 @@ const matcapSpecPatch = function (sh) {
   // the shader, zero work in JS per frame.
   // The constants are baked in as LITERALS, not as uniforms: the source comes out
   // identical for all materials -> the program cache keyed by onBeforeCompile.toString()
-  // still gives ONE compiled shader for all 181.
+  // still gives ONE compiled shader for every item material (181 at the 180-item bowl).
   const n = (x) => x.toFixed(3);
   sh.uniforms.uPileTop = uPileTop;   // ONE object for all materials
   sh.uniforms.uDepth = uDepthTint;
@@ -639,7 +639,7 @@ const matcapSpecPatch = function (sh) {
     console.warn('the matcap patch was NOT applied: the three anchor string has changed (10-stage matcapSpecPatch)');
 };
 // The top of the pile for the tinting. ONE shared uniform object: we updated .value —
-// all 181 materials updated at once, without traversing the scene.
+// every item material updated at once (181 at the 180-item bowl), without traversing the scene.
 const uPileTop = { value: FUNNEL.H };
 // Depth: x — how many times darker the bottom gets, y — how far below the top of the pile
 // that minimum is reached. ONE object for all materials, which is why it can be turned
@@ -647,7 +647,7 @@ const uPileTop = { value: FUNNEL.H };
 const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) };
 // The strength of the veil — ONE shared object for all materials (like uPileTop/uDepth):
 // the shader source does not change because of it, the program is still compiled
-// once for all 183. x = the target light grey, y = the fraction of the lift towards it.
+// once for all of them (183 when counted at the 180-item bowl). x = the target light grey, y = the fraction of the lift towards it.
 const uVeilTune = { value: new THREE.Vector2(VEIL_LIGHT, VEIL_LIFT) };
 // ⚠️ THE COLOUR OF THE VEIL IS IN LINEAR SPACE: the patch edits outgoingLight BEFORE
 // the tone mapping, so raw sRGB here would give an over-lightened tone.

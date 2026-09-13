@@ -104,7 +104,8 @@ const FLOOR_CALM_V = 0.5;
 const FLOOR_SUNK_TICKS = 3;
 // ⚠️⚠️ THE RESCUER'S CEILING: above it an item counts as "flown away". It was
 // 60 — and that turned out to be TOO LITTLE for the final top-up of pairs: it
-// spawns a partner for every orphan on a staircase `FUNNEL.H + 2 + k*1.2` with
+// spawns a partner for every orphan on a staircase `FUNNEL.H + 2 + k*DROP_STACK_STEP` (k*1.2 when
+// measured; 1.2·ITEM_SIZE_K = 1.305 since 2026-09-13, 40-items) with
 // no cap on k, and on lvl 40 (55 orphans) the spawn peak is 67.4 — ABOVE THE
 // CEILING. The rescuer was teleporting what had just been topped up:
 // 23 teleports measured over 4 runs, with the walls intact
@@ -461,7 +462,7 @@ function buildAccessSamples(item, typeName, geo){
   // R*(1 - cos(pi/RING_SEG)) = 0.0341*R off a chord, while `ringMeasure` REFUSES to return a ring
   // at all unless `tube > 0.12*R`. That is a guaranteed 3.5x margin for any model that reaches
   // this branch. ⚠️ THE FIGURES THAT FOLLOW ARE AT s = 1 AND THE HOOK REPORTS AT s = MESH_SCALE
-  // (0.62): buoy 0.027 against a tube of 0.209, donut 0.023 against 0.331 — lift them into an
+  // (0.62 when measured; 0.6742 since 2026-09-13): buoy 0.027 against a tube of 0.209, donut 0.023 against 0.331 — lift them into an
   // assert unscaled and it goes red on a healthy build.
   // ⚠️ EIGHT, matching the hull default, so the per-item raycast cost on Hard does not move.
   // ⛔ AND NEVER A SAMPLE AT THE CENTRE: for a ring that IS the hole — the origin this fix exists

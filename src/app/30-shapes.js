@@ -42,12 +42,12 @@ function mergeGeos(parts){ // [geometry, Matrix4] -> one non-indexed geometry
 // from git history + the TYPES line.
 // mat: soft (polished colored lacquer), chrome (mirror chrome) —
 // the reference is webgl_materials_envmaps_fasthdr (spheres #5 and #3).
-// ⚠️ THE ORDER MATTERS: progression UNLOCKS the first typesCount types (9 on the 1st
-// level, +1 per level). ⚠️ Since 2026-07-30 genLevel takes a RANDOM
+// NOTE: THE ORDER MATTERS: progression UNLOCKS the first typesCount types (LEVEL_TYPES_MIN = 3 on the
+// 1st level, +1 per level). Since 2026-07-30 genLevel takes a RANDOM
 // sample of the needed size from the unlocked range, and NOT the first ones in a row — before that everything
-// that stood past index PAIRS-1 (89) never spawned at all (see genLevel).
-// The order still decides WHEN a type unlocks,
-// +1 per level up to 15). The owner's models are placed AT THE START deliberately —
+// that stood past index PAIRS-1 (89 at PAIRS 90, the era of that fix; PAIRS is 70 since 2026-09-13) never spawned at all (see genLevel).
+// The order still decides WHEN a type unlocks (index i opens at level i - LEVEL_TYPES_MIN + 2;
+// the old «up to 15» ceiling is long gone). The owner's models are placed AT THE START deliberately —
 // otherwise they cannot be seen on the first levels (the 2026-07-20 request «I want to take a look»).
 // To bring the primitives back to the front = just swap the blocks around.
 // The 'teapot' type was removed at the owner's request; the teapotGeo function is KEPT —
@@ -79,10 +79,12 @@ const TYPES = [
   // fill 0.15-0.18 — a convex hull would lie crudely), the flags and the palm-
   // flagpole are flat. We do not touch the rocks-* stones — the owner's reserve.
   //
-// ⚠️ ORDER = PROGRESSION: types in a level are 9+level−1, they unlock in the order of the
+// NOTE: ORDER = PROGRESSION: types in a level are LEVEL_TYPES_MIN + level − 1 (3 + level − 1; 9 until 2026-08-11), they unlock in the order of the
 // array. The most distinguishable ones come first — the match goes BY TYPE, confusing them at the start is not allowed.
-// ⚠️ THE 2026-07-30 LAYOUT (the owner's spec «shuffle the types»):
-//   • indices 0..8 — the base nine of lvl.1, DO NOT TOUCH;
+// THE 2026-07-30 LAYOUT (the owner's spec «shuffle the types»). HISTORICAL: written at LEVEL_TYPES_MIN 9
+// and a pool of 120; the steak and forestplant are no longer in TYPES, and the base of lvl.1 today is
+// indices 0..LEVEL_TYPES_MIN-1 (0..2):
+//   • indices 0..8 — the base nine of lvl.1 (then), DO NOT TOUCH;
 //   • index 9 — THE STEAK, the owner's model, we keep it close to the start (his spec);
 //   • the Kenney batch is mixed in EVENLY further on (~every 4th), and not in the tail:
 //     in the tail it did not unlock before lvl.86 and did not exist for the player;
@@ -90,7 +92,8 @@ const TYPES = [
 //     learn «a goldfish at the bottom = treasure» (the Graphics workstream's objection was taken into account);
 //   • THE DONUT stays in the tail, DO NOT MOVE IT FORWARD: its convex hull has no hole,
 //     a compound collider is a Physics task after launch;
-//   • forestplant is LAST DELIBERATELY: the sentinel for the tail guards in test.js.
+//   • (then) forestplant was LAST as the sentinel for the tail guards; since 2026-09-01-e the
+//     sentinel is DERIVED in test.js (the last TYPES entry, whichever it is).
   { name:'foodwatermelon',        color:0xff5a6e, rc:1.0, tex:'food', mat:'soft', geo:foodwatermelonGeo },
   { name:'foodbanana',            color:0xffe14d, rc:1.4, tex:'food', mat:'soft', geo:()=>foodbananaGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
@@ -301,4 +304,9 @@ function candyColor(hex, dl){
 // so neighbors cannot coincide in both hue and lightness.
 const LIGHT_OFFSETS = [0.00, -0.15, 0.12, -0.08, 0.18, -0.20];
 TYPES.forEach((t, i) => { if (t.mat === 'soft') t.dl = LIGHT_OFFSETS[i % LIGHT_OFFSETS.length]; });
-const MESH_SCALE = 0.62;
+// NB: 0.62 → 0.62 × ITEM_SIZE_K = 0.6742 (the owner's word 2026-09-13: «items 9% bigger», so 140
+// items keep the pile of 180). THE ONLY PLACE THE SIZE GOES: the mesh, r, wallR, scl, the colliders,
+// the access samples, the OBB reach, the sizes() hook, the audio pivot, the rival, the bomb
+// (BOMB_SCALE·MESH_SCALE) and the golden fish all derive from it. NB: A second factor in makeItem or
+// levelSize would double-scale one consumer and break sizes() (it divides by MESH_SCALE).
+const MESH_SCALE = 0.62 * ITEM_SIZE_K;

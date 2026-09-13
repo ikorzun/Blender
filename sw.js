@@ -39,6 +39,14 @@
      `sw.js` exactly ONCE (the first registration), the old build kept answering and the new cache was
      never built; one `update()` and the release arrived on the spot. Take that line out and a release
      sits on an installed device until the browser's own soft-update throttle expires.
+     AND THE SAME CHECK ALSO RUNS ON RETURN TO THE SCREEN (the owner's decision 10, 2026-09-13):
+     99-main re-asks `getRegistration().update()` when the page comes back after at least
+     SW_RECHECK_HIDDEN_MS hidden (or is restored from the back-forward cache), at most once per
+     SW_RECHECK_GAP_MS. It is SILENT — no prompt,
+     no reload, no controllerchange listener: a release found that way installs and prefetches in
+     the background exactly as above, and opens on the next launch. A tab left open or an app
+     resumed from the background no longer keeps its build until a real relaunch. Nothing in this
+     file changes for it.
    - a small allowlist (the manifest, the icons, the avatars, the share picture, the bridge
      pair) is cache-first: they are content-addressed by the cache NAME, which carries the
      build hash, so a new build drops the old cache wholesale.
@@ -52,7 +60,7 @@
    page. Both halves are guarded, and the fetch handler's own catch searches EVERY `blendo-` cache
    for a document rather than only this build's.  */
 
-const BUILD = '01dfdf14238c';
+const BUILD = '508311ae346c';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
 

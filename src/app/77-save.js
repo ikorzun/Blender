@@ -847,7 +847,7 @@ const ACC_LABELS = {
 // ── THE TEXTS OF THE LONG META (plan item 1.3: on a phone the showcase is not
 // built, and the rule «merges grow the type's multiplier FOREVER» the player
 // learns nowhere. In v2 this is sharper than it was in v1: the multiplier toast
-// under the eyes (node 829:1242) shows «×1.25» on EVERY collection of an upgraded
+// under the eyes (node 829:1242) shows «×1.5» (×1.25 until the step doubled 2026-09-13) on EVERY collection of an upgraded
 // kind — the number keeps catching the eye constantly and is still explained by
 // nothing).
 // ⚠️ The strings live HERE, not on the surfaces: the toast, the museum and the
@@ -857,7 +857,7 @@ const META_TIP_RULE = 1; // the Save.mt bit: the accumulation rule has been expl
 // «300 saved» — how many of EXACTLY this kind were rescued. A number, not
 // percentages: the counter is lifetime and has no upper bound, a share would lie.
 function accSavedText(name){ return accCount(name) + ' saved'; }
-// «next ×1.5 at 700» — what will change and when. Show it ONLY when there is a
+// «next ×2 at 300» (tier 1, step 0.5 since 2026-09-13) — what will change and when. Show it ONLY when there is a
 // next tier: at the cap the «next …» line would be lying.
 function accNextText(name){
   const n = accNext(name);
@@ -866,8 +866,15 @@ function accNextText(name){
 }
 function accMultText(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // One line under the portrait: «Tiger · 300 saved». The name + the count turn a
-// bare «×1.25» into an understandable quantity.
+// bare «×1.5» into an understandable quantity.
 function accToastLine(name){ return accLabel(name) + ' · ' + accSavedText(name); }
+// THE WIN SCREEN'S TIER LINE (the owner's decision 7, 2026-09-13): what the type multipliers added this level, in
+// shown points. It lives HERE with the other META wordings for the reason this block opens with - one set of words.
+// «point» at exactly 1; the caller never asks for 0 (the line is hidden then).
+function winUpgText(n){ return 'Your upgraded items: +' + n + (n === 1 ? ' point' : ' points'); }
+// THE BOOST PROMISE (the same decision): a toast after a SUCCESSFUL Boost purchase. It states the pin genLevel
+// already keeps - a boosted type is dealt into every level (the pin loop in 40-items).
+const BOOST_PIN_TEXT = 'This item will come to every level';
 // THE RULE — we explain it EXACTLY ONCE, at the moment of the first tier:
 // earlier the player would not understand what it is about, later he has already
 // got used to seeing the number without any meaning.
@@ -890,7 +897,7 @@ function accLabel(key){
 }
 // TYPE UNLOCKING BY PROGRESSION (the contract for GRAPHICS — a 3D portrait only
 // for the unlocked ones, otherwise it spoils the models). The rule is THE SAME as
-// in genLevel (40-items): types open IN THE ORDER of the TYPES array, 9 at lv.1,
+// in genLevel (40-items): types open IN THE ORDER of the TYPES array, LEVEL_TYPES_MIN (3) at lv.1,
 // +1 per level, the pool's ceiling. levelNum is monotonic in a real game (it
 // grows on a win), therefore = THE MAXIMUM REACHED. The interface has ITS OWN
 // unlockedTypeCount (85-hud, its zone) — the numbers coincide; converge later,

@@ -209,3 +209,9 @@ which needs an AdSense account approved for games), added to `Ads` as a third mo
 gated like the web payments (our own origin, not inside an iframe, not the app wrapper — ads there are a
 separate App Store question). ⚠️ The prices to name before building: a Google script on the page, a consent
 banner for EU players, and `privacy.html`, which today says there are no ads and no cookies.
+**2026-09-13: THE TRACK IS WRITTEN — [docs/ADS-TRACK.md](docs/ADS-TRACK.md)** (his item 7: «check that the bridge is
+current and write the separate track for ads when the hints run out; we will go through it separately»). The bridge
+is current (2.1.0 = the newest tag). One correction to the paragraph above: on the web the stub is NOT a fake video —
+a tap on «Ad» gives the resource at once and without a limit (the no-fill rule of 2026-08-05 meeting a platform with
+no ads at all), and the game never names the placement to the SDK (both offers go out as `rewarded`). Neither is
+fixed: the track waits for his decisions D1-D9.

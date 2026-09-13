@@ -1677,7 +1677,12 @@
   }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
-    opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
+    opacity:0; transition:opacity .25s; pointer-events:none; z-index:35; white-space:nowrap; }
+  /* THE TOAST WAS UNDER THE MENU (2026-09-13, measured while wiring the owner's decision 7): z-index 8 against
+     #mainScreen 30 with its opaque sky, so every toast fired from inside the menu - «Not enough points», «Max tier
+     reached», «Coming soon», and now the Boost promise - was drawn and never seen. 35 is above the menu (30) and
+     its floating header (31), below the shop/leaderboard overlays (40), #newObj (46) and #multToast (60).
+     WARNING, the one new exposure: a toast fired in the 1.6 s before the win overlay (20) shows over it now. */
   #debugPanel { display:none; position:fixed; right:12px; bottom:90px; z-index:7; background:rgba(15,20,30,.95);
     border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; font-size:14px; width:230px; }
   #debugPanel .row { display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
@@ -1919,7 +1924,9 @@
        width and the right edges coincide, long ones («×3.25») outgrow it — the
        cropping, because of which the owner wrote «the multiplier does not fit», will not
        happen at any value. 56 = the former fixed width: on it the edges
-       were aligned, now this is a FLOOR, and not a ceiling. */
+       were aligned, now this is a FLOOR, and not a ceiling.
+       NOTE: SINCE 2026-09-13 (ACC_MULT_STEP 0.5) the reachable strings are ×1.5…×5.5 — four
+       characters; «×1.25»/«×3.25» above are the history of the fit. */
     min-width:56px;
     background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
   /* ⚠️ EVENING/NIGHT = A DARK THEME (mock-ups 776:649/776:701). The html.night signal is
@@ -2668,6 +2675,15 @@
   .wt-body { flex:1; min-width:0; display:flex; align-items:center; gap:16px; }
   .wt-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
   .wt-name { color:#fff; font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the returned kind's row carries a short pill beside its name - «Returned»,
+     or «Upgraded» in the progress lime once it tiered up this level. The pill is the name's sibling (`.wt-name` keeps the
+     name alone), it never shrinks, and the NAME gives way with its ellipsis - so the pill fits down to a 320 px screen.
+     It has NO animation of its own: it rides the row's entrance, which the prefers-reduced-motion list already stops. */
+  .wt-head { display:flex; align-items:center; gap:6px; min-width:0; }
+  .wt-head .wt-name { flex:0 1 auto; min-width:0; }
+  .wt-pill { flex:none; font-size:11px; font-weight:800; line-height:1; padding:3px 8px; border-radius:32px;
+    background:rgba(255,255,255,.16); color:#fff; white-space:nowrap; }
+  .wt-return-up .wt-pill { background:#c0ff47; color:#000; }
   /* ⛔ THE HEIGHT 10 → 12 (node 779:1056 in the redrawn frame 891:4251). */
   .wt-bar { height:12px; border-radius:32px; background:rgba(0,0,0,.2); overflow:hidden; }
   .wt-bar i { display:block; height:100%; width:0; background:#c0ff47; border-radius:40px;
@@ -2717,6 +2733,12 @@
   @media (hover:hover) and (pointer:fine){ .win-next:hover { background:#d2ff7e; } }
   .win-in .win-next { animation:winRise .4s ease-out .94s both; }
   .win-in .win-top-label { animation:winRise .35s ease-out 1s both; }
+  /* THE TIER LINE (the owner's decision 7, 2026-09-13): a line of its own above the Top Items list. It enters just
+     before the list's plate (1 s). The [hidden] rule is load-bearing: `display` is set here, and an author display
+     beats the UA's [hidden] - without it a line with nothing to say would still take its row. */
+  .win-upg { display:block; color:#fff; font-weight:800; font-size:18px; line-height:1.25; text-align:center; }
+  .win-upg[hidden] { display:none; }
+  .win-in .win-upg { animation:winRise .35s ease-out .97s both; }
   .win-in .wt-row { animation:winRowIn .42s cubic-bezier(.34,1.56,.64,1) both; }
   /* ===== THE MOBILE COMPLETION SCREEN — mock-up 783:711 =====
      ⛔⛔ BOTH DIFFERENCES THIS BLOCK WAS BUILT FOR ARE GONE, AND THE BLOCK IS STILL NEEDED.
@@ -2756,7 +2778,7 @@
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
     .win-rw-n.bump { animation:none; }
     .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row,
-    .win-in .win-top-list::before,
+    .win-in .win-top-list::before, .win-in .win-upg,
     .win-in .win-lbslot { animation:none; }
     /* ⚠️ HERE THEY RESTORE THE STATIC ROTATION, WHICH OTHERWISE WOULD BE REMOVED BY
        the switched-off entry animation (`animation:none` returns the element to the
@@ -5230,7 +5252,7 @@
   <!-- THE BUILD LABEL IS WRITTEN BY build.py (2026-09-12): the same stamp as sw.js's BUILD and the date that
        stamp first appeared. It used to be a hand-typed literal frozen since August, so the perf report and
        telemetry (both read this node) named a build that no longer existed. -->
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build 01dfdf14238c · 2026-09-12</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build 508311ae346c · 2026-09-13</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -5418,6 +5440,9 @@
       </section>
     </div>
     <div class="win-top">
+      <!-- THE TIER LINE (the owner's decision 7, 2026-09-13): a line of its own ABOVE the list, never a score pop or
+           a toast. Hidden until renderWinScreen has a non-zero share to state. -->
+      <div class="win-upg" id="winUpg" hidden></div>
       <div class="win-top-list" id="winTopList"></div>
     </div>
     <!-- ⚠️⚠️ THE BUTTONS STAND UNDER TOP ITEMS (the owner's word 2026-08-11:
@@ -5898,7 +5923,18 @@ const SLOPE = (FUNNEL.R1 - FUNNEL.R0) / FUNNEL.H;
 // ⛔ DO NOT CONFUSE WITH FOREIGN ONES: `SURPRISE_BONUS`, `SURPRISE_LEVEL_BONUS`,
 // `STAR_LEVEL_BONUS`, `FIRE_BONUS_MULT` — different mechanics, they stay.
 const FLOOR_REST = 1.15; // items lie above the blade zone (the blades are right at the bottom, visible through the glass)
-const PAIRS = 90;            // CEILING: the mass fills the glass ~85%
+// NB: 90 → 70 (the owner's word 2026-09-13: the bowl holds 140 items, for every player, no
+// migration). PAIRS_START 40 / PAIRS_STEP 5 are unchanged, so the ceiling now arrives at level 7
+// (40 + 5·6) instead of 11, and levels 8/9/10 lose 10/20/30 items. The pile keeps its height
+// because the items grew by ITEM_SIZE_K (below): (MESH_SCALE/0.62)^3 · 2·PAIRS = 180, the volume
+// the red line was tuned for. NOTE: EDIT ONE OF THE PAIR WITHOUT THE OTHER AND THE PILE DROPS OR
+// OVERFILLS — the BOWL140 section states the product.
+const PAIRS = 70;            // CEILING: 140 items of the enlarged size fill the glass as 180 did
+//  THE SINGLE SIZE FACTOR OF 2026-09-13 (the owner: «items 9% bigger», «the reach grows by the
+// same 9%»). cbrt(180/140) = 1.0874: 140 items of this size take the volume 180 took. It lives
+// HERE, not in 30-shapes, because the match radii below are defined in this module and a const of
+// a later module is in the temporal dead zone for this one. MESH_SCALE (30-shapes) reads it too.
+const ITEM_SIZE_K = Math.cbrt(180 / 140);
 // LEVEL SIZE PROGRESSION (testers' feedback via the owner 2026-08-05:
 // "for an easy level the number of objects has to be reduced, make a
 // progression across levels"). A measurement BEFORE the fix showed there was no
@@ -5907,6 +5943,7 @@ const PAIRS = 90;            // CEILING: the mass fills the glass ~85%
 // plateau up to level 40.
 // Now: start at 40 pairs (80 items), +5 pairs per level, ceiling 90 pairs
 // (180) at level 11. The first level is 38% easier than before.
+// NB: THE CEILING IS 70 PAIRS (140) AT LEVEL 7 SINCE 2026-09-13 — see PAIRS above.
 const PAIRS_START = 40, PAIRS_STEP = 5;
 function pairsForLevel(lv){
   const n = (typeof lv === 'number' && lv > 0) ? lv : 1;
@@ -5941,6 +5978,8 @@ const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a 
 // items while the dealt types keep growing (the `levelDistinctCap` ramp), so the expected group
 // shrinks — and the merge is QUADRATIC in the group. The base total of a level falls 302 → 269 →
 // 246 → 225 across levels 11 / 17 / 30 / 100, while the price of a mistake stays 10-15.
+// NB: THOSE TOTALS ARE FROM THE 180-ITEM BOWL — HISTORY SINCE 2026-09-13 (140 items from level 7);
+// the step 0.05 stays by the owner's word, the numbers are not to be quoted as live.
 // ⚠️ THE CURVE IS A MULTIPLIER OF A MERGE'S BASE PRICE: ×1 through `MERGE_CURVE_FROM`, and
 // `1 + step·(lv − FROM)` above it. Every reward priced in merges reads it — a match, the ice break,
 // the bowl collect-all, the type charge, the level goal, and the typical merge a mistake is tied to
@@ -6114,7 +6153,8 @@ const SURPRISE_LEVEL_BONUS = 0.5 * PT;
 // "if you combined [many] objects, then their multiplier by default
 // increases... with respect to each object"). The thresholds are approved as the series
 // ×2+100: 100/300/700/1500/3100/6300... = 100·(2^n−1) — the first tier
-// happens in the first session (~level 7). The score multiplier of a type = 1 + 0.25×tier.
+// happens in the first session (~level 7). The score multiplier of a type = 1 + ACC_MULT_STEP×tier
+// (0.25 until 2026-09-13, 0.5 since — the owner's word, earned and bought tiers alike).
 // The counters live in the save (77-save, Save.ac), the application — doMatch and the pair-score.
 // ===== SINGLE BALANCE (the owner's finalization 2026-07-24: "score=stars=balance=
 // leaderboard"; CANCELS the "rating delta" model of 2026-07-23). The reward for a win
@@ -6177,8 +6217,14 @@ const BOOST_TIER_CAP = 5;
 const TYPE_UNLOCK_BASE = 800;
 const TYPE_UNLOCK_PER_LEVEL = 200;
 
-const ACC_MULT_STEP = 0.25;  // +25% to a type's score per tier (approved)
-const ACC_TIER_CAP = 9;      // ceiling of tiers (×3.25; the 9th threshold = 51 100 — practically unreachable, the cap keeps the formula under control)
+// NB: 0.25 → 0.5 (the owner's word 2026-09-13: «the step of a type's multiplier doubles, earned and
+// bought alike»; no migration — existing tiers are worth more on the next level). The cap stays 9,
+// so the ceiling is ×5.5 (was ×3.25) and five bought tiers alone give ×3.5 (was ×2.25). The merge
+// curve (0.05) is unchanged, and PENALTIES AND THE GRINDER NEVER READ A TIER MULTIPLIER
+// (scorePenalty reads none; the grinder charges pairScoreAt, the base value). The ACCSTEP section
+// derives the step from a tier-1 reading instead of pinning a literal beside every consumer.
+const ACC_MULT_STEP = 0.5;   // +50% to a type's score per tier (the owner 2026-09-13; was +25% approved 2026-07-22)
+const ACC_TIER_CAP = 9;      // ceiling of tiers (×5.5 since 2026-09-13, ×3.25 before; the 9th threshold = 51 100 — practically unreachable, the cap keeps the formula under control)
 
 // Difficulty progression across levels. Empirical: deadlocks depend on the NUMBER OF TYPES
 // (fewer types = more copies = more matches on the surface), the radius
@@ -6188,7 +6234,8 @@ const ACC_TIER_CAP = 9;      // ceiling of tiers (×3.25; the 9th threshold = 51
 // `LEVEL_TYPES_MIN + (level − 1)`, only the start changed.
 // ⛔ THIS IS A DIFFICULTY LEVER, NOT COSMETICS: the number of types is the MAIN regulator
 // (bot measurement: deadlocks depend on it, the radius affects it weakly). The first levels
-// will become noticeably easier, the whole pool opens 6 levels later (117 instead of 111).
+// will become noticeably easier, the whole pool opens 6 levels later (117 instead of 111, then, at a pool
+// of 120; today it is TYPES.length - LEVEL_TYPES_MIN + 1 = 103).
 // ⚠️ The showcase panel requires at least VIT_MAX=3 slots — exactly that many exist on level 1,
 // with nothing to spare. If it drops lower, the panel's height will shift, and the toast anchor
 // reads its rect.
@@ -6306,7 +6353,10 @@ const TURBO_SHAKE = true;
 // untouched: the chain still runs into the same value instead of getting its own.
 // ⛔ And the endgame ∞ (<=8 alive) is still NOT limited by the ceiling — it stands
 // before all the branches in updateMatchRadius, it is anti-frustration, not a boost.
-const COMBO_RADIUS = 0.8, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // GAP CEILING 0.8 EVERYWHERE, including the Power chain
+//  ×ITEM_SIZE_K SINCE 2026-09-13 (the owner: «the reach grows by the same 9% as the items»): the
+// radii are ABSOLUTE surface gaps, so with bigger items an unchanged 0.8 would have been a silent
+// ~8% nerf relative to the item. The pre-batch number stays written as the literal it multiplies.
+const COMBO_RADIUS = 0.8 * ITEM_SIZE_K, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // GAP CEILING 0.8 EVERYWHERE, including the Power chain
 // ===== THE TEMPO PACKAGE (the owner's spec 2026-07-31: "there is not enough drive, especially
 // if items are easy to combine and are close" -> "let's try tempo, but
 // show it not through a bar, but through the mixer's eyes"). Three parts:
@@ -6552,12 +6602,16 @@ const CURTAIN_MAX_MS   = 12000;
 // button), and clicking it blows up all objects of that type in the bowl".
 // THE OWNER'S DECISIONS on my two questions: this is a RESCUE (accAdd accumulates, the museum
 // grows, the mixer gets angry) and the FREQUENCY is 1/level. The drop happens when the Power
-// chain ignites; the type is random among the alive ones with >= CHARGE_MIN_COPIES copies (measurement: the median
+// chain ignites; the type is chosen among the alive ones with >= CHARGE_MIN_COPIES copies - CANCELLED 2026-09-13:
+// «random»; the owner's decision 7 makes it the MOST UPGRADED of them (the highest accTier), random only among ties,
+// on both sources (tryGiveCharge in 40-items) (measurement: the median
 // number of copies is 14 on early levels, 6 on level 25 — below the threshold it would be "an explosion of a single item").
 // ⚠️ THE SCORE USES THE GROUP CAP AND NO ×2 OF THE SERIES: the formula 10·N·(N−1) at N=16 would give
 // +25% of a level's income in one click — the stars and the rank would drift. N is capped by
 // MATCH_MAX_N (at most 560 raw ≈ +7-9%), the combo multiplier is NOT applied:
 // the charge is itself a reward for a series, and a reward must not be multiplied by a reward.
+// NOTE: THE «+7-9%» AND THE COPY MEDIANS ABOVE ARE FROM THE 180-ITEM BOWL AT A TIER STEP OF 0.25 — HISTORY SINCE
+// 2026-09-13 (140 items, step 0.5: a tier-9 charge pays up to 560·5.5 raw, and copies per type fell ~22%).
 // ⚠️ DO NOT CALL IT A "bomb" either in code or in the UI — it clashes with the black ball.
 const CHARGE_MIN_COPIES = 6;
 // ⛔⛔ THE CHARGE ALSO ARRIVES ON A SCHEDULE, NOT ONLY FROM TURBO (the owner 2026-09-01-i: «after
@@ -6570,6 +6624,8 @@ const CHARGE_MIN_COPIES = 6;
 // was igniting turbo, which needs 16 clean matches - and the post-30 measurement is precisely that
 // 16 clean matches stop happening. The one mechanic that still produces a BIG group had become
 // unreachable exactly where it was needed most.
+// «sometimes» in his word is the TIMING (chargeAtFor stays random, 2026-09-13); WHICH type arrives follows the
+// most-upgraded rule of decision 7, the same as a turbo grant.
 const CHARGE_SCHED_FROM = 21, CHARGE_SCHED_EVERY = 2, CHARGE_SCHED_CHANCE = 0.5;
 
 // ⚡ THE OWNER'S AMENDMENT (the same date, on top of the first spec): "the object must live
@@ -6649,6 +6705,7 @@ const LEADERBOARD_ID = 'Blendo';
 // compressed 417→125 ms. The arithmetic of the quantity: it was 10000/417≈24 ticks × 2.6,
 // it became 3000/125=24 ticks × 2.6 — THE SUM IS THE SAME, it pours out three times faster and
 // manages to land within 3 s (a fall from the spawn at MAX_FALL takes <1 s).
+// (NOTE: 2026-09-13: «141 alive» is literally PAIRS*2+1 again with PAIRS 70; the air cap is 10, not 8.)
 // The fullness limits (141 alive / top>H-1 / <=8 in the air) are untouched — they cut ticks
 // before as well, now they cut them more densely, and the number will never exceed the old one.
 // ⛔ CHAIN_DROP_MS 125 → 80 (the owner's word 2026-08-23-a: «by the way, speed up their
@@ -6697,7 +6754,7 @@ const BOLT_TICK_MS = 130, BOLT_TICK_JIT = 110, BOLT_PER_TICK = 2, BOLT_MAX_D = 4
 // 0.75 would stand ABOVE the base, the formula would degenerate into `r = base`, and the dynamic
 // compression would quietly disappear entirely. The owner did not name a floor — so we preserve
 // the FORM of the existing mechanic instead of keeping a number that has lost its meaning.
-const MATCH_R_MIN = 0.375; // the floor of the radius compression: the same 5/6 fraction of the base as before (0.75 at a base of 0.9)
+const MATCH_R_MIN = 0.375 * ITEM_SIZE_K; // ×K since 2026-09-13 (the reach follows the item size); the floor of the radius compression: the same 5/6 fraction of the base as before (0.75 at a base of 0.9)
 
 // ⚠️⚠️⚠️ THE RADIUS PENALTY FOR A MISS — THE OWNER'S SPEC 2026-08-11, VERBATIM:
 // "right now it is too easy to poke at all objects and they will combine, it needs to be
@@ -6721,7 +6778,10 @@ const MATCH_R_MIN = 0.375; // the floor of the radius compression: the same 5/6 
 // PRODUCTION value. Previously they restored a LITERAL — and there are four of them in the file
 // with the number 0.9 plus two with 0.35, that is, copies lagging two editing epochs behind.
 // Now they restore it from here, and on the next edit of the base they will move by themselves.
-const BASE_RADIUS_DEFAULT = 0.45;
+// NOTE: ×ITEM_SIZE_K SINCE 2026-09-13 (0.4893): the reach grows with the items. The dev panel's slider
+// (#radiusRange, step 0.05) does NOT persist and its markup value 0.9 has been stale since 2026-08-11;
+// touching it writes a grid value over this one for the session only.
+const BASE_RADIUS_DEFAULT = 0.45 * ITEM_SIZE_K;
 // ⚠️⚠️ THE SECOND, SOFT ENDGAME STEP (the owner's word 2026-08-11: "at the end of a
 // level increase the radius so the player can combine items, if there are fewer than
 // 10 of them and there are few or no shakes left. Otherwise it is too hard").
@@ -6757,8 +6817,8 @@ const ENDGAME_SOFT_SHAKES = 1;   // "there are few or no shakes left"
 // mistakes, and it CANNOT push past `COMBO_RADIUS` — the ceiling that holds everywhere else in the
 // game, including turbo. So a player who keeps missing gets steadily more reach up to a fixed
 // stop, and never more than a player in a perfect streak.
-const MISS_ASSIST_STEP = 0.05;  // added to the radius per consecutive mistake
-const MISS_ASSIST_MAX  = 0.20;  // the stop: four mistakes and the help grows no further
+const MISS_ASSIST_STEP = 0.05 * ITEM_SIZE_K;  // added to the radius per consecutive mistake (×K since 2026-09-13)
+const MISS_ASSIST_MAX  = 0.20 * ITEM_SIZE_K;  // (×K since 2026-09-13) the stop: four mistakes and the help grows no further
 const MATCH_R_MISS_MS = 3000;   // how long a mistake keeps counting as recent (the state's window)
 
 // WEIGHT DURING A SHAKE (the owner's spec 2026-07-21, "option 1"): a discrete
@@ -7033,7 +7093,7 @@ const BOWL_FLY_G = 9.5;       // gravity for the shards (cosmetics, not the worl
 const BOWL_SHARD_TINT_LO = 0.72, BOWL_SHARD_TINT_HI = 1.26;
 // THE GROUP SIZE CAP (the owner's spec 2026-07-27: "put a cap at 8").
 // Before this there was NO cap at all: a tap carried away ALL accessible items of the same type within the
-// radius. A measurement of the ceiling by accessibility: lv.1 (9 types) up to 16 items,
+// radius. A measurement of the ceiling by accessibility (2026-07-27, at LEVEL_TYPES_MIN 9 and 180 items): lv.1 (9 types) up to 16 items,
 // lv.10 (18 types) 10, lv.40 (48 types) 3-4 — that is, the cap really works
 // only on EARLY levels, on late ones it changes nothing.
 // ⚠️ THE WHOLE match is counted, INCLUDING the tapped item (a group of <= 8 items).
@@ -7109,10 +7169,14 @@ const BOMB_FROM_LEVEL = 5;
 // lv.40 → 2, lv.60 → 1): the type for a block is CHOSEN among those with
 // ≥ 2N+2 copies (N free pairs + the block's partner). If there are none — there is no block, the queue
 // shifts to the next level.
+// NB: N 3 → 2 (the owner's word 2026-09-13). With the bowl at 140 items no type reached 8 copies
+// from level 22 and the ice silently left the game (types with 8 copies: lv19 7, lv20 4, lv21 1,
+// lv22+ 0). At N=2 a type needs 6 copies, which keeps the ice reachable to about level 129. The
+// measurement table above is from the 180-item bowl and N=3 — history.
 const FROZEN_FROM_LEVEL = 11;
 const FROZEN_GAP_MIN = 1, FROZEN_GAP_MAX = 3;
 const FROZEN_MAX_PER_LEVEL = 2;
-const FROZEN_PAIRS_N = 3;
+const FROZEN_PAIRS_N = 2;
 const FROZEN_BREAK_MULT = 3;        // earlier — there is no bomb at all
 const BOMB_GAP_MIN = 1, BOMB_GAP_MAX = 3;   // "every 1-3 levels"
 // ⛔⛔ 3 → 2 (the owner's word 2026-08-23-a) — the same counterweight as at
@@ -7132,6 +7196,27 @@ const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.8
 // scale, the enclosing radius `r` used by the blast metric, and `scl` used to build the collider.
 const BOMB_SCALE = 1.425;   // 0.95 x 1.5, in units of MESH_SCALE
 const FROZEN_BOMB_RADIUS = 2.86;
+// «YOUR ITEM RETURNS» (the owner's decision 9, 2026-09-13). From RETURN_FROM_LEVEL genLevel may deal ONE old unlocked kind
+// a double share, so a kind close to its next EARNED tier actually gets there on that level (pickReturnKind, 40-items).
+// RETURN_MAX_PAIRS caps the share: 10 pairs = 20 copies, 14% of the 140-item bowl; under PAIRS 70 it binds at level 11
+// only (round(140/13) = 11; at level 12 the round gives exactly the cap, 10).
+// RETURN_MERGE_SHARE 0.75 IS UNMEASURED - a named default, not a measurement: the share of a kind's copies a player is
+// assumed to actually merge (the owner's simulation assumed 0.85 and 0.70). The window below is gap-safe under it.
+const RETURN_FROM_LEVEL = 11;
+const RETURN_MAX_PAIRS = 10;
+const RETURN_MERGE_SHARE = 0.75;
+// The window of a return, PURE: no levelNum read (a `let` of a later module is in the temporal dead zone here), the
+// level's numbers are arguments. The gap to the next earned threshold must lie in (lower, upper]:
+//   dbl   = the double share in pairs, min(RETURN_MAX_PAIRS, round(2·pairs/distinct));
+//   upper = floor(2·dbl·share) - the double share closes the gap even if only `share` of its copies are merged;
+//   lower = floor(2·round(pairs/distinct)·share) - the «worth it» bound: a gap the PLAIN share already closes needs no return.
+// Under PAIRS 70: lv11-12 (7,15] with dbl 10 (at lv11 the round gives 11, capped); lv15 (6,12]; lv20, lv23 and lv30 (4,9];
+// lv50 (4,7]; lv100 (3,6]. Recompute the table whenever PAIRS, DISTINCT_BASE/STEP or the share move.
+function returnWindow(pairsCnt, distinct){
+  const d = Math.max(1, distinct | 0);
+  const dbl = Math.min(RETURN_MAX_PAIRS, Math.round(2 * pairsCnt / d));
+  return { dbl, upper: Math.floor(2 * dbl * RETURN_MERGE_SHARE), lower: Math.floor(2 * Math.round(pairsCnt / d) * RETURN_MERGE_SHARE) };
+}
 // ⚡ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10, three answers in a row to the
 // dispatcher: «1. Множитель всех очков на 5 секунд / 2. Пара не нужна / 3. Следующего»).
 // One item per level wears the face of the NEXT player in the table — the same neighbour the
@@ -7871,6 +7956,22 @@ const LB_URL = 'https://lb.blendo.monster';
 // native provider first.
 const PAY_URL = 'https://pay.blendo.monster';
 const PAY_SITE = 'https://blendo.monster';
+
+// ===== THE SILENT SERVICE-WORKER RECHECK (the owner's decision 10, 2026-09-13) =====
+// The boot `registration.update()` (99-main) runs once per launch, so a tab left open or an
+// installed app resumed from the background kept its build until a real relaunch. The same check
+// now also runs when the game RETURNS TO THE SCREEN: no prompt, no reload, no UI — a release found
+// this way installs in the background and opens on the next launch (the cache-first price of
+// 2026-09-10-i stands). Browsers put no throttle on a page-initiated update() (every call is a
+// network round trip to the site Worker), so the throttle is ours, and both numbers are read at
+// call time only:
+//   SW_RECHECK_GAP_MS    — the least time between two checks, the boot check included;
+//   SW_RECHECK_HIDDEN_MS — the least time the page must have been hidden: a genuine background
+//                          stint, not a tab flick (a bfcache restore counts as long enough).
+// WHY Date.now AND NOT performance.now: iOS freezes a hidden page, and the hidden duration must be
+// the wall-clock one.
+const SW_RECHECK_GAP_MS = 5 * 60 * 1000;
+const SW_RECHECK_HIDDEN_MS = 30 * 1000;
 
 // ===== GOOGLE SIGN-IN (84-auth; the endpoint lives in the pay worker, docs/GOOGLE-AUTH.md) =====
 // ⚠️ THE CLIENT ID IS NOT HERE, AND THAT IS DELIBERATE: it is needed by GIS on the client and as
@@ -8717,7 +8818,7 @@ function addMatcapEmissive(mat){
 }
 // The highlight from the alpha + emissive — on top of the multiplication. The function is ONE for all materials,
 // so the program cache (keyed by onBeforeCompile.toString()) gives ONE
-// compiled shader for all 181, not 181 of them.
+// compiled shader for every item material (181 when this was written at the 180-item bowl; ~141 since 2026-09-13), not one each.
 const matcapSpecPatch = function (sh) {
   sh.uniforms.emissive = { value: new THREE.Color(0x000000) };
   // BRIGHTNESS and CONTRAST are the owner's knobs, they live in 00-config. The uniform is per
@@ -8739,7 +8840,7 @@ const matcapSpecPatch = function (sh) {
   // the shader, zero work in JS per frame.
   // The constants are baked in as LITERALS, not as uniforms: the source comes out
   // identical for all materials -> the program cache keyed by onBeforeCompile.toString()
-  // still gives ONE compiled shader for all 181.
+  // still gives ONE compiled shader for every item material (181 at the 180-item bowl).
   const n = (x) => x.toFixed(3);
   sh.uniforms.uPileTop = uPileTop;   // ONE object for all materials
   sh.uniforms.uDepth = uDepthTint;
@@ -8784,7 +8885,7 @@ const matcapSpecPatch = function (sh) {
     console.warn('the matcap patch was NOT applied: the three anchor string has changed (10-stage matcapSpecPatch)');
 };
 // The top of the pile for the tinting. ONE shared uniform object: we updated .value —
-// all 181 materials updated at once, without traversing the scene.
+// every item material updated at once (181 at the 180-item bowl), without traversing the scene.
 const uPileTop = { value: FUNNEL.H };
 // Depth: x — how many times darker the bottom gets, y — how far below the top of the pile
 // that minimum is reached. ONE object for all materials, which is why it can be turned
@@ -8792,7 +8893,7 @@ const uPileTop = { value: FUNNEL.H };
 const uDepthTint = { value: new THREE.Vector2(DEPTH_TINT_MIN, DEPTH_TINT_RANGE) };
 // The strength of the veil — ONE shared object for all materials (like uPileTop/uDepth):
 // the shader source does not change because of it, the program is still compiled
-// once for all 183. x = the target light grey, y = the fraction of the lift towards it.
+// once for all of them (183 when counted at the 180-item bowl). x = the target light grey, y = the fraction of the lift towards it.
 const uVeilTune = { value: new THREE.Vector2(VEIL_LIGHT, VEIL_LIFT) };
 // ⚠️ THE COLOUR OF THE VEIL IS IN LINEAR SPACE: the patch edits outgoingLight BEFORE
 // the tone mapping, so raw sRGB here would give an over-lightened tone.
@@ -10324,12 +10425,12 @@ function mergeGeos(parts){ // [geometry, Matrix4] -> one non-indexed geometry
 // from git history + the TYPES line.
 // mat: soft (polished colored lacquer), chrome (mirror chrome) —
 // the reference is webgl_materials_envmaps_fasthdr (spheres #5 and #3).
-// ⚠️ THE ORDER MATTERS: progression UNLOCKS the first typesCount types (9 on the 1st
-// level, +1 per level). ⚠️ Since 2026-07-30 genLevel takes a RANDOM
+// NOTE: THE ORDER MATTERS: progression UNLOCKS the first typesCount types (LEVEL_TYPES_MIN = 3 on the
+// 1st level, +1 per level). Since 2026-07-30 genLevel takes a RANDOM
 // sample of the needed size from the unlocked range, and NOT the first ones in a row — before that everything
-// that stood past index PAIRS-1 (89) never spawned at all (see genLevel).
-// The order still decides WHEN a type unlocks,
-// +1 per level up to 15). The owner's models are placed AT THE START deliberately —
+// that stood past index PAIRS-1 (89 at PAIRS 90, the era of that fix; PAIRS is 70 since 2026-09-13) never spawned at all (see genLevel).
+// The order still decides WHEN a type unlocks (index i opens at level i - LEVEL_TYPES_MIN + 2;
+// the old «up to 15» ceiling is long gone). The owner's models are placed AT THE START deliberately —
 // otherwise they cannot be seen on the first levels (the 2026-07-20 request «I want to take a look»).
 // To bring the primitives back to the front = just swap the blocks around.
 // The 'teapot' type was removed at the owner's request; the teapotGeo function is KEPT —
@@ -10361,10 +10462,12 @@ const TYPES = [
   // fill 0.15-0.18 — a convex hull would lie crudely), the flags and the palm-
   // flagpole are flat. We do not touch the rocks-* stones — the owner's reserve.
   //
-// ⚠️ ORDER = PROGRESSION: types in a level are 9+level−1, they unlock in the order of the
+// NOTE: ORDER = PROGRESSION: types in a level are LEVEL_TYPES_MIN + level − 1 (3 + level − 1; 9 until 2026-08-11), they unlock in the order of the
 // array. The most distinguishable ones come first — the match goes BY TYPE, confusing them at the start is not allowed.
-// ⚠️ THE 2026-07-30 LAYOUT (the owner's spec «shuffle the types»):
-//   • indices 0..8 — the base nine of lvl.1, DO NOT TOUCH;
+// THE 2026-07-30 LAYOUT (the owner's spec «shuffle the types»). HISTORICAL: written at LEVEL_TYPES_MIN 9
+// and a pool of 120; the steak and forestplant are no longer in TYPES, and the base of lvl.1 today is
+// indices 0..LEVEL_TYPES_MIN-1 (0..2):
+//   • indices 0..8 — the base nine of lvl.1 (then), DO NOT TOUCH;
 //   • index 9 — THE STEAK, the owner's model, we keep it close to the start (his spec);
 //   • the Kenney batch is mixed in EVENLY further on (~every 4th), and not in the tail:
 //     in the tail it did not unlock before lvl.86 and did not exist for the player;
@@ -10372,7 +10475,8 @@ const TYPES = [
 //     learn «a goldfish at the bottom = treasure» (the Graphics workstream's objection was taken into account);
 //   • THE DONUT stays in the tail, DO NOT MOVE IT FORWARD: its convex hull has no hole,
 //     a compound collider is a Physics task after launch;
-//   • forestplant is LAST DELIBERATELY: the sentinel for the tail guards in test.js.
+//   • (then) forestplant was LAST as the sentinel for the tail guards; since 2026-09-01-e the
+//     sentinel is DERIVED in test.js (the last TYPES entry, whichever it is).
   { name:'foodwatermelon',        color:0xff5a6e, rc:1.0, tex:'food', mat:'soft', geo:foodwatermelonGeo },
   { name:'foodbanana',            color:0xffe14d, rc:1.4, tex:'food', mat:'soft', geo:()=>foodbananaGeo().clone().scale(1.4, 1.4, 1.4) },
   { name:'foodorange',            color:0xff9a2b, rc:1.0, tex:'food', mat:'soft', geo:foodorangeGeo },
@@ -10583,7 +10687,12 @@ function candyColor(hex, dl){
 // so neighbors cannot coincide in both hue and lightness.
 const LIGHT_OFFSETS = [0.00, -0.15, 0.12, -0.08, 0.18, -0.20];
 TYPES.forEach((t, i) => { if (t.mat === 'soft') t.dl = LIGHT_OFFSETS[i % LIGHT_OFFSETS.length]; });
-const MESH_SCALE = 0.62;
+// NB: 0.62 → 0.62 × ITEM_SIZE_K = 0.6742 (the owner's word 2026-09-13: «items 9% bigger», so 140
+// items keep the pile of 180). THE ONLY PLACE THE SIZE GOES: the mesh, r, wallR, scl, the colliders,
+// the access samples, the OBB reach, the sizes() hook, the audio pivot, the rival, the bomb
+// (BOMB_SCALE·MESH_SCALE) and the golden fish all derive from it. NB: A second factor in makeItem or
+// levelSize would double-scale one consumer and break sizes() (it divides by MESH_SCALE).
+const MESH_SCALE = 0.62 * ITEM_SIZE_K;
 
 // ===== 36-models: the owner's models from "3d assets" =====
 // Generated by tools/glb2module.py — DO NOT EDIT BY HAND.
@@ -11310,6 +11419,10 @@ let levelNum = 1;
 // object): it survives a Restart of the same run, and is zeroed only on a NEW
 // level. The details and why it is so — at the point of use in genLevel.
 let adHintLevelNo = -1, adHintCarry = AD_HINTS_PER_LEVEL;
+// «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the pick is LATCHED per levelNum in session memory, the same shape as the
+// ad-hint cap above - Restart and regen of the same level keep it and can never re-roll it. Never saved: a reload re-derives
+// the pick from the grown Save.ac (a named residual; the copy counts are the same, nothing to farm).
+let returnLevelNo = -1, returnLatchName = '';
 // ⛔⛔ LEVEL RESTORATION MOVED FROM HERE INTO 77-save (AFTER loadSave).
 // Here it was BROKEN BY CONSTRUCTION: the concatenation sorts modules by name,
 // 40 < 77, and «typeof Save» at the top level threw a ReferenceError (const has
@@ -11771,15 +11884,21 @@ function makeRival(av, name){
   return item;
 }
 
-// THE «TYPE CHARGE» GRANT. 1/level (level.chargeGiven) and only into an empty slot. The type is
-// random among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold the charge
-// would blow up 1-2 items and disappoint (measurement: median copies 14 early / 6 at lv.25).
+// THE «TYPE CHARGE» GRANT. 1/level (level.chargeGiven) and only into an empty slot, among the LIVE
+// types with >= CHARGE_MIN_COPIES copies: below that threshold the charge would blow up 1-2 items and
+// disappoint (measurement: median copies 14 early / 6 at lv.25).
+// CANCELLED 2026-09-13: «the type is random among them». The owner's decision 7: the charge lands on the
+// MOST UPGRADED eligible type (the highest accTier - earned and bought alike, the tier the payout reads),
+// random only among the ties. WHY: the charge pays the type's own multiplier, so a random draw spent the one
+// big group of a level on a kind the player never invested in. One function, so the turbo ignition and the
+// schedule both obey it; WHEN the charge arrives stays random (chargeAtFor is untouched).
 // ⚠️ EXTRACTED 2026-09-01-i BECAUSE IT NOW HAS TWO CALLERS - turbo ignition, as before, and the
 // schedule (`tickChargeSchedule`). Two copies of a grant would have drifted at the first edit of
 // the copies threshold, and the `chargeGiven` watermark only works if BOTH paths respect it.
 // ⚠️ `prefer` IS A TEST DOOR ONLY (2026-09-07-g): the suite's direction guard needs a ROUND item (an
 // up-the-body band on a diagonal banana moves its x-centroid too, and the arm went blind to that
-// sabotage). Production callers pass nothing and the draw stays random; an absent name falls back.
+// sabotage). Production callers pass nothing and get the most-upgraded rule of decision 7 (random only
+// among ties; «the draw stays random» stood here until 2026-09-13); an absent or ineligible name falls back.
 function tryGiveCharge(prefer){
   if (level.chargeGiven || chargeName) return false;
   const cnt = {};
@@ -11789,7 +11908,13 @@ function tryGiveCharge(prefer){
   const pool = Object.keys(cnt).filter(k => cnt[k] >= CHARGE_MIN_COPIES);
   if (!pool.length) return false;
   level.chargeGiven = true;
-  chargeName = (prefer && pool.includes(prefer)) ? prefer : pool[Math.floor(Math.random() * pool.length)];
+  // the test door first (a named type that is eligible wins outright), then the most upgraded, random among ties
+  if (prefer && pool.includes(prefer)) chargeName = prefer;
+  else {
+    let best = -1, tied = [];
+    for (const k of pool){ const t = accTier(k); if (t > best){ best = t; tied = [k]; } else if (t === best) tied.push(k); }
+    chargeName = tied[Math.floor(Math.random() * tied.length)];
+  }
   chargeUntil = performance.now() + CHARGE_TTL_MS;
   try { updateHUD(); } catch(e){}
   return true;
@@ -11882,6 +12007,49 @@ function rivalNoteGiven(){
   const gap = RIVAL_GAP_MIN + Math.floor(Math.random() * (RIVAL_GAP_MAX - RIVAL_GAP_MIN + 1));
   rivalNextLevel = levelNum + gap;
 }
+// ═══ «YOUR ITEM RETURNS»: WHICH OLD KIND IS DEALT A DOUBLE SHARE (the owner's decision 9, 2026-09-13) ═══
+// PURE over Save.ac and its arguments, and deterministic - no Math.random - so the same counts on the same level pick the
+// same kind. The eligibility, every term the owner's default of 2026-09-13:
+//  - never the newest unlock: the walk stops at typesCount − 2 (the newest is pinned anyway, and it is new, not returning);
+//  - never a heavy kind - a TYPES entry with tex 'car' (a doubled car is thousands of triangles, the frame law of 2026-08-29);
+//  - never a kind whose RESULTING tier (accTier: earned + bought) is at ACC_TIER_CAP - the boostPrice rule; a double share
+//    there raises nothing. accTier and not accCountTier: a kind BOUGHT to the cap is capped.
+//  - a boosted kind below the cap IS eligible (a double share rewards a purchase);
+//  - the gap to the next EARNED threshold must lie in (lower, upper] of returnWindow (00-config).
+// The winner: the smallest gap, then the higher EARNED tier, then the lower TYPES index (the ascending walk keeps it on ties).
+// `only` restricts the walk to one name: the latch re-validates its kind with THIS rule, never with a copy of it.
+function pickReturnKind(lv, typesCount, pairsCnt, distinct, only){
+  if (!(lv >= RETURN_FROM_LEVEL) || !(distinct >= 2)) return null;
+  const W = returnWindow(pairsCnt, distinct);
+  let best = null;
+  for (let i = 0; i <= typesCount - 2 && i < TYPES.length; i++){
+    const t = TYPES[i];
+    if (!t || !t.name) continue;
+    if (only && t.name !== only) continue;
+    if (t.tex === 'car') continue;
+    if (accTier(t.name) >= ACC_TIER_CAP) continue;
+    const next = accNext(t.name);
+    if (next === null) continue;
+    const gap = next - accCount(t.name);
+    if (!(gap > W.lower && gap <= W.upper)) continue;
+    const tier0 = accCountTier(t.name);
+    if (!best || gap < best.gap || (gap === best.gap && tier0 > best.tier0))
+      best = { idx: i, name: t.name, dbl: W.dbl, gap, tier0 };
+  }
+  return best;
+}
+// Can the returned kind still reach its next threshold on THIS level? Its count plus its LIVE copies (a frozen copy counts:
+// thawed, it merges like any other). The tier-up notice is held for it only while this is true (showTierUp, 85-hud).
+function returnReachable(rk){
+  if (!rk || !rk.name) return false;
+  if (accTier(rk.name) >= ACC_TIER_CAP) return false;
+  const next = accNext(rk.name);
+  if (next === null) return false;
+  let live = 0;
+  for (const it of items)
+    if (it && it.alive && !it.surprise && !it.bomb && !it.rival && it.type && it.type.name === rk.name) live++;
+  return accCount(rk.name) + live >= next;
+}
 // REWARD FOR SERIES: the bomb falls from the sky by the same path as the turbo
 // top-up.
 // ⚠️ Guards: not earlier than the fifth level, not in the finale/at the end, and
@@ -11916,7 +12084,7 @@ function dropOneFromSky(k, forcedTypeIdx){
   const it = makeItem(typeIdx, levelSize());
   const maxD = Math.max(0.1, radiusAt(FUNNEL.H) * 0.7 - it.r);
   const th = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * maxD;
-  it.p.set(Math.cos(th) * d, FUNNEL.H + 2 + (k || 0) * 1.2, Math.sin(th) * d);
+  it.p.set(Math.cos(th) * d, FUNNEL.H + 2 + (k || 0) * DROP_STACK_STEP, Math.sin(th) * d);
   it.mesh.position.copy(it.p);
   createItemBody(it, TYPES[typeIdx].name, it.geo);
   // ⚠️⚠️ THE INITIAL DOWNWARD VELOCITY — THE CURE FOR THE «FEELING OF DROPPED
@@ -12009,6 +12177,22 @@ function levelSize(){
 // the queue of ice blocks — IN THE SESSION'S MEMORY, as with the bomb: this is
 // the rhythm of delivery, not progress
 let frozenNextLevel = FROZEN_FROM_LEVEL;
+// NOTE: THE SPAWN COLUMN'S LAYER STEP FOLLOWS THE ITEM SIZE (2026-09-13). 1.35 was tuned (2026-07-18)
+// against items of radius 0.62 — 2.18 radii per layer; left literal after the +9% of MESH_SCALE it
+// would equal the new base diameter and start overlaps «blew the column up». genLevel's layers, the
+// bomb's and the rival's spawn heights all read this one number.
+const SPAWN_LAYER_STEP = MESH_SCALE * (1.35 / 0.62);
+// NOTE: THE SKY DROP'S STACK STEP FOLLOWS THE SAME SIZE (2026-09-13, stage «Stale notes», consistent with the owner's
+// decision 3 «items 9% bigger»). dropOneFromSky (the chain refill, the final pairs, the Continue top-up) stacked
+// the k-th drop at a literal k·1.2 — 1.935 radii at the size 0.62. Left literal after the +9% it would be 1.78 radii;
+// derived, the relation stays exactly what was tuned (1.305 today). It was below one diameter then too (1.2 < 1.24):
+// the XZ of each drop is random, so drops rarely share a column. Not the full SPAWN_LAYER_STEP: the final pairs
+// stack ~47 items, and a 12% taller column moves the finale's timing.
+// NOTE: THE PRICE AGAINST RESCUE_CEIL (90, 50-physics): the final-pairs staircase peaks at FUNNEL.H + 2 + (orphans-1)·step and
+// the orphans are bounded by levelDistinctCap. At 1.2 the peak first passed 90 at ~level 450 (67 orphans); at 1.305 it passes
+// at ~level 400 (62 orphans: 90.8), i.e. the rescuer teleports the topmost fresh partners there ~50 levels earlier. Level 41
+// (the refillTop guard, 26 orphans) peaks at 43.8. Named, not re-tuned: the ceiling is physics' number.
+const DROP_STACK_STEP = SPAWN_LAYER_STEP * (1.2 / 1.35);
 function freezeItem(it){
   it.frozen = true; it.frozenReady = false;
   it.frozenKey = it.key;              // for the RETURN into the pairing mechanics
@@ -12216,7 +12400,7 @@ function genLevel(){
   buildTempTallWall(); // the spawn column is above the rim — we hold it with a tall wall
   const typesCount = Math.min(TYPES.length, LEVEL_TYPES_MIN + (levelNum - 1));
   const idleLimit = CFG.hard ? MIXER_IDLE_HARD : MIXER_IDLE_EASY; // the mixer's patience by difficulty
-  const pairsCnt = pairsForLevel(levelNum);   // the progression 40 -> 90 pairs (00-config)
+  const pairsCnt = pairsForLevel(levelNum);   // the progression 40 -> 70 pairs (00-config; 90 until 2026-09-13)
 
   // the pairs: type + size; the small ones go down, the large ones go up
   const pairs = [];
@@ -12229,20 +12413,24 @@ function genLevel(){
   // gameplay-based: on levels with typesCount > pairsCnt my sweep took THE VERY
   // SAME subset of types in every layout, while their sampling takes a RANDOM 90
   // out of the unlocked ones, and every layout is different. For the late game this
-  // variety is free. Both versions keep the curve 1..82 untouched (while
-  // typesCount <= pairsCnt, ALL the unlocked types are taken) — this was verified
-  // in both.
+  // variety is free. Both versions kept levels 1..82 untouched as the pool and the progression
+  // stood then (LEVEL_TYPES_MIN 9, no distinct cap: while typesCount <= pairsCnt, ALL the
+  // unlocked types are taken) — this was verified in both. Today's boundaries are derived below.
   // ⚠️ CONSEQUENCE FOR THE TESTS: on high levels the composition of the pile is
   // NON-DETERMINISTIC. An assert «type X is in the pile on level Y» must collect the
-  // UNION over several regens once `typesCount > pairsCnt` — a single regen flakes.
-  // ⚠️⚠️ THE BOUNDARY IS DERIVED, NOT A LITERAL, AND IT MOVES WITH THE POOL. It is the
-  // level where typesCount (level + LEVEL_TYPES_MIN - 1) first exceeds the pairs ceiling
-  // of 90 — i.e. `TYPES.length > 90` is what makes the branch reachable at all.
-  // ⛔ THE «82» THAT STOOD HERE WAS THE VALUE FOR A POOL OF 120 and had been dead since
-  // the pool was cut to 87 (2026-08-20): with 87 types the branch was UNREACHABLE and the
-  // sampling only shuffled the ORDER. The props pack took the pool to 99 on 2026-08-31,
-  // so it is live again — from level 89, and every future edit of TYPES moves that number.
-  // Recompute it, never quote it.
+  // UNION over several regens once the deal is cut (`distinct < typesCount`) — a single regen flakes.
+  // THE BOUNDARIES ARE DERIVED, NOT LITERALS (rewritten 2026-09-13 in place of a tombstone of a tombstone).
+  // The set is cut wherever `distinct < typesCount`, and two limits can do it:
+  //   (a) THE DISTINCT CAP (2026-09-01-i, below): the first level where
+  //       LEVEL_TYPES_MIN + level - 1 > levelDistinctCap(level) — level 23 today (25 open, cap 24);
+  //   (b) THE PAIRS CEILING: the first level where LEVEL_TYPES_MIN + level - 1 > PAIRS, i.e.
+  //       PAIRS - LEVEL_TYPES_MIN + 2 — level 69 today (PAIRS 70). It is dominated by (a) while
+  //       levelDistinctCap(level) <= PAIRS, and binds again from the first level where the cap passes PAIRS
+  //       (22 + floor(lv/10) > 70 — level 490 today). It moves with PAIRS or LEVEL_TYPES_MIN, NOT with
+  //       TYPES; TYPES.length only decides whether the pool is still opening at that level.
+  // HISTORY: «82» (a pool of 120 at LEVEL_TYPES_MIN 9) and then «89» (PAIRS 90, written 2026-08-31) stood
+  // here as THE boundary; both were (b) quoted as a literal and both went stale. The PROGRESSION section
+  // of test.js derives (a). Recompute, never quote.
   // ⚠️⚠️ THE SELECTION OF THE LEVEL'S TYPES (the owner's spec 2026-07-30 «change
   // the type-selection line so that everything comes alive»). IT WAS:
   // `type: i % typesCount` — a circular walk FROM ZERO, so with pairsCnt=90 ONLY
@@ -12255,23 +12443,37 @@ function genLevel(){
   // unlocked range.
   // ⚠️ The NUMBER of types is UNTOUCHED — it is the main lever of difficulty, and it
   // stays min(typesCount, pairsCnt), as it was. Only WHICH ones exactly changes.
-  // ⚠️ THE CURVE 1..82 IS UNAFFECTED BIT FOR BIT: while typesCount <= pairsCnt,
-  // distinct equals typesCount, that is, ALL the unlocked types are taken — THE
-  // VERY SAME SET as before (only the order in the pairs array changes, and it is
-  // sorted by size below anyway). The sampling starts cutting something off only
-  // from typesCount > pairsCnt, that is, exactly where the dead zone used to be.
+  // NOTE: THE EARLY LEVELS ARE UNAFFECTED BIT FOR BIT: while typesCount <= min(pairsCnt,
+  // levelDistinctCap(level)), distinct equals typesCount, that is, ALL the unlocked types are
+  // taken — THE VERY SAME SET as before (only the order in the pairs array changes, and it is
+  // sorted by size below anyway). The sampling cuts only where distinct < typesCount — from
+  // level 23 today, by the cap (see the boundaries above). («THE CURVE 1..82» stood here until 2026-09-13.)
   // ⛔⛔ AND SINCE 2026-09-01-i THERE IS A THIRD LIMIT: how many DIFFERENT types one bowl may hold
   // (`levelDistinctCap`, a ramp - 24 at lv20, 25 at lv30, 27 at lv50). Unlocking is untouched;
   // this caps only the deal. It is the fix for the measured post-30 collapse: copies-per-type had
   // been falling 60 -> 5.6 -> 3.5, taking the group size and with it the QUADRATIC merge score.
   const distinct = Math.min(typesCount, pairsCnt, levelDistinctCap(levelNum));
+  // «YOUR ITEM RETURNS» - THE LATCH (decision 9, 2026-09-13). A new levelNum picks once; the same levelNum (Restart, regen)
+  // re-validates the latched kind by the same rule and NEVER picks another: a kind whose gap closed on a previous try gives
+  // no return on the replay, so a double share cannot be farmed by restarting, and a level latched with no pick stays so.
+  // Every read from here to `level = {...}` uses this LOCAL: `level` still holds the PREVIOUS level at this point.
+  let returnPick = null;
+  if (returnLevelNo !== levelNum){
+    returnLevelNo = levelNum;
+    returnPick = pickReturnKind(levelNum, typesCount, pairsCnt, distinct);
+    returnLatchName = returnPick ? returnPick.name : '';
+  } else if (returnLatchName){
+    returnPick = pickReturnKind(levelNum, typesCount, pairsCnt, distinct, returnLatchName);
+  }
   const pool = [];
   for (let i = 0; i < typesCount; i++) pool.push(i);
   for (let i = pool.length - 1; i > 0; i--){          // Fisher-Yates over the unlocked range
     const j = Math.floor(Math.random() * (i + 1));
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
   }
-  // ⚠️⚠️ TWO KINDS OF TYPE ARE PINNED INTO THE DEAL, AND THE SECOND ONE IS A TRUST BUG IF MISSED.
+  // THREE KINDS OF TYPE ARE PINNED INTO THE DEAL (two until 2026-09-13), AND THE SECOND ONE IS A TRUST BUG IF MISSED.
+  // (3) THE RETURNED KIND (decision 9, 2026-09-13), pinned AFTER the other two, so it never displaces the newest unlock or a
+  //     boosted kind; when the deal has no slot left for it the return is CANCELLED for this deal instead (below the loop).
   // (1) THE NEWEST UNLOCK. The game promises a new thing every level; with a cap it would
   //     otherwise be absent from the very bowl that unlocked it about half the time.
   // (2) EVERY TYPE THE PLAYER HAS PAID A BOOST ON. A boost is bought on a NAMED type and does
@@ -12280,6 +12482,10 @@ function genLevel(){
   //     trust, and it is why this loop exists at all.
   // ⚠️ Pinning preserves the shuffled order of everything else, and cannot exceed the deal: if a
   // player has boosted more types than fit, the surplus simply misses out like any other type.
+  // NOTE: SINCE 2026-09-13 THIS LOOP BACKS A PLAYER-FACING STRING (BOOST_PIN_TEXT, 77-save: «This item will
+  // come to every level», decision 7). Through level 22 every unlocked type is dealt anyway; from 23 this pin is
+  // what keeps the words true, and they stop being true only past levelDistinctCap(lv) - 1 boosted types (the
+  // surplus drops in TYPES order). An edit here or of DISTINCT_BASE must be checked against that string.
   {
     const pin = [];
     if (typesCount > 0) pin.push(typesCount - 1);                 // the model this level unlocked
@@ -12287,12 +12493,14 @@ function genLevel(){
       const nm = TYPES[i] && TYPES[i].name;
       if (nm && boostTier(nm) > 0 && pin.indexOf(i) < 0) pin.push(i);
     }
+    if (returnPick && pin.indexOf(returnPick.idx) < 0) pin.push(returnPick.idx);    // (3) last: the returned kind
     if (pin.length){
       const rest = pool.filter(i => pin.indexOf(i) < 0);
       pool.length = 0;
       for (const i of pin) pool.push(i);
       for (const i of rest) pool.push(i);
     }
+    if (returnPick && pool.indexOf(returnPick.idx) >= distinct) returnPick = null;   // no slot left: cancelled
   }
   // the set this bowl was actually dealt. ⛔ LOAD-BEARING BEYOND genLevel: `dropOneFromSky` MUST
   // draw from it. Drawing from all unlocked types - which is what it did until 2026-09-01-i -
@@ -12302,7 +12510,19 @@ function genLevel(){
   // round-robin over the SELECTED ones — the distribution of copies across types is
   // just as even as it was with `i % typesCount` (otherwise rare types would
   // produce orphans)
+  // TOMBSTONE 2026-09-13 (decision 9, «your item returns»): no longer «just as even» on a return level. ONE kind gets
+  // returnPick.dbl WHOLE pairs and the remaining pairs go round-robin over the other distinct − 1 dealt kinds - whole pairs,
+  // so still no orphans; the total, `distinct` and `dealtTypes` are unchanged, and the returned kind is inside dealtTypes, so
+  // dropOneFromSky still rains dealt kinds only. THE SPAWN FORMULA IS A DIFFICULTY LEVER - this is by the owner's spec.
+  // With no pick the original line below runs exactly as before.
+  if (returnPick){
+    const others = dealtTypes.filter(t => t !== returnPick.idx);
+    for (let i = 0; i < returnPick.dbl; i++) pairs.push({ type: returnPick.idx, size: levelSize() });
+    for (let i = 0; i < pairsCnt - returnPick.dbl; i++) pairs.push({ type: others[i % others.length], size: levelSize() });
+    pairs.sort((a,b)=>a.size - b.size);
+  } else {
   for (let i=0;i<pairsCnt;i++) pairs.push({ type: pool[i % distinct], size: levelSize() });  pairs.sort((a,b)=>a.size - b.size); // the small ones first (they will lie lower)
+  }
   let n = 0;
   for (const pr of pairs){
     for (let k=0;k<2;k++){
@@ -12313,7 +12533,9 @@ function genLevel(){
       const perLayer = 8;
       const layer = Math.floor(n/perLayer);
       const bottom = FUNNEL.H;
-      const y = bottom + 1.6 + layer*1.35 + Math.random()*0.25;
+      // NOTE: THE STEP FOLLOWS THE ITEM SIZE (2026-09-13): 1.35 was tuned against a diameter of 2·0.62;
+      // left literal it would equal the new base diameter (1.348) and the layers would touch.
+      const y = bottom + 1.6 + layer*SPAWN_LAYER_STEP + Math.random()*0.25;
       const maxD = Math.max(0.1, radiusAt(bottom)*0.85 - it.r);
       const th = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*maxD;
       it.p.set(Math.cos(th)*d, y, Math.sin(th)*d);
@@ -12325,7 +12547,7 @@ function genLevel(){
       if (n === pairsCnt && bombDueThisLevel()){
         bombNoteGiven();
         const b = makeBomb();
-        b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*1.35 + 0.7, (Math.random()-0.5)*2);
+        b.p.set((Math.random()-0.5)*2, FUNNEL.H + 1.6 + Math.floor(n/8)*SPAWN_LAYER_STEP + 0.7, (Math.random()-0.5)*2);
         b.mesh.position.copy(b.p);
         createItemBody(b, 'bombhull', geoCache.get('B')); // not 'ball' any more — see makeBomb
         b.wave = Math.floor(n/8); waveHold(b);
@@ -12341,7 +12563,7 @@ function genLevel(){
         if (nb && nb.av > 0){
           rivalNoteGiven();
           const r = makeRival(nb.av, nb.name);
-          r.p.set((Math.random() - 0.5) * 2, FUNNEL.H + 1.6 + Math.floor(n / 8) * 1.35 + 0.7,
+          r.p.set((Math.random() - 0.5) * 2, FUNNEL.H + 1.6 + Math.floor(n / 8) * SPAWN_LAYER_STEP + 0.7,
                   (Math.random() - 0.5) * 2);
           r.mesh.position.copy(r.p);
           // ⚠️ AN EXACT SPHERE, NOT A HULL: a ball taken down the hull branch would keep every
@@ -12434,6 +12656,7 @@ function genLevel(){
   // are in the intro (tickIntro/finishIntro) or in __game.skipIntro() for tests
   stats = { taps:0, matches:0, misses:0, missRun:0, // missRun: mistakes since the last merge — drives the price ladder (2026-08-24-b)
             shakesUsed:0, adShakesUsed:0, adHintsUsed:0, score:0,
+            tierRaw:0, // RAW points the type multipliers added this level (decision 7, 2026-09-13) - the win screen's line
             t0: performance.now(), lastAction: performance.now() };
   // ⚠️ adHints (the cap of videos per hint) is NOT written into the save — this is
   // an anti-dupe: the remainder in Save would be merged by max and the cloud would
@@ -12451,6 +12674,11 @@ function genLevel(){
   level = { shakes: freeShakesFor(levelNum), adShakes: AD_SHAKES_PER_LEVEL, adHints: adHintCarry, over:false, stuck:0, autoShakeUsed:false, autoStuck:0, finalRefillDone:false, nextGrind:0, chargeGiven:false, chargeAt:chargeAtFor(levelNum), idleLimit, typesCount, dealtTypes, banked:0, // banked — the level's units banked ahead of time (the watermark)
             topY0: 0, parBase: 0, coinsWon: 0, detectorUsed: false, /* continueUsed gone 2026-09-03 with the ad Continue */
             aliveN0: 0, camFollowOn: false, deadlock: false, // deadlock: a dead end → the rescue grind (99-main)
+            // decision 9 (2026-09-13): the returned kind of this deal, or null. Lives on the level object only - rebuilt by
+            // genLevel, read by showTierUp (the reservation) and renderWinTop (the pin) - never saved, so mergeSave needs no name.
+            returnKind: returnPick ? { name: returnPick.name, idx: returnPick.idx, dbl: returnPick.dbl, copies: 2 * returnPick.dbl,
+                                       gap: returnPick.gap, tier0: returnPick.tier0, tiered: false, released: false } : null,
+            returnWin: returnWindow(pairsCnt, distinct),
 };
   comboUntil = 0; lastMatchMs = 0; comboCount = 0; comboLevel = 0; chainUntil = 0; chainSeries = 0; chainCarry = 0; // the combo/chain reaction do not survive the level
   missRadiusClear();   // and the miss penalty: a new level starts with the full radius
@@ -12459,9 +12687,11 @@ function genLevel(){
   // THE SCATTERING BOWL (prototype v2): the bowl is NEW every level (the owner's
   // decision no. 1) — the cracks are back to zero, the glass and the walls are
   // restored
-  // a snapshot of the multipliers at the start of the level — by it the toast
-  // decides whether the multiplier HAS GROWN during this run (the owner's word
-  // 2026-08-05)
+  // a snapshot of the multipliers at the start of the level.
+  // TOMBSTONE 2026-09-13: «by it the toast decides whether the multiplier HAS GROWN during this run (the owner's word
+  // 2026-08-05)» stopped being true on 2026-08-23-a, when the per-collection toast was removed - the tier-up toast reads the
+  // event, not this snapshot, and for three weeks nothing read it. Its one reader since decision 9 (2026-09-13) is the win
+  // screen: the returned kind's pill says «Upgraded» when accMult has grown past this snapshot (renderWinTop, 85-hud).
   level.multAtStart = {};
   try { for (const t of TYPES) level.multAtStart[t.name] = accMult(t.name); } catch(e){}
   level.bowlCracks = 0; bowlShattering = false;
@@ -12755,7 +12985,8 @@ const FLOOR_CALM_V = 0.5;
 const FLOOR_SUNK_TICKS = 3;
 // ⚠️⚠️ THE RESCUER'S CEILING: above it an item counts as "flown away". It was
 // 60 — and that turned out to be TOO LITTLE for the final top-up of pairs: it
-// spawns a partner for every orphan on a staircase `FUNNEL.H + 2 + k*1.2` with
+// spawns a partner for every orphan on a staircase `FUNNEL.H + 2 + k*DROP_STACK_STEP` (k*1.2 when
+// measured; 1.2·ITEM_SIZE_K = 1.305 since 2026-09-13, 40-items) with
 // no cap on k, and on lvl 40 (55 orphans) the spawn peak is 67.4 — ABOVE THE
 // CEILING. The rescuer was teleporting what had just been topped up:
 // 23 teleports measured over 4 runs, with the walls intact
@@ -13112,7 +13343,7 @@ function buildAccessSamples(item, typeName, geo){
   // R*(1 - cos(pi/RING_SEG)) = 0.0341*R off a chord, while `ringMeasure` REFUSES to return a ring
   // at all unless `tube > 0.12*R`. That is a guaranteed 3.5x margin for any model that reaches
   // this branch. ⚠️ THE FIGURES THAT FOLLOW ARE AT s = 1 AND THE HOOK REPORTS AT s = MESH_SCALE
-  // (0.62): buoy 0.027 against a tube of 0.209, donut 0.023 against 0.331 — lift them into an
+  // (0.62 when measured; 0.6742 since 2026-09-13): buoy 0.027 against a tube of 0.209, donut 0.023 against 0.331 — lift them into an
   // assert unscaled and it goes red on a healthy build.
   // ⚠️ EIGHT, matching the hull default, so the per-item raycast cost on Hard does not move.
   // ⛔ AND NEVER A SAMPLE AT THE CENTRE: for a ring that IS the hole — the origin this fix exists
@@ -16873,7 +17104,8 @@ const Sound = (function(){
       // carries both the caliber of the type and the size spread of the level.
       // ⚠️⚠️ THE PIVOT IS `MESH_SCALE`, NOT ONE, AND THIS IS NOT COSMETICS. `it.r` is
       // `rc · levelSize · MESH_SCALE` (40-items:117), that is, for a typical
-      // item (`rc:1.0`, and there are 107 such out of 120) it equals 0.62, not 1. A pivot
+      // item (`rc:1.0`, and there are 107 such out of 120) it equals 0.62 (0.6742 since the
+      // items grew ×cbrt(180/140) on 2026-09-13 — the pivot moved with them), not 1. A pivot
       // at one baked in a constant multiplier of 1/√0.62 = 1.27: THE MEASUREMENT on live
       // matches gave 12 values out of 12 ABOVE one (median 1.12), that is,
       // «bigger — lower» degenerated into «everything is sped up, the big ones a bit less».
@@ -17944,7 +18176,7 @@ const ACC_LABELS = {
 // ── THE TEXTS OF THE LONG META (plan item 1.3: on a phone the showcase is not
 // built, and the rule «merges grow the type's multiplier FOREVER» the player
 // learns nowhere. In v2 this is sharper than it was in v1: the multiplier toast
-// under the eyes (node 829:1242) shows «×1.25» on EVERY collection of an upgraded
+// under the eyes (node 829:1242) shows «×1.5» (×1.25 until the step doubled 2026-09-13) on EVERY collection of an upgraded
 // kind — the number keeps catching the eye constantly and is still explained by
 // nothing).
 // ⚠️ The strings live HERE, not on the surfaces: the toast, the museum and the
@@ -17954,7 +18186,7 @@ const META_TIP_RULE = 1; // the Save.mt bit: the accumulation rule has been expl
 // «300 saved» — how many of EXACTLY this kind were rescued. A number, not
 // percentages: the counter is lifetime and has no upper bound, a share would lie.
 function accSavedText(name){ return accCount(name) + ' saved'; }
-// «next ×1.5 at 700» — what will change and when. Show it ONLY when there is a
+// «next ×2 at 300» (tier 1, step 0.5 since 2026-09-13) — what will change and when. Show it ONLY when there is a
 // next tier: at the cap the «next …» line would be lying.
 function accNextText(name){
   const n = accNext(name);
@@ -17963,8 +18195,15 @@ function accNextText(name){
 }
 function accMultText(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // One line under the portrait: «Tiger · 300 saved». The name + the count turn a
-// bare «×1.25» into an understandable quantity.
+// bare «×1.5» into an understandable quantity.
 function accToastLine(name){ return accLabel(name) + ' · ' + accSavedText(name); }
+// THE WIN SCREEN'S TIER LINE (the owner's decision 7, 2026-09-13): what the type multipliers added this level, in
+// shown points. It lives HERE with the other META wordings for the reason this block opens with - one set of words.
+// «point» at exactly 1; the caller never asks for 0 (the line is hidden then).
+function winUpgText(n){ return 'Your upgraded items: +' + n + (n === 1 ? ' point' : ' points'); }
+// THE BOOST PROMISE (the same decision): a toast after a SUCCESSFUL Boost purchase. It states the pin genLevel
+// already keeps - a boosted type is dealt into every level (the pin loop in 40-items).
+const BOOST_PIN_TEXT = 'This item will come to every level';
 // THE RULE — we explain it EXACTLY ONCE, at the moment of the first tier:
 // earlier the player would not understand what it is about, later he has already
 // got used to seeing the number without any meaning.
@@ -17987,7 +18226,7 @@ function accLabel(key){
 }
 // TYPE UNLOCKING BY PROGRESSION (the contract for GRAPHICS — a 3D portrait only
 // for the unlocked ones, otherwise it spoils the models). The rule is THE SAME as
-// in genLevel (40-items): types open IN THE ORDER of the TYPES array, 9 at lv.1,
+// in genLevel (40-items): types open IN THE ORDER of the TYPES array, LEVEL_TYPES_MIN (3) at lv.1,
 // +1 per level, the pool's ceiling. levelNum is monotonic in a real game (it
 // grows on a win), therefore = THE MAXIMUM REACHED. The interface has ITS OWN
 // unlockedTypeCount (85-hud, its zone) — the numbers coincide; converge later,
@@ -19421,10 +19660,11 @@ function doMatch(list){
         if (!again) chainNextDrop = nowMs + 600; // an active chain's refill is already ticking
         comboCount = 0; // the series is «spent» on the launch — the next one piles up anew
         // THE «TYPE CHARGE» DROP (the owner's spec 2026-07-31, 00-config):
-        // 1/level (level.chargeGiven) and only into an empty slot. The type is random
-        // among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold
-        // the charge would blow up 1-2 items and disappoint (measurement: median
-        // copies 14 early / 6 at lv.25).
+        // 1/level (level.chargeGiven) and only into an empty slot, among the LIVE types
+        // with >= CHARGE_MIN_COPIES copies: below that threshold the charge would blow up
+        // 1-2 items and disappoint (measurement: median copies 14 early / 6 at lv.25).
+        // CANCELLED 2026-09-13: «the type is random». Decision 7 - the most upgraded
+        // eligible type, random only among ties (the rule lives in tryGiveCharge, 40-items).
         tryGiveCharge();
         const mid1 = new THREE.Vector3();
         list.forEach(it => mid1.add(it.p));
@@ -19482,7 +19722,7 @@ function doMatch(list){
   frozenCredit(typeName, n);                 // credit of pairs into the ice blocks of this type
   tapAccMs += performance.now() - _ta0;      // the type's accumulation + writing the save
   // ⚠️ The purchased booster is the LAST multiplier of the stack (combo ×2 × accumulation
-  // up to ×3.25 × booster up to ×5 × the rival's ×3, all through `rewardMult`), and since
+  // up to ×5.5 (×3.25 until 2026-09-13) × booster up to ×5 × the rival's ×3, all through `rewardMult`), and since
   // 2026-09-12 the level's merge curve (`levelMergeMult`, ×1 through level 17).
   // ⛔⛔ «IT MULTIPLIES THE PENALTIES TOO (the owner's decision 2026-07-28)» STOOD HERE UNTIL
   // 2026-09-12, nine days after scorePenalty stopped doing it (2026-09-03-h). The rule in force is
@@ -19502,7 +19742,17 @@ function doMatch(list){
   // and fire multipliers do not work (a promise to the owner); the type's upgrade, the
   // purchased booster and the level's merge curve stay — none of them is series-based.
   const hasRefill = list.some(i => i.refill);
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * levelMergeMult(levelNum) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * rewardMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  // THE TIER SHARE (the owner's decision 7, 2026-09-13: the win screen says «Your upgraded items: +N points»). Every
+  // factor is read ONCE into a name, so the payout and the same payout WITHOUT the type multiplier see identical
+  // numbers (rewardMult reads the clock; a second read could land on the other side of a window's edge). The
+  // product order of `gained` is the one it always had - at tier 0 am is exactly 1 and the share is exactly 0.
+  // The share is RAW (floored once at the win screen, never per merge) and it counts BOUGHT tiers too - accMult
+  // does not tell earned from bought. WARNING: it is written as `+=` on its own counter; never as a subtraction
+  // from the score (SCOREMATH S1 counts the one charging line of the build).
+  const lmm = levelMergeMult(levelNum), sm = (comboHot && !hasRefill) ? seriesMult(nowMs) : 1,
+        am = accMult(typeName), rm = rewardMult(), fm = (fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1;
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * lmm * sm * am * rm * fm);
+  stats.tierRaw += gained - Math.round(MATCH_SCORE * n * (n-1) * lmm * sm * rm * fm);
   // the multiplier toast under the eyes (node 829:1242): only for upgraded types
   // ⚠️ ONLY WHEN THE MULTIPLIER GREW DURING THIS RUN (the owner's word 2026-08-05:
   // «the toast under the eyes is shown only if the item's multiplier was increased
@@ -19521,8 +19771,9 @@ function doMatch(list){
   // popping on every collection of a kind that grew this run, i.e. the complaint would have
   // survived the fix untouched. The tier-up path (showTierUp → showMultToast) is now the
   // ONLY producer, and it is gated to once per level.
-  // ⚠️ `level.multAtStart` STAYS ALIVE — it is a snapshot the win screen and the meta read;
-  // it is not this toast's private state, and deleting it here would break other readers.
+  // `level.multAtStart` STAYS ALIVE - it is not this toast's private state.
+  // TOMBSTONE 2026-09-13: «a snapshot the win screen and the meta read» was a claim, not a reader - from 2026-08-23-a until
+  // decision 9 nothing read it. Its one reader now is the win screen's returned-kind pill («Upgraded», renderWinTop, 85-hud).
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // denom. gain of the chip (#10)
@@ -19709,10 +19960,13 @@ function breakIce(it, byBomb){
   // condition being fulfilled is not paid for.
   if (!byBomb){
     const before = stats.score;
-    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * levelMergeMult(levelNum) * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
+    // the tier share of decision 7 (2026-09-13) - each factor read once, the plain payout without accMult beside it
+    const ilmm = levelMergeMult(levelNum), iam = accMult(it.frozenType), irm = rewardMult();
+    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * ilmm * iam   /* NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
                               type.name (every accAdd passes a name) - so accTier was 0 and this multiplier was
                               exactly 1, always, against a comment promising «x the type's multiplier».
-                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * rewardMult());
+                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * irm);
+    stats.tierRaw += gained - Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * ilmm * irm);
     stats.score += gained;
     const shown = scoreShownDelta(before, stats.score);
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
@@ -19894,7 +20148,11 @@ function bowlCollectAll(){
   for (const [name, list] of Object.entries(byType)){
     const k = list.length;
     const kk = Math.min(k, MATCH_MAX_N);
-    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * levelMergeMult(levelNum) * accMult(name) * rewardMult());
+    // the tier share of decision 7 (2026-09-13), per kind - each factor read once
+    const blmm = levelMergeMult(levelNum), bam = accMult(name), brm = rewardMult();
+    const bg = Math.round(MATCH_SCORE * kk * (kk - 1) * blmm * bam * brm);
+    gainedTotal += bg;
+    stats.tierRaw += bg - Math.round(MATCH_SCORE * kk * (kk - 1) * blmm * brm);
     accAdd(name, k, list[0]);
   }
   stats.score += gainedTotal;
@@ -19984,7 +20242,10 @@ function detonateCharge(){
   const N = Math.min(n, MATCH_MAX_N);            // the price cap — as with a group
   // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
   // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * levelMergeMult(levelNum) * accMult(name) * rewardMult());
+  // the tier share of decision 7 (2026-09-13) - each factor read once, the plain payout without accMult beside it
+  const clmm = levelMergeMult(levelNum), cam = accMult(name), crm = rewardMult();
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * clmm * cam * crm);
+  stats.tierRaw += gained - Math.round(MATCH_SCORE * N * (N - 1) * clmm * crm);
   const chargeScoreBefore = stats.score;   // for the pop below: the SHOWN delta, not the raw one
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n
@@ -22264,6 +22525,17 @@ function renderWinScreen(){
   // as much as went into the balance (bankLevelScore) and by how much the chip grew. A single
   // balance: chip/wallet/leaderboard/win — one scale (dispatcher's decision v113)
   const bal = Math.floor(score / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10));
+  // THE TIER LINE (the owner's decision 7, 2026-09-13): «Your upgraded items: +N points», above the Top Items list.
+  // N is stats.tierRaw floored ONCE here (each merge adds its raw share, so no rounding piles up per merge), and
+  // CAPPED at the level's banked points: a share cannot claim more than the level actually paid (a level that
+  // ended below zero banks 0 and shows no line). Hidden at 0 - a line saying «+0» is noise, not information.
+  const upg = $('winUpg');
+  if (upg){
+    const tr = (typeof stats !== 'undefined' && stats) ? Math.max(0, stats.tierRaw || 0) : 0;
+    const nUp = Math.max(0, Math.min(Math.floor(tr / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10)), bal));
+    upg.textContent = nUp > 0 ? winUpgText(nUp) : '';
+    upg.hidden = !(nUp > 0);
+  }
   const secs = (typeof stats !== 'undefined' && stats && stats.t0)
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
@@ -23091,9 +23363,19 @@ function renderWinTop(reduce){
   if (!keys.length && vitAll){ try { keys = vitAll.map(e => e.k); } catch(e){} }
   keys.sort((a, b)=> vitFrac(b) - vitFrac(a) || accCount(b) - accCount(a));
   const step = 0.09;
-  keys.slice(0, winTopN()).forEach((k, i)=>{
+  // «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the returned kind is PINNED into the shown rows - it takes the last row
+  // by progress when it would not make the cut - and wears a pill, «Returned», or «Upgraded» once its multiplier grew this
+  // level (read against level.multAtStart). `level` is still the finished level here: checkEnd shows the screen before
+  // genLevel runs. The number of rows stays exactly winTopN().
+  const rk = (typeof level !== 'undefined' && level && level.returnKind) ? level.returnKind : null;
+  const shown = keys.slice(0, winTopN());
+  if (rk && keys.indexOf(rk.name) >= 0 && shown.indexOf(rk.name) < 0 && shown.length) shown[shown.length - 1] = rk.name;
+  shown.forEach((k, i)=>{
     const row = document.createElement('div');
     row.className = 'wt-row';
+    const isRet = !!(rk && k === rk.name);
+    const upg = isRet && typeof accMult === 'function' && accMult(k) > (((level.multAtStart || {})[k]) || 1);
+    if (isRet){ row.classList.add('wt-return'); if (upg) row.classList.add('wt-return-up'); }
     // ⚠️ THE ROW CARRIES ITS TYPE KEY (2026-08-25-d): the visible name is `accLabel`, and a guard
     // that has to compare this row's picture with the one production would compute for it would
     // otherwise have to reproduce that mapping — a copy of a translation table beside the
@@ -23106,9 +23388,12 @@ function renderWinTop(reduce){
     try { const it = thumbItemForKey(k); if (it) url = itemThumb(it, true); } catch(e){}
     row.innerHTML =
       '<div class="wt-thumb">' + (url ? '<img alt="" src="' + url + '">' : '') + '</div>' +
-      '<div class="wt-body"><div class="wt-col"><div class="wt-name"></div>' +
+      '<div class="wt-body"><div class="wt-col">' +
+      // the pill is the name's SIBLING, so `.wt-name` keeps the name alone
+      (isRet ? '<div class="wt-head"><div class="wt-name"></div><span class="wt-pill"></span></div>' : '<div class="wt-name"></div>') +
       '<div class="wt-bar"><i></i></div></div><div class="wt-mult"></div></div>';
     row.querySelector('.wt-name').textContent = (typeof accLabel === 'function' ? accLabel(k) : k);
+    if (isRet) row.querySelector('.wt-pill').textContent = upg ? 'Upgraded' : 'Returned';
     row.querySelector('.wt-mult').textContent = fmtMult(typeof accMult === 'function' ? accMult(k) : 1);
     host.appendChild(row);
     // ⛔⛔ REVIEW FINDING 18, SETTLED BY THE OWNER 2026-08-30: «pokazyvaem obshchuyu, kak v
@@ -23131,7 +23416,9 @@ function renderWinTop(reduce){
     }
   });
 }
-function toast(msg){
+// `quiet` (2026-09-13, the owner's decision 7): the Boost promise follows a purchase that already rang its own
+// sound; every other caller passes one argument and keeps the ding.
+function toast(msg, quiet){
   const t = $('toast');
   // ⚠️ THE GAME'S REFUSAL CHANNEL («Not enough coins», «No hints left», «No shakes left») and it
   // was silent - the sound inventory named it.
@@ -23142,7 +23429,7 @@ function toast(msg){
   // the owner rather than buried here.
   // ⚠️ It can overlap the delegated `ui` click when a BUTTON raised the toast, and that is
   // correct rather than a double-up: the pair reads as «pressed, and answered».
-  try { Sound.play('toast'); } catch (e) {}
+  if (!quiet){ try { Sound.play('toast'); } catch (e) {} }
   t.textContent = msg; t.style.opacity = 1;
   clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.opacity = 0; }, 1600);
 }
@@ -24281,7 +24568,7 @@ function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // is also an event (`acc_up` telemetry) and a documented hook (`onAccTierUp`) that the suite
 // pins; gating the EVENT would silently stop both, so what is gated is only the DISPLAY.
 // ⚠️ THE FLAG LIVES ON `level`, which genLevel builds fresh — so it resets by itself, in
-// the same way as multAtStart / chargeGiven / continueUsed. No reset line is needed, and
+// the same way as multAtStart / chargeGiven (continueUsed is gone since 2026-09-03). No reset line is needed, and
 // adding one would just be a second truth.
 // ⚠️ `multToastTest` (99-main) DELIBERATELY BYPASSES THIS GATE: it calls showMultToast
 // directly, so the suite can still raise the toast at will. If that ever changes, the toast
@@ -24289,6 +24576,16 @@ function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 function showTierUp(ev){
   try {
     if (typeof level === 'undefined' || !level) return;
+    // «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the level's one notice is RESERVED for the returned kind. Another kind's
+    // tier-up is dropped WITHOUT spending the flag while the returned kind can still reach its threshold; the reservation is
+    // released for good once that kind tiers or becomes unreachable (its copies eaten, a boost capped it). A SECOND early
+    // exit, standing BEFORE the once-per-level one below - that gate itself is unchanged.
+    const rk = level.returnKind;
+    if (rk && !rk.tiered && !rk.released){
+      if (ev && ev.key === rk.name) rk.tiered = true;
+      else if (returnReachable(rk)) return;
+      else rk.released = true;
+    }
     if (level.multToastShown) return;
     level.multToastShown = true;
     // ⚠️ INSIDE the once-per-level gate on purpose: the owner capped this notice at one per
@@ -24309,7 +24606,7 @@ function demoAccSnapshot(){
   return Object.keys(byKey).slice(0, 12).map((k, i) => {
     const count = 40 + i * 97 % 900 + byKey[k].n * 7;
     let tier = 0; while (tier < ACC_TIERS_DEMO.length && count >= ACC_TIERS_DEMO[tier]) tier++;
-    return { name: k, count, tier, mult: 1 + 0.25 * tier,
+    return { name: k, count, tier, mult: 1 + ACC_MULT_STEP * tier,
       next: ACC_TIERS_DEMO[tier] || null, _item: byKey[k].it };
   });
 }
@@ -24429,7 +24726,7 @@ function setWalletNumber(el, n){
   if (grouped !== plain && !fits()) el.textContent = plain;
   if (plain !== short && !fits()) el.textContent = short;
 }
-// how many types are opened by the progression: 9 at level 1, +1 per level, the pool's ceiling
+// how many types are opened by the progression: LEVEL_TYPES_MIN (3) at level 1, +1 per level, the pool's ceiling
 // (the types are opened IN THE ORDER of the TYPES array — as in genLevel)
 function unlockedTypeCount(){
   const lvl = (typeof levelNum === 'number' ? levelNum : 1);
@@ -25465,7 +25762,7 @@ function buildVitrine(){
   }
   vitSlots = [];
   const ranked = vitRankedAll();
-  const count = Math.min(VIT_MAX, ranked.length); // EXACTLY 3 (there are always ≥9 types)
+  const count = Math.min(VIT_MAX, ranked.length); // EXACTLY 3 (level 1 deals LEVEL_TYPES_MIN = 3 = VIT_MAX types, nothing to spare; see 00-config)
   // we cap the cascade's step so that the unfolding does not drag on (~0.45 s)
   const step = Math.min(0.07, 0.45 / Math.max(1, count));
   for (let i = 0; i < count; i++){
@@ -25559,14 +25856,16 @@ function tickVitrine(now){
 // desk.). The owner's word: «it goes seamlessly right after the level completion screen».
 //
 // ⚠️⚠️ WHAT COUNTS AS A «NEW ITEM» IS DERIVED FROM THE PROGRESSION AND NOT INVENTED.
-// The types are opened IN THE ORDER of the array: 9 of them at the first level and EXACTLY ONE
+// The types are opened IN THE ORDER of the array: LEVEL_TYPES_MIN (3) of them at the first level and EXACTLY ONE
 // new one for each subsequent one (`LEVEL_TYPES_MIN + (level − 1)`, the single rule of
 // genLevel and `isTypeUnlocked`). Which means the screen has a natural and
 // deterministic occasion: to show that single item which will open at
 // the level the player has just moved on to.
-// ⛔ FOR THAT VERY REASON IT IS NOT THERE BEFORE THE FIRST LEVEL (there a whole nine open at once —
-// a single «new item» does not stand out) AND WHEN THE POOL IS EXHAUSTED (from level 112 no new types
-// appear any more). Both branches are obliged to hand control on, otherwise
+// NB: FOR THAT VERY REASON IT IS NOT THERE BEFORE THE FIRST LEVEL (there the whole starting set of
+// LEVEL_TYPES_MIN opens at once — a single «new item» does not stand out) AND WHEN THE POOL IS
+// EXHAUSTED (the last kind opens at level TYPES.length - LEVEL_TYPES_MIN + 1 = 103 today, so from
+// level 104 no new types appear any more; «nine» and «level 112» stood here until 2026-09-13; the
+// PROGRESSION section of test.js derives both ends). Both branches are obliged to hand control on, otherwise
 // the «Next» button will silently stop starting a level — the same rake as with
 // the story announcement.
 function newObjDue(){
@@ -26941,7 +27240,10 @@ $('msGrid').addEventListener('click', e => {
     const res = buyBoost(boostKey);
     // refreshMainScreen rebuilds the grid (the balance/the availability of the others) — we hang
     // the celebration AFTER, on the fresh card by key (the green top-up + the particles of joy)
-    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); }
+    // THE PIN PROMISE (the owner's decision 7, 2026-09-13): «This item will come to every level», on a successful
+    // purchase only. QUIET: the purchase already rings its own sound one line up, and a second ding on the same tap
+    // reads as two events.
+    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); toast(BOOST_PIN_TEXT, true); }
     else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough points');
     return;
   }
@@ -27514,7 +27816,7 @@ function tickIntro(dt){
     // THE MEASUREMENT THAT DEMANDED THIS: a tick only in 'drop' did not manage to hand out
     // the queue — the phase ends by `t > 0.8 && maxV < 3.5`, and with waves the pile at
     // the start is almost empty and the speeds are low, that is, the transition happens at the very
-    // EARLIEST threshold. The remainder (up to ~100 bodies out of 182) was dumped by `waveReleaseAll`
+    // EARLIEST threshold. The remainder (up to ~100 bodies out of 182, measured at the 180-item bowl) was dumped by `waveReleaseAll`
     // in finishIntro ALL AT ONCE — the work moved BEYOND the intro window, in front of the player:
     // time to calm 5.9-6.0 s against 5.5 without waves (lv.11, CPU ×4), while
     // the intro-window metric honestly showed −51% and did not see this.
@@ -27727,7 +28029,7 @@ let perfWin = [], perfWinStart = 0, perfDecided = false;
 // tupit, proveril na realnykh dannykh»). The one-shot window measured the FIRST 2.5 s of play —
 // a phone that was fast at level 1, or entered Low Power Mode mid-session, or thermally
 // throttled ten minutes in, passed as fast FOREVER: `perfDecided` latched on the green outcome
-// and the tier could never fire again, exactly when 180 items at level 11+ met a throttled GPU.
+// and the tier could never fire again, exactly when 180 items at level 11+ met a throttled GPU (the bowl then; 140 from level 7 since 2026-09-13).
 // Now the window RE-ARMS after a green verdict and keeps watching. Everything else is
 // unchanged and deliberate: one tier, ONLY DOWNWARDS (once low, we stop — there is nothing
 // further to do), the intro and outlier gating stays, the pause gating stays at the call site
@@ -28414,7 +28716,7 @@ window.__game = {
   // 2026-07-29): a flip of material.transparent on ALL live items. It returns
   // the ms of the flip itself + the first frame — and that is the price of recompilation (transparent
   // is part of the three program key through `#define OPAQUE`).
-  // MEASURED: the 1st flip of 183 materials — 34 ms (compiling the second variant),
+  // MEASURED (2026-07-29, at the 180-item bowl): the 1st flip of 183 materials — 34 ms (compiling the second variant),
   // each next one 1.2-1.6 ms (both programs are already in the three cache). That is why
   // «the complexity is applied from the next level» is a removable limitation.
   // The price of transparency is measured by it too, with a paired alternating measurement (see WORKSTREAMS).
@@ -28586,6 +28888,22 @@ window.__game = {
                                  tieFrom: MISS_TIE_FROM, tieMerges: MISS_TIE_MERGES }; },
   distinctCap(lv){ return levelDistinctCap(lv); },
   dealtTypes(){ return (level && level.dealtTypes) ? level.dealtTypes.slice() : null; },
+  // «YOUR ITEM RETURNS» (decision 9, 2026-09-13). returnInfo() answers whenever a level exists: `name` null means no return
+  // on this deal; `window` is the level's own {dbl, lower, upper}; `live` the returned kind's live copies; `reserved` whether
+  // the level's one tier-up notice is being held for it. returnLatchClear() is a TEST DOOR that forgets the session latch
+  // so the next regen picks again - production never calls it.
+  returnInfo(){
+    if (!level) return null;
+    const rk = level.returnKind || null;
+    let live = 0;
+    if (rk) for (const it of items) if (it && it.alive && !it.surprise && !it.bomb && !it.rival && it.type && it.type.name === rk.name) live++;
+    return Object.assign({ name: null, idx: -1, dbl: 0, copies: 0, gap: 0, tier0: 0, tiered: false, released: false }, rk || {}, {
+      live, reserved: !!(rk && !rk.tiered && !rk.released && returnReachable(rk)),
+      window: level.returnWin || null, fromLevel: RETURN_FROM_LEVEL, maxPairs: RETURN_MAX_PAIRS, share: RETURN_MERGE_SHARE,
+      latchLevel: returnLevelNo, latchName: returnLatchName, topN: winTopN(),
+      distinct: level.dealtTypes ? level.dealtTypes.length : 0, typesCount: level.typesCount, pairs: pairsForLevel(levelNum) });
+  },
+  returnLatchClear(){ returnLevelNo = -1; returnLatchName = ''; return true; },
   levelNum(){ return levelNum; },
   // debug/suite: the last telemetry events (the buffer accumulates even when
   // sending is off — otherwise the metrics could not be checked before production)
@@ -28606,6 +28924,10 @@ window.__game = {
   // ⛔ The winLbStub/winLbInfo hooks were cut out together with the inset cluster (85-hud).
   winScreen(on){ if (on){ show('winOverlay'); try { fitWinTopRow(); } catch (e) {} }
     else hide('winOverlay'); },
+  // the wordings of the owner's decision 7 (2026-09-13), read by the TIERSHARE and BOOSTPIN guards so a guard never
+  // keeps a second copy of a string that lives in 77-save
+  winUpgText(n){ return winUpgText(n); },
+  boostPinText(){ return BOOST_PIN_TEXT; },
   // ⚠️ A LOAD-BEARING HOOK, NOT A CONVENIENCE: the guard «the feature is off — there is no entry point to
   // the menu» stands on it. Without it the guard WOULD WAIT for somebody to open the menu with the module
   // removed — that is, it would inherit the situation instead of BRINGING IT ABOUT.
@@ -28895,6 +29217,20 @@ window.__game = {
                          windowMs: MATCH_R_MISS_MS }; },
   missRadiusNow(){ noteMissRadius(); return missRadiusCap(); },
   baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // to the guards — return the live value, not a literal
+  //  THE CONSTANTS BATCH OF 2026-09-13 (PAIRS 70, items ×cbrt(180/140), FROZEN_PAIRS_N 2): the guards read
+  // the rules LIVE instead of pinning copies of them. `pairsRule().at` is the production pairsForLevel.
+  meshScale(){ return MESH_SCALE; },
+  pairsRule(){ return { pairs: PAIRS, start: PAIRS_START, step: PAIRS_STEP, at: lv => pairsForLevel(lv) }; },
+  frozenRule(){ return { n: FROZEN_PAIRS_N, eligibleCopies: FROZEN_PAIRS_N * 2 + 2, breakMult: FROZEN_BREAK_MULT,
+                         fromLevel: FROZEN_FROM_LEVEL, matchScore: MATCH_SCORE }; },
+  spawnLayerStep(){ return SPAWN_LAYER_STEP; },
+  // THE SILENT SERVICE-WORKER RECHECK (decision 10, 2026-09-13), read by SWRECHECK. swRecheckWith drives
+  // the PRODUCTION chain (swRecheckFire) on a fake registration and returns nothing on purpose: a
+  // rejection the chain failed to catch must surface as the page's own unhandledrejection, not be
+  // swallowed by the caller's await.
+  swRecheckDue(now, last, hiddenMs, online, hidden){ return swRecheckDue(now, last, hiddenMs, online, hidden); },
+  swRecheckState(){ return { armed: swRecheckArmed, last: swLastCheckAt, gap: SW_RECHECK_GAP_MS, hidden: SW_RECHECK_HIDDEN_MS }; },
+  swRecheckWith(fakeReg){ swRecheckFire(fakeReg); },
   missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // the transition guard: the same scene WITHOUT the penalty
 
   // ⚠️⚠️ A LOAD-BEARING HOOK: the fraction of the progress bar. It is shown by TWO screens (the showcase
@@ -30325,9 +30661,63 @@ function registerServiceWorker(){
     // soft-update throttle lasts (up to a day) — which is not the price he agreed to. He agreed to ONE
     // launch. The cost of the line is a conditional GET of an 8 KB script, after the game is already up.
     // ⚠️ ONLY WHEN THERE IS SOMETHING TO UPDATE: on a first-ever visit `register()` is itself the install.
+    // AND THE PROMISE IS CAUGHT (2026-09-13): update() RETURNS a promise and rejects when offline — a
+    // try/catch does not catch a rejected promise, so an offline boot used to raise an unhandled rejection
+    // (a 'promise' error for 79-telemetry the day its URL is switched on).
     navigator.serviceWorker.register('sw.js').then(function(r){
-      try { if (r && r.active) r.update(); } catch(e){}
+      swLastCheckAt = Date.now();
+      try { if (r && r.active) r.update().catch(function(){}); } catch(e){}
+      // THE RECHECK ON RETURN TO THE SCREEN (the owner's decision 10, 2026-09-13), ARMED ONCE AND ONLY
+      // HERE: inside this .then the four gates above already hold (https, not automated, not framed, not
+      // ?nosw=1), so the WKWebView wrapper, the portal iframe and the suite never get a listener.
+      // 90-input's own visibilitychange handler is attached unconditionally and must NOT carry this.
+      // The listeners never touch the pause (openMainScreen owns it). No controllerchange, no reload.
+      if (swRecheckArmed) return;
+      swRecheckArmed = true;
+      var hiddenAt = 0;
+      document.addEventListener('visibilitychange', function(){
+        if (document.hidden){ hiddenAt = Date.now(); return; }
+        var away = hiddenAt ? Date.now() - hiddenAt : 0;
+        hiddenAt = 0;
+        swRecheck(away);
+      });
+      // a plain pageshow fires on EVERY load and would repeat the boot check; only a back-forward
+      // cache restore counts (it also fires visibilitychange — the gap dedupes the pair)
+      window.addEventListener('pageshow', function(e){ if (e && e.persisted) swRecheck(Infinity); });
     }).catch(function(){});
+  } catch(e){}
+}
+
+// THE RECHECK'S STATE AND ITS TWO HALVES (decision 10, 2026-09-13). Top level, AFTER
+// registerServiceWorker's closing brace: PWA arm 3 reads that function by a lazy text slice that ends
+// at its first column-0 brace. The lets are read only from async callbacks, long after evaluation.
+let swLastCheckAt = 0, swRecheckArmed = false;
+// THE PURE DECISION, a table the suite reads from the live constants. `online !== false` and not
+// `online === true`: an engine that does not report navigator.onLine must not be read as offline.
+// NO PAYMENT TERM (the adversarial review of 2026-09-13): a first draft skipped the check while
+// `payPending()` held a mark, «so the prefetch could not switch the build under the paying tab». Both
+// halves were wrong — nothing reloads the running page (no controllerchange listener), the pay worker is
+// cross-origin and the service worker never touches it — and 83-pay deliberately keeps that mark through
+// a fruitless poll round (cleared only by a grant or a cancel), so a player who once closed Stripe's page
+// without paying would never have got a recheck again: decision 10 switched off for good, silently.
+function swRecheckDue(now, last, hiddenMs, online, hidden){
+  return !hidden && online !== false &&
+    hiddenMs >= SW_RECHECK_HIDDEN_MS && (now - last) >= SW_RECHECK_GAP_MS;
+}
+// THE EFFECT, one chain for production and for the test door alike — a door carrying its own copy
+// would stay green while the live chain lost its .catch. The registration is asked at CHECK time and
+// never captured at boot: iOS may clear service-worker state after long inactivity, and a stale
+// registration's update() rejects. EVERY rejection of the chain is caught here.
+function swRecheckFire(regPromise){
+  return Promise.resolve(regPromise).then(function(r){
+    if (r && r.active) return r.update();
+  }).catch(function(){});
+}
+function swRecheck(hiddenMs){
+  try {
+    if (!swRecheckDue(Date.now(), swLastCheckAt, hiddenMs, navigator.onLine, document.hidden)) return;
+    swLastCheckAt = Date.now();
+    swRecheckFire(navigator.serviceWorker.getRegistration());
   } catch(e){}
 }
 

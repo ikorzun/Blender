@@ -235,7 +235,7 @@ page.on('response', (r) => {
   const sizes0 = await page.evaluate(() => window.__game.sizes());
   expect(sizes0.length === 1 && sizes0[0] === 1, 'level 1: all the items of one size (' + JSON.stringify(sizes0) + ')');
 
-  // THE GROUP CAP (the owner's spec 2026-07-27 «set the cap at 8»): lv.1 — 9 types,
+  // THE GROUP CAP (the owner's spec 2026-07-27 «set the cap at 8»): lv.1 — 9 types when measured (LEVEL_TYPES_MIN 9; 3 since 2026-08-11),
   // before the cap a tap carried away up to 16 pieces at once. We strike with a REAL tap on the best group
   // and look at how many items went away (the cap counts the tapped one too).
   const capBefore = await page.evaluate(() => {
@@ -1683,7 +1683,7 @@ page.on('response', (r) => {
   // ⚠️ WE SET THE LEVEL EXPLICITLY (the progression 2026-08-05): the guard measures «a FULL bowl
   // is filled up to the red line», while the size of the level now grows with the number —
   // on lv.1 (40 pairs) the pile is lawfully lower, and the threshold 5.5 went red on a sound
-  // game (topY 5.49). We take a level with the ceiling of pairs (>=11).
+  // game (topY 5.49). We take a level with the ceiling of pairs (>=11; >=7 since the bowl went to 140 on 2026-09-13).
   await page.evaluate(() => { window.__game.setLevel(12); window.__game.cfg.baseRadius = window.__game.baseRadiusDefault(); window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(1000);
   const fill = await page.evaluate(() => ({ topY: window.__game.topY(), alive: window.__game.alive() }));
@@ -2200,10 +2200,13 @@ page.on('response', (r) => {
       g.forceRefresh(); peak = Math.max(peak, g.cfg.matchRadius);
     }
     const m = g.missRadius();
-    return { peak: +peak.toFixed(3), cap: m.comboCap, base: m.base };
+    // NOTE (2026-09-13): the comparison reads the UNROUNDED peak. The ceiling is 0.8 x ITEM_SIZE_K = 0.86990…
+    // since the items grew 9%, and a peak clamped exactly to it printed as toFixed(3) reads 0.870 — above the
+    // cap by the rounding alone (run 56's only red). `peak` stays rounded for the message.
+    return { peak: +peak.toFixed(3), peakRaw: peak, cap: m.comboCap, base: m.base };
   });
-  expect(comboRadiusCap.peak > comboRadiusCap.base &&
-         comboRadiusCap.peak <= comboRadiusCap.cap + 1e-6,
+  expect(comboRadiusCap.peakRaw > comboRadiusCap.base &&
+         comboRadiusCap.peakRaw <= comboRadiusCap.cap + 1e-9,
     '⚠️ THE RADIUS: a series of matches raises it ABOVE the base, but not above the ceiling ' +
     comboRadiusCap.cap + ' (' + JSON.stringify(comboRadiusCap) + ')');
   // ═══ THE INSTANT RECOMPUTE OF THE PLACE AFTER A SPEND (the owner's spec 2026-08-12) ═══
@@ -2566,13 +2569,17 @@ page.on('response', (r) => {
   const coldProbe = await coldStartPage.evaluate(async () => {
     const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
     g.skipIntro(); await sl(700);
-    const r = { alive: g.alive(), boulders: g.frozenInfo().length };
+    // NB: THE THRESHOLD IS DERIVED FROM THE LIVE PAIRS RULE (2026-09-13: the bowl at 140, PAIRS 70). The
+    // literal `alive > 150` of this arm stood against 181 items and would have gone red on the 140 bowl;
+    // the midpoint of level 1's and level 11's item counts separates the two levels the same way it did.
+    const rule = g.pairsRule();
+    const r = { alive: g.alive(), boulders: g.frozenInfo().length, lv1: 2 * rule.at(1), lv11: 2 * rule.at(11) };
     try { localStorage.removeItem('mixer_level'); } catch (e) {}
     return r;
   });
   await coldStartPage.close();
   console.log('cold start lv.11:', JSON.stringify(coldProbe));
-  expect(coldProbe.alive > 150 && coldProbe.boulders >= 1,
+  expect(coldProbe.alive > (coldProbe.lv1 + coldProbe.lv11) / 2 && coldProbe.boulders >= 1,
     '⚠️⚠️ THE LEVEL SAVE SURVIVES A RELOAD: a cold start with mixer_level=11 ' +
     'loads the 11th level (the pile and the boulder are in place), and not the first (' + JSON.stringify(coldProbe) + ')');
 
@@ -2631,11 +2638,18 @@ page.on('response', (r) => {
   // the ceiling and the floor FROM THE GAME, therefore against «somebody changed a number» they are
   // tautological: both sides of the comparison will move. The spec of the owner is named in
   // figures — so we pin the figures, so that an edit is deliberate and not silent.
-  expect(penalty.rest.base === 0.45 && penalty.atOnce.step === 0.05 && penalty.atOnce.max === 0.20 &&
-         penalty.rest.windowMs === 3000 && comboRadiusCap.cap === 0.8 &&
+  // NB: ×K SINCE 2026-09-13 (the owner: «the reach grows by the same 9% as the items»). K is read off the
+  // live item size (meshScale / the historical 0.62) and pinned to his cbrt(180/140) — the literals below are
+  // the pre-batch numbers, multiplied, never copies of the live constants.
+  const reachK = await page.evaluate(() => window.__game.meshScale() / 0.62);
+  const nearK = (v, x) => Math.abs(v - x * reachK) < 1e-9;
+  expect(Math.abs(reachK - Math.cbrt(180 / 140)) < 1e-9 &&
+         nearK(penalty.rest.base, 0.45) && nearK(penalty.atOnce.step, 0.05) && nearK(penalty.atOnce.max, 0.20) &&
+         penalty.rest.windowMs === 3000 && nearK(comboRadiusCap.cap, 0.8) &&
          penalty.rest.base + penalty.atOnce.max < comboRadiusCap.cap,
-    '⛔⛔ RADIUS, THE NUMBERS IN FORCE: idle 0.45, assist +0.05 per mistake, stop at +0.20, window ' +
-    '3000 ms, streak ceiling 0.8. ⚠️⚠️ THE `miss floor 0.3` OF 2026-08-11 IS GONE — his word of ' +
+    'NB: RADIUS, THE NUMBERS IN FORCE (×K = ' + reachK.toFixed(4) + ' since 2026-09-13, his word «the reach grows by ' +
+    'the same 9%»): idle 0.45·K, assist +0.05·K per mistake, stop at +0.20·K, window ' +
+    '3000 ms, streak ceiling 0.8·K. NOTE: THE `miss floor 0.3` OF 2026-08-11 IS GONE — his word of ' +
     '2026-09-02 inverted the mechanic, and this pin moved with it rather than being deleted. ' +
     '⚠️⚠️ THE LAST CLAUSE IS THE ONE THAT KEEPS «ON THE EDGE OF HARD» HONEST AND IT IS A RELATION, ' +
     'NOT A LITERAL: base + the full assist must stay BELOW the streak ceiling, so a player who keeps ' +
@@ -3212,7 +3226,7 @@ page.on('response', (r) => {
     'a second turbo inside the first = a turbo streak (match #' + chainProbe.seriesAt + ', series ' + chainProbe.final.series + ')');
 
   // ACCUMULATION BY TYPES (the owner's spec 2026-07-22): the thresholds 100·(2^n−1),
-  // the multiplier 1+0.25×tier, the up event at the moment of crossing, the multiplier
+  // the multiplier 1+step×tier (step 0.25 until 2026-09-13, 0.5 since — derived below from the tier-1 reading), the up event at the moment of crossing, the multiplier
   // in the points of a match and in the par score
   await page.evaluate(() => { window.__game.regen(); window.__game.skipIntro(); });
   await page.waitForTimeout(500);
@@ -3225,26 +3239,30 @@ page.on('response', (r) => {
     const t2 = g.accGrant(snap0.key, 300 - t1.count);    // the threshold of tier 2
     return { key: snap0.key, label: snap0.name, t1, t2, events: window.__accEvents };
   });
-  expect(accProbe.t1.tier === 1 && accProbe.t1.mult === 1.25 && accProbe.t1.next === 300,
-    'tier 1 at 100 pcs: the multiplier 1.25, the next threshold 300 (' + JSON.stringify(accProbe.t1) + ')');
-  expect(accProbe.t2.tier === 2 && accProbe.t2.mult === 1.5 && accProbe.t2.next === 700,
-    'tier 2 at 300 pcs: the multiplier 1.5, the next threshold 700 (' + JSON.stringify(accProbe.t2) + ')');
+  // NOTE: THE STEP IS READ FROM TIER 1 AND PINNED ONCE (his word 2026-09-13: 0.5); every later arm uses the
+  // derived `accStep`, so a future retune moves one number here instead of a literal beside each consumer.
+  const accStep = accProbe.t1.mult - 1;
+  expect(accProbe.t1.tier === 1 && Math.abs(accStep - 0.5) < 1e-9 && accProbe.t1.next === 300,
+    'tier 1 at 100 pcs: the multiplier 1 + step with step 0.5 (the owner 2026-09-13), the next threshold 300 (' + JSON.stringify(accProbe.t1) + ')');
+  expect(accProbe.t2.tier === 2 && Math.abs(accProbe.t2.mult - (1 + 2 * accStep)) < 1e-9 && accProbe.t2.next === 700,
+    'tier 2 at 300 pcs: the multiplier 1 + 2·step, the next threshold 700 (' + JSON.stringify(accProbe.t2) + ')');
   expect(accProbe.events.length === 2 && accProbe.events[0].tier === 1 && accProbe.events[1].tier === 2,
     'onAccTierUp fired on every crossing of a threshold (' + JSON.stringify(accProbe.events) + ')');
   expect(accProbe.label !== accProbe.key && /^[A-Z]/.test(accProbe.label) && accProbe.events[0].name === accProbe.label,
     'the snapshot and the event carry a human label, the key separately (' + accProbe.key + ' -> ' + accProbe.label + ')');
-  // the multiplier in the points: a pair of a type with tier 2 = round(20 × 1.5) = 30
-  // (the radius is temporarily wide — the pairs of a type may lie far from each other)
+  // the multiplier in the points: a pair of a type with tier 2 = round(20 × (1 + 2·step) × the level's curve)
+  // (40 at step 0.5 on a level ≤17; the radius is temporarily wide — the pairs of a type may lie far from each other)
   const multProbe = await page.evaluate(() => {
     const g = window.__game;
     g.cfg.baseRadius = 6; g.cfg.matchRadius = 6;
     const before = g.stats().score;
     const ok = g.matchType(g.accSnapshot()[0].key);
     g.cfg.baseRadius = g.baseRadiusDefault();
-    return { ok, delta: g.stats().score - before };
+    return { ok, delta: g.stats().score - before, curve: g.mergeMultAt(g.levelNum()) };
   });
   expect(multProbe.ok, 'a pair of the levelled-up type was found for a match');
-  expect(multProbe.delta === 30, 'a pair of a type with tier 2 gives 20×1.5=30 points (' + multProbe.delta + ')');
+  expect(multProbe.delta === Math.round(20 * accProbe.t2.mult * multProbe.curve),
+    'a pair of a type with tier 2 gives 20×(1+2·step)×curve points (' + JSON.stringify({ delta: multProbe.delta, mult: accProbe.t2.mult, curve: multProbe.curve }) + ')');
   // the par score with the multipliers: an independent recount over aliveByType × accMult
   const parProbe = await page.evaluate(() => {
     const g = window.__game;
@@ -3510,7 +3528,7 @@ page.on('response', (r) => {
     'the price of a boost comes from boughtTier (not accTier): base 2000 (boughtTier ' + boostProbe.bt0 + ' -> ' + boostProbe.p0 + ')');
   expect(boostProbe.buy.ok && boostProbe.t1 === boostProbe.t0 + 1,
     'the purchase raised the tier (' + boostProbe.t0 + ' -> ' + boostProbe.t1 + ')');
-  expect(Math.abs(boostProbe.m1 - (boostProbe.m0 + 0.25)) < 1e-9,
+  expect(Math.abs(boostProbe.m1 - (boostProbe.m0 + accStep)) < 1e-9,   // the step derived from the tier-1 reading, not a literal
     'the multiplier of the type grew by ACC_MULT_STEP (' + boostProbe.m0 + ' -> ' + boostProbe.m1 + ')');
   expect(boostProbe.bal1 === boostProbe.bal0 - boostProbe.p0,
     'the balance was charged exactly by the price (' + boostProbe.bal0 + ' -> ' + boostProbe.bal1 + ')');
@@ -3738,7 +3756,7 @@ page.on('response', (r) => {
     const e = document.querySelector('.vmult');
     if (!e) return { noBadge: true };
     const old = e.textContent, out = [];
-    for (const t of ['×1.25', '×3.25']) { // the working value and the cap ACC_TIER_CAP=9
+    for (const t of ['×1.5', '×5.5']) { // the working value and the cap ACC_TIER_CAP=9 (step 0.5 since 2026-09-13; ×1.25/×3.25 before)
       e.textContent = t; void e.offsetWidth;
       const c = getComputedStyle(e), r = e.getBoundingClientRect();
       const rg = document.createRange(); rg.selectNodeContents(e);
@@ -4082,7 +4100,7 @@ window.bridge = {
     'TOP-UP: happy end — bowl is empty, the level is won by collection (' + JSON.stringify(refill) + ')');
 
   // ⚠️⚠️ THE TOP-UP DOES NOT SPAWN ABOVE THE RESCUER'S CEILING (PHYSICS 2026-08-07).
-  // Spawn height = FUNNEL.H + 2 + k*1.2, where k runs over ALL orphans and has no
+  // Spawn height = FUNNEL.H + 2 + k*DROP_STACK_STEP (k*1.2 when measured below; 1.305 since 2026-09-13), where k runs over ALL orphans and has no
   // cap. Measurement (orphans = one of each type, 4 seeds): lv.5 peak 25.6,
   // lv.10 — 31.6, lv.20 — 43.6, lv.40 — 67.4. With a ceiling of 60 the rescuer
   // teleported the FRESHLY TOPPED-UP — 23 teleports over 4 runs.
@@ -6552,6 +6570,9 @@ window.bridge = {
     // ⚠️⚠️ RE-DERIVE THIS IF THE CAP MOVES: the count is `ln(1-sqrt(0.9999)) / ln(1 - distinct/pool)`,
     // and both terms change the day `DISTINCT_BASE`/`DISTINCT_STEP` or the pool size does. The loop
     // breaks as soon as both are seen, so the ceiling costs nothing on a lucky deal.
+    // Decision 9 (2026-09-13): this page carries accumulated counts, so a RETURNED kind can be one more pin at lv161 (with
+    // the newest unlock and the boosted kinds): per regen a named unpinned type is in with probability (D−p)/(T−p), one
+    // more p, and the miss over 24 regens moves from ~2.6e-5 to ~3.3e-5 - negligible, but count the pins when re-deriving.
     const seen = new Set(); let regens = 0;
     for (let k = 0; k < 24; k++){
       regens++;
@@ -6570,7 +6591,7 @@ window.bridge = {
   // the steak entirely»). This is a cancellation of his own morning spec, on which the guard
   // stood; the data of 35-steak.js was deleted. If the steak comes back — bring the assert back too.
   // ⚠️ THE ASSERT IS CAPABLE OF FAILING: bring back `i % typesCount` — and tail113 will become
-  // false, because pairsCnt (90) is smaller than the number of types (121).
+  // false, because pairsCnt (90 then, 70 since 2026-09-13) is smaller than the number of types (121 then, 105 today).
   expect(tailProbe.tailAll && tailProbe.fishAll,
     'THE TAIL OF TYPES IS REACHABLE: the last type (`' + tailProbe.lastType + '`, read from the ' +
     'pool rather than named here) and the fish get into the pile at full unlocking ('
@@ -7253,6 +7274,7 @@ window.bridge = {
     // all five types carry exactly 20 copies each and the spread it needed does not exist at
     // all. Measured across levels instead: lv.1 → 3 types at 26-28 copies, lv.12 → 14 types at
     // 12-14. That is a gap of ~16 victims, and it is structural rather than lucky.
+    // (2026-09-13: with the bowl at 140 lv.12 carries exactly 10 copies per type; the gap still holds.)
     // ⚠️ The level is part of the statement and is reported, so a future change of
     // LEVEL_TYPES_MIN or of the pair ladder shows up in the JSON instead of silently shrinking
     // the gap the assert relies on.
@@ -7280,7 +7302,10 @@ window.bridge = {
       const off = await drain(4000);                // THE STATE «IT IS GONE» — by fact
       return { name, fired, n, on, off };
     };
-    const small = await pickBiggest(12);            // ~12-14 copies per type at 14 types
+    // TOMBSTONE 2026-09-13: «~12-14 copies per type at 14 types» was the 180-item bowl. Under PAIRS 70 a kind at lv12 has
+    // ~10 copies, and 20 if this page's accumulated counts make it the RETURNED kind (decision 9, which pickBiggest would
+    // then pick): lv1 still gives ~26, so b.n > a.n holds, but the margin is data-dependent - stated, not asserted.
+    const small = await pickBiggest(12);
     if (!small) return { picked: false, where: 'lv12', rest, a: dud, b: dud };
     const a = await strike(small.name);
     await sleep(250);                               // the afterPause tail of the first strike
@@ -8541,7 +8566,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     let spin = false;
     { const t0 = Date.now();      // settling: the spin canvas arrived in the slot
       while (Date.now() - t0 < 4000){ if (cb && cb.querySelector('canvas')){ spin = true; break; } await sleep(120); } }
-    g.multToastTest('T1', 2.25);
+    g.multToastTest('T1', 2.5);   // a reachable value since the step became 0.5 (2026-09-13); 2.25 no longer occurs
     await sleep(120);
     const mt = document.getElementById('multToast');
     const toastOn = !!(mt && mt.classList.contains('on'));
@@ -8555,7 +8580,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   expect(!!hudA.chargeName && hudA.ttlLeft > 7000,
     'CHARGE: TTL is bigger than the previous 7s — the word of the owner «10 seconds» (' + JSON.stringify(hudA) + ')');
   expect(hudA.spin === true, 'CHARGE: it spins — the spin canvas is in the slot (' + JSON.stringify(hudA) + ')');
-  expect(hudA.toastOn && hudA.toastVal === '×2.25' && hudA.toastGone,
+  expect(hudA.toastOn && hudA.toastVal === '×2.5' && hudA.toastGone,
     'MULTIPLIER TOAST: it is shown under the eyes and goes out by itself (' + JSON.stringify(hudA) + ')');
 
   // +1 SHAKE PER 5 LEVELS (the owner's word 2026-08-04). We check at the
@@ -8797,7 +8822,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
 
   // ===== THE TESTERS PACKET 2026-08-05 (progression, zoom, finale, no-fill) =====
   // 1) THE SIZE PROGRESSION: lv.1 is noticeably lighter than the previous 130, the count GROWS by
-  // levels and runs into a ceiling of ~180. The numbers with a tolerance of ±6 (the surprise, the stones
+  // levels and runs into a ceiling of ~180 (~140 since 2026-09-13, reached at level 7). The numbers with a tolerance of ±6 (the surprise, the stones
   // from lv.16, the rounding of the top-up), what matters is the MONOTONICITY and the drop of the start.
   const sizes = await page.evaluate(async () => {
     const g = window.__game, out = [];
@@ -8824,7 +8849,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const takeSnap = async (lv) => {
       g.setLevel(lv); g.regen(); g.skipIntro(); await sl(700);
       const rel = g.accSnapshot().filter(s => s._item)
-        .map(s => s._item.r / (s._item.type.rc * 0.62)).filter(x => isFinite(x) && x > 0);
+        .map(s => s._item.r / (s._item.type.rc * g.meshScale())).filter(x => isFinite(x) && x > 0);   // the live size, not the literal 0.62 (items ×K since 2026-09-13)
       rel.sort((a, b) => a - b);
       return { min: +rel[0].toFixed(3), max: +rel[rel.length - 1].toFixed(3), n: rel.length };
     };
@@ -8844,8 +8869,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     'PROGRESSION: lv.1 became light — ~80 items instead of 130 (' + JSON.stringify(sizes) + ')');
   expect(sizes[0].n < sizes[1].n && sizes[1].n < sizes[2].n,
     'PROGRESSION: the number of items GROWS with the level (' + JSON.stringify(sizes) + ')');
-  expect(Math.abs(sizes[3].n - sizes[2].n) <= 8 && sizes[3].n <= 190,
-    'PROGRESSION: from the 11th level the ceiling is ~180, further on a plateau (' + JSON.stringify(sizes) + ')');
+  expect(Math.abs(sizes[3].n - sizes[2].n) <= 8 && sizes[3].n <= 150,
+    'PROGRESSION: from the 11th level the ceiling is ~140 (70 pairs since 2026-09-13, reached at level 7), further on a plateau — ' +
+    'the exact 140 is pinned in the BOWL140 section (' + JSON.stringify(sizes) + ')');
 
   // 2) ZOOM: the step ×2 (it was 1.6) and THE HOLD travels smoothly while the finger is on the button
   const zoomRes = await page.evaluate(async () => {
@@ -8992,7 +9018,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   {
     const mt = await page.evaluate(async () => {
       const g = window.__game;
-      g.multToastTest('T1', 2.25);
+      g.multToastTest('T1', 2.5);
       await new Promise(r => setTimeout(r, 350));
       const f = document.getElementById('face').getBoundingClientRect();
       const t = document.getElementById('multToast').getBoundingClientRect();
@@ -9014,6 +9040,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // ⚠️ THE SAME PREPARATION AS IN THE NEIGHBOURING META SECTION: without a reset of the accumulation
       // the tier threshold could already have been passed in the previous sections, the event did not
       // arrive, and the guard was reading «not shown» on a sound build.
+      // Decision 9 (2026-09-13): the same reset is ALSO what keeps level 21 free of a RETURNED kind - with a kind inside its
+      // window the level's one notice is reserved for it, `live` below is some other kind, and this arm would read «not
+      // shown» on a sound build. Do not drop storyClearAcc() here.
       g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
       g.setLevel(21); g.regen(); g.skipIntro(); await sleep(500);
       const mt = document.getElementById('multToast');
@@ -9270,7 +9299,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'are SILENT. `tier0 < tier1` on every step is the anti-tautology — the silence must be the ' +
       'gate\'s doing and not a stalled `accGrant`; `first.shown` is the other half — without it a ' +
       'build where the toast never rises at all would be green. Goes red on removing the ' +
-      '`if (level.multToastShown) return` early exit from `showTierUp` (85-hud) (' + JSON.stringify(gate) + ')');
+      '`if (level.multToastShown) return` early exit from `showTierUp` (85-hud). Since 2026-09-13 a SECOND early exit ' +
+      'stands before it - the reservation for a returned kind (decision 9, guarded in the RETURN section) - and it is inert ' +
+      'on a level with no returned kind, so it is not a regression of this gate (' + JSON.stringify(gate) + ')');
     expect(!gate.noKey && !gate.fourth.capped &&
       gate.fourth.tier1 > gate.fourth.tier0 && gate.fourth.shown === true,
       '⛔ TOAST, THE FLAG RESETS WITH THE LEVEL: after `regen()` — genLevel builds a fresh `level` ' +
@@ -9690,6 +9721,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // THE CAPTION IS REALLY DRAWN IN THE TOAST (and not only returned by a helper)
   const mtToast = await page.evaluate(async () => {
     const g = window.__game;
+    // Decision 9 (2026-09-13): storyClearAcc() also keeps a RETURNED kind (and its reservation of the one notice) off this
+    // level - the same latent dependency as the ONE TOAST arm above.
     g.metaRuleReset(); g.storyClearAcc(); g.clearBought();
     g.setLevel(21); g.regen(); g.skipIntro();
     await new Promise(r => setTimeout(r, 400));
@@ -12211,6 +12244,692 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   }
   // ⟦SCOREMATH-SECTION-END⟧
 
+  // ⟦TIERSHARE-SECTION-BEGIN⟧ — THE TIER SHARE AND THE WIN SCREEN'S LINE (the owner's decision 7, 2026-09-13: «Your
+  // upgraded items: +N points» above Top Items; N is what the type multipliers added this level, never a pop or a toast).
+  // `tools/section-dryrun.js` with SECTION=TIERSHARE runs this block alone; keep the markers. Its own page.
+  {
+    const codeHits = (text, re) => { let n = 0; for (const line of text.split('\n')){ const c = line.indexOf('//');
+      const rg = new RegExp(re.source, 'g'); let m; while ((m = rg.exec(line))){ if (c < 0 || m.index < c) n++; } } return n; };
+    // ---- T1. STRUCTURE: each of the four reward functions carries exactly ONE accumulator of the share, the build
+    // carries exactly four, and no score pop in those bodies wears a multiplier label (the decision: the share is told
+    // on the win screen only). The ×(n-1) group pop is the positive control - without it an empty body passes the ban.
+    {
+      const html = fs.readFileSync(PAGE_FILE, 'utf8');
+      const bodyOf = (name) => { const a0 = html.indexOf('function ' + name + '(');
+        const a1 = a0 >= 0 ? html.indexOf('\nfunction ', a0 + 10) : -1; return (a0 >= 0 && a1 > a0) ? html.slice(a0, a1) : ''; };
+      const names = ['doMatch', 'breakIce', 'bowlCollectAll', 'detonateCharge'];
+      const acc = {}, pops = {}; let control = 0;
+      for (const nm of names){
+        const b = bodyOf(nm); acc[nm] = b ? codeHits(b, /stats\.tierRaw\s*\+=/) : -1; pops[nm] = 0;
+        for (const line of b.split('\n')){ const c = line.indexOf('//'); const code = c < 0 ? line : line.slice(0, c);
+          if (/scorePop\(/.test(code) && /accMult|accMultText|accTier|ACC_MULT_STEP|tierRaw|\b[cib]?am\b/.test(code)) pops[nm]++; }
+        if (nm === 'doMatch') control = codeHits(b, /scorePop\('×' \+ \(n-1\)/);
+      }
+      const r = { acc, all: codeHits(html, /stats\.tierRaw\s*\+=/), pops, control };
+      console.log('tiershare/structure:', JSON.stringify(r));
+      expect(names.every(nm => acc[nm] === 1) && r.all === 4,
+        'TIERSHARE: each reward function (doMatch, breakIce, bowlCollectAll, detonateCharge) adds its tier share to stats.tierRaw exactly once, and the build has four such lines (' + JSON.stringify(r) + '). SABOTAGE: drop the accumulator from one reward site');
+      expect(control === 1 && names.every(nm => pops[nm] === 0),
+        'TIERSHARE: no score pop in the four reward bodies carries a tier multiplier label - the share is told on the win screen only; the ×(n-1) group pop is present as the control (' + JSON.stringify({ pops, control }) + '). SABOTAGE: scorePop(accMultText(am)) in doMatch');
+    }
+    const tp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    tp.on('pageerror', e => errors.push('PAGEERROR(tiershare): ' + e.message));
+    await tp.goto('file://' + PAGE_FILE + '?dev=1');
+    const tBoot = await tp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (tBoot) await tp.evaluate(() => window.__game.skipIntro());
+    // ---- T2. THE SHARE, MEASURED ON REAL MERGES at level 16 (the merge curve pays ×1 there at any step). The step of a
+    // tier is read LIVE (`accGrant(name, 0).mult`), never a literal. WARNING: `regen` before each reading resets the series
+    // and the level's stats; the fire is put out in the same task as the merge; autoMatch merges exactly a pair.
+    const share = tBoot ? await tp.evaluate(async () => {
+      const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const at = async () => { g.boostClear(); g.setLevel(16); g.regen(); g.skipIntro(); await sleep(300); };
+      const merge = () => { g.extinguish(); const s0 = g.stats().score, t0 = g.stats().tierRaw; const ok = g.autoMatch();
+        return { ok, gain: g.stats().score - s0, tr: g.stats().tierRaw - t0, t0 }; };
+      await at(); const zero = merge();                                        // every kind at tier 0 on a fresh save
+      const kinds = Object.keys(g.aliveByType());
+      for (const k of kinds){ const r = g.accGrant(k, 0); if (r.tier < 1) g.accGrant(k, Math.max(0, 100 - r.count)); }
+      const tiers = kinds.map(k => g.accGrant(k, 0).tier); const mult = g.accGrant(kinds[0], 0).mult;
+      await at(); const one = merge();
+      await at(); g.buyBundle('bundle5'); const boost = g.scoreBoostMult(); const five = merge();
+      g.winScreen(true); await sleep(80);
+      const up = document.getElementById('winUpg'), list = document.getElementById('winTopList'), top = up && up.parentElement;
+      const rU = up ? up.getBoundingClientRect() : null, rL = list.getBoundingClientRect(), rA = document.querySelector('.win-actions').getBoundingClientRect();
+      const score5 = g.stats().score, tr5 = g.stats().tierRaw;
+      const line = { text: up ? up.textContent : null, want: g.winUpgText(Math.min(Math.floor(tr5 / 10), Math.floor(score5 / 10))),
+        hidden: up ? up.hidden : null, h: rU ? Math.round(rU.height) : 0, first: !!(top && top.classList.contains('win-top') && top.firstElementChild === up),
+        // LAYOUT offsets, not rects: the line enters on a transform (winRise), and a rect read inside the entrance
+        // carries the flight - the first dry run read the line 'below' the list 80 ms into it
+        above: up ? up.offsetTop + up.offsetHeight <= list.offsetTop : false, buttonsBelow: rA.top >= rL.bottom - 0.5,
+        labels: document.querySelectorAll('.win-top-label').length, rows: document.querySelectorAll('.win-toprow').length, score5, tr5 };
+      g.winScreen(false);
+      // the charge site: the most generous group in the bowl, detonated through the production path
+      await at();
+      const alive = g.aliveByType(); const k = Object.keys(alive).sort((a, b) => alive[b] - alive[a])[0];
+      const gave = g.chargeGive(k); const s0 = g.stats().score, t0 = g.stats().tierRaw; g.detonateCharge();
+      const cgain = g.stats().score - s0, ctr = g.stats().tierRaw - t0, cam = g.accGrant(k, 0).mult;
+      await sleep(700);
+      // the control: a level with no share hides the line and it takes no room
+      await at();
+      g.winScreen(true); await sleep(80);
+      const u2 = document.getElementById('winUpg');
+      const off = { hidden: u2.hidden, h: Math.round(u2.getBoundingClientRect().height), display: getComputedStyle(u2).display, text: u2.textContent, tr: g.stats().tierRaw };
+      g.winScreen(false);
+      // the cap: a share of 1 point on a level whose score fell below zero banks nothing and shows no line
+      await at(); const capMerge = merge(); g.grindNow(); await sleep(700); g.grindNow(); await sleep(700);
+      g.winScreen(true); await sleep(80);
+      const u3 = document.getElementById('winUpg');
+      const cap = { capMerge, score: g.stats().score, tr: g.stats().tierRaw, hidden: u3.hidden, text: u3.textContent };
+      g.winScreen(false); g.boostClear();
+      // the base price of a merged pair on this level READ LIVE (pairScoreAt = MATCH_SCORE·2·the merge curve) - a literal
+      // 20 here would go red on a sound build the day MATCH_SCORE or MERGE_CURVE_FROM moves (2026-09-13 review)
+      const base = g.grindPriceAt(16).raw;
+      return { zero, kinds: kinds.length, tiers, mult, one, boost, five, line, charge: { k, gave, cgain, ctr, cam }, off, cap, base };
+    }) : null;
+    console.log('tiershare/share:', JSON.stringify(share));
+    const step = share ? share.mult - 1 : NaN;
+    const base = share ? share.base : NaN;
+    expect(!!share && base > 0 && share.zero.ok && share.zero.t0 === 0 && share.zero.gain === base && share.zero.tr === 0,
+      'TIERSHARE: at tier 0 a merge adds nothing to the share (gain = the pair\'s base ' + base + ', share 0), and a new level starts at tierRaw 0 (' + JSON.stringify(share && share.zero) + ')');
+    expect(!!share && share.tiers.every(t => t === 1) && step > 0 && share.one.ok &&
+           share.one.gain === Math.round(base * (1 + step)) && share.one.tr === share.one.gain - base,
+      'TIERSHARE: at tier 1 the share is exactly the tier\'s part of the payout - gain round(base·(1+step)), share gain − base, the step and the base read live (' + JSON.stringify(share && { step, base, one: share.one }) + '). SABOTAGE: add the whole payout, or the plain base, to the share');
+    expect(!!share && share.boost === 5 && share.five.ok && share.five.gain === Math.round(base * (1 + step) * 5) &&
+           share.five.tr === share.five.gain - base * 5,
+      'TIERSHARE: under a live ×5 the share is the tier\'s part of the BOOSTED payout (gain ' + (share && share.five.gain) + ', share ' + (share && share.five.tr) + ', expected gain − base·5)');
+    expect(!!share && share.charge.gave && share.charge.cgain > 0 && share.charge.ctr > 0 &&
+           share.charge.ctr === share.charge.cgain - Math.round(share.charge.cgain / share.charge.cam),
+      'TIERSHARE: the type charge adds its tier share too (' + JSON.stringify(share && share.charge) + '). SABOTAGE: drop the accumulator from detonateCharge');
+    expect(!!share && share.line.hidden === false && share.line.h > 0 && share.line.text === share.line.want && share.line.first && share.line.above,
+      'TIERSHARE: the win screen states the share as its own line, the FIRST child of .win-top, above the list, from stats(): "' + (share && share.line.text) + '" (' + JSON.stringify(share && share.line) + ')');
+    expect(!!share && share.line.buttonsBelow && share.line.labels === 0 && share.line.rows === 1,
+      'TIERSHARE: with the line shown the older win-screen rules still hold - the buttons under the list, no Top Items heading, one header row (' + JSON.stringify(share && share.line) + ')');
+    expect(!!share && share.off.tr === 0 && share.off.hidden === true && share.off.h === 0 && share.off.display === 'none' && share.off.text === '',
+      'TIERSHARE: a level with no share hides the line and it takes no height - computed display none (' + JSON.stringify(share && share.off) + '). SABOTAGE: drop the .win-upg[hidden] rule; always write the text');
+    expect(!!share && share.cap.capMerge.tr > 0 && share.cap.score < 0 && share.cap.hidden === true && share.cap.text === '',
+      'TIERSHARE: the line is capped at the level\'s banked points - a share on a level that ended below zero shows nothing (' + JSON.stringify(share && share.cap) + ')');
+    await tp.close();
+  }
+  // ⟦TIERSHARE-SECTION-END⟧
+  // ⟦RETURN-SECTION-BEGIN⟧ — «YOUR ITEM RETURNS» (the owner's decision 9, 2026-09-13): from level 11 one old kind close to its
+  // next EARNED tier is dealt a double share. `tools/section-dryrun.js` with SECTION=RETURN runs this block alone; keep the
+  // markers. Two pages of its own: the second carries boosts, and Save.bo only ever grows (nothing short of a progress reset
+  // lowers it), so the arms that need a boosted kind cannot share the first page. Counts are staged with accGrant on a
+  // cleared save (every gap 100), windows are read from returnInfo().window, and type indices come from the live TYPES.
+  {
+    // ---- R0. STRUCTURE: genLevel decides by the LOCAL pick and never reads level.returnKind before the level literal -
+    // `level` there is still the PREVIOUS level (the canon rule of 2026-08-17).
+    {
+      const html = fs.readFileSync(PAGE_FILE, 'utf8');
+      const a0 = html.indexOf('function genLevel('), a1 = a0 >= 0 ? html.indexOf('level = { shakes', a0) : -1;
+      const body = (a0 >= 0 && a1 > a0) ? html.slice(a0, a1) : '';
+      let reads = 0;
+      for (const line of body.split('\n')){ const c = line.indexOf('//'); const code = c < 0 ? line : line.slice(0, c); if (/level\.returnKind/.test(code)) reads++; }
+      // and the pick itself draws no randomness: a random tie-break between two EQUAL candidates is a coin toss a handful
+      // of regens can miss (the first sabotage run of this section got five equal picks by chance), a text read cannot
+      const p0 = html.indexOf('function pickReturnKind('), p1 = p0 >= 0 ? html.indexOf('\nfunction ', p0 + 10) : -1;
+      const pbody = (p0 >= 0 && p1 > p0) ? html.slice(p0, p1) : '';
+      let rnd = 0;
+      for (const line of pbody.split('\n')){ const c = line.indexOf('//'); const code = c < 0 ? line : line.slice(0, c); if (/Math\.random/.test(code)) rnd++; }
+      const r = { found: body.length > 0, reads, local: /returnPick/.test(body), pick: pbody.length > 0, rnd };
+      console.log('return/structure:', JSON.stringify(r));
+      expect(r.found && r.local && r.reads === 0,
+        'RETURN: genLevel decides by the LOCAL pick (returnPick) and reads no level.returnKind before the level literal (' + JSON.stringify(r) + '). SABOTAGE: read level.returnKind in the deal');
+      expect(r.pick && r.rnd === 0,
+        'RETURN: pickReturnKind draws no Math.random - the pick is a pure function of the counts and the level (' + JSON.stringify(r) + '). SABOTAGE: a random tie-break');
+    }
+    // The staging helpers, identical on both pages (a function body passed as text so the two pages cannot drift).
+    const HELP = `
+      const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const nm = i => g.typeNameAt(i);
+      const setCount = (i, c) => { const s = g.accGrant(nm(i), 0); if (c > s.count) g.accGrant(nm(i), c - s.count); };
+      // gap to the next EARNED threshold, read live; tier 1 = first granted to its first threshold
+      const gapAt = (i, gap, tier) => { if (tier === 1) setCount(i, g.accGrant(nm(i), 0).next); setCount(i, g.accGrant(nm(i), 0).next - gap); };
+      const stage = (lv, list) => { g.storyClearAcc(); g.setLevel(lv); for (const [i, gap, tier] of list) gapAt(i, gap, tier);
+        g.returnLatchClear(); g.regen(); return g.returnInfo(); };
+      const mt = document.getElementById('multToast'); const on = () => !!mt && mt.classList.contains('on');`;
+    const rp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    rp.on('pageerror', e => errors.push('PAGEERROR(return): ' + e.message));
+    await rp.goto('file://' + PAGE_FILE + '?dev=1');
+    const rBoot = await rp.waitForFunction(() => window.__game && window.__game.alive() > 0 && typeof window.__game.returnInfo === 'function', null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (rBoot) await rp.evaluate(() => window.__game.skipIntro());
+    const P = rBoot ? await rp.evaluate(new Function('return (async () => {' + HELP + `
+      const out = {};
+      // R1 the gate
+      const l10 = stage(10, [[3, 10]]); const l11 = stage(11, [[3, 10]]);
+      out.gate = { l10: l10.name, l11: l11.name, want: nm(3), from: l11.fromLevel, win: l11.window };
+      const W = l11.window;
+      // R2 / R3 the two bounds of the window
+      out.upper = { W, over: stage(11, [[3, W.upper + 1]]).name, at: stage(11, [[3, W.upper]]).name };
+      out.lower = { W, at: stage(11, [[3, W.lower]]).name, above: stage(11, [[3, W.lower + 1]]).name };
+      // R4 the newest unlock
+      const newest = l11.typesCount - 1;
+      out.newest = { newest: nm(newest), alone: stage(11, [[newest, 10]]).name, both: stage(11, [[newest, 9], [3, 12]]).name, old: nm(3) };
+      // R5 the heavy kinds: the first tex car in TYPES, on a level where it is old
+      let car = -1; for (let i = 0; nm(i); i++) if (g.typeTexAt(i) === 'car'){ car = i; break; }
+      const carLv = Math.max(11, car), cW = stage(carLv, []).window;
+      let ctl = -1; for (let i = 0; i < carLv + 1; i++) if (i !== car && g.typeTexAt(i) !== 'car'){ ctl = i; break; }
+      out.car = { car: nm(car), carLv, alone: stage(carLv, [[car, cW.upper]]).name, ctl: nm(ctl), ctlPick: stage(carLv, [[ctl, cW.upper]]).name };
+      // R6 the exact deal
+      const c = stage(11, [[3, 12]]); const snap = g.typesSnapshot(); const dealt = g.dealtTypes();
+      const alive = i => (snap[nm(i)] || { alive: 0 }).alive; const others = dealt.filter(i => i !== 3).map(alive);
+      out.counts = { name: c.name, dbl: c.dbl, copies: c.copies, alive: alive(3), inDealt: dealt.indexOf(3) >= 0, dealtLen: dealt.length,
+        distinct: c.distinct, sum: dealt.map(alive).reduce((a, b) => a + b, 0), pairs: c.pairs, oMin: Math.min(...others), oMax: Math.max(...others),
+        raw: Math.round(2 * c.pairs / c.distinct), maxPairs: c.maxPairs };
+      // R7 no qualifier: today's even deal
+      const spread = lv => { g.storyClearAcc(); g.setLevel(lv); g.returnLatchClear(); g.regen(); const s = g.typesSnapshot();
+        const d = g.dealtTypes().map(i => (s[nm(i)] || { alive: 0 }).alive); return { name: g.returnInfo().name, min: Math.min(...d), max: Math.max(...d), n: d.length }; };
+      out.none = { l11: spread(11), l23: spread(23) };
+      // R8 the latch: a better kind appears, regen keeps the pick; only a cleared latch picks again
+      stage(11, [[3, 12]]); const first = g.returnInfo().name;
+      gapAt(5, 9); g.regen(); const kept = g.returnInfo().name;
+      g.returnLatchClear(); g.regen(); const after = g.returnInfo().name;
+      out.latch = { first, kept, after, x: nm(3), y: nm(5) };
+      // R9 no re-roll: the picked kind closes its gap, the replay gets no return and not the runner-up
+      stage(11, [[3, 12], [5, 14]]); const r0 = g.returnInfo().name;
+      g.accGrant(nm(3), 12); g.regen(); const r1 = g.returnInfo();
+      out.reroll = { r0, r1: r1.name, latch: r1.latchName, x: nm(3), y: nm(5) };
+      // R10 the tie-break: smallest gap, then the higher earned tier, then the lower index - the same every time
+      const idx = []; for (let k = 0; k < 12; k++) idx.push(stage(11, [[2, 10], [5, 10]]).name);
+      out.tie = { idx, tier: stage(11, [[2, 10], [5, 10, 1]]).name, gapFirst: stage(11, [[2, 9], [5, 10, 1]]).name, a: nm(2), b: nm(5) };
+      // R11 the reservation of the one notice
+      stage(11, [[3, 12]]); g.skipIntro(); await sleep(300);
+      if (mt) mt.classList.remove('on', 'up');
+      const res0 = g.returnInfo();
+      const yUp = g.accGrant(nm(4), g.accGrant(nm(4), 0).next - g.accGrant(nm(4), 0).count); await sleep(60);
+      const held = { on: on(), shown: !!g.level().multToastShown, reserved: g.returnInfo().reserved, yTier: yUp.tier };
+      const xUp = g.accGrant(nm(3), 12); await sleep(60);
+      const got = { on: on(), shown: !!g.level().multToastShown, tiered: g.returnInfo().tiered, xTier: xUp.tier };
+      out.reserve = { res0: { name: res0.name, reserved: res0.reserved, live: res0.live, gap: res0.gap }, held, got };
+      // R12 the win mark: every other dealt kind ahead on progress and below the window, so the returned kind would miss the cut.
+      // The returned kind starts at EARNED TIER 1 (count 288, ×1.5 at the start): at tier 0 «accMult > multAtStart» and
+      // «accMult > 1» read the same, and the adversarial review of 2026-09-13 built exactly that variant - the section stayed
+      // 21 green. At tier 1 the first read must say «Returned» (1.5 is not above the snapshot) and only the tier-up says
+      // «Upgraded». The others stand at 97 (vitFrac 0.97 against the returned kind's 0.94), below the window's lower bound.
+      stage(11, [[3, 12, 1]]); g.skipIntro();
+      for (const i of g.dealtTypes()) if (i !== 3) setCount(i, 97);
+      await sleep(500);
+      const rows = () => [...document.querySelectorAll('#winTopList .wt-row')].map(r => { const p = r.querySelector('.wt-pill');
+        return { type: r.dataset.type, ret: r.classList.contains('wt-return'), up: r.classList.contains('wt-return-up'),
+          name: (r.querySelector('.wt-name') || {}).textContent || '', pill: p ? p.textContent : null, anim: p ? getComputedStyle(p).animationName : null }; });
+      const wi = g.returnInfo();
+      g.winScreen(true); await sleep(150); const before = rows(); g.winScreen(false);
+      g.accGrant(nm(3), 12);
+      g.winScreen(true); await sleep(150); const upRows = rows(); g.winScreen(false);
+      out.win = { x: nm(3), name: wi.name, topN: wi.topN, before, after: upRows };
+      return out;
+    })()`)) : null;
+    console.log('return/page1:', JSON.stringify(P));
+    const G = P && P.gate, U = P && P.upper, L = P && P.lower;
+    expect(!!P && G.l10 === null && G.l11 === G.want && G.from === 11,
+      'RETURN: the gate - a kind inside its window is not returned on level 10 and is on level 11 (' + JSON.stringify(G) + '). SABOTAGE: RETURN_FROM_LEVEL = 1');
+    expect(!!P && U.over === null && U.at === P.gate.want && U.W.upper > U.W.lower,
+      'RETURN: the upper bound read from returnInfo().window - a gap of upper + 1 is not returned, a gap of upper is (' + JSON.stringify(U) + '). SABOTAGE: drop the gap <= upper term');
+    expect(!!P && L.at === null && L.above === P.gate.want,
+      'RETURN: the «worth it» lower bound - a gap the plain share already closes (lower) is not returned, lower + 1 is (' + JSON.stringify(L) + '). SABOTAGE: drop the gap > lower term');
+    expect(!!P && P.newest.alone === null && P.newest.both === P.newest.old,
+      'RETURN: the newest unlock is never returned - alone it gives no return, beside an older kind the older one is picked though the newest has the smaller gap (' + JSON.stringify(P && P.newest) + '). SABOTAGE: walk to typesCount − 1');
+    expect(!!P && !!P.car.car && P.car.alone === null && P.car.ctlPick === P.car.ctl,
+      'RETURN: a heavy kind (tex car, found at runtime) is never returned, a non-car control at the same gap is (' + JSON.stringify(P && P.car) + '). SABOTAGE: drop the car skip');
+    const C = P && P.counts;
+    expect(!!P && C.name === P.gate.want && C.dbl === C.maxPairs && C.raw > C.maxPairs && C.copies === 2 * C.dbl && C.alive === C.copies &&
+           C.inDealt && C.dealtLen === C.distinct && C.sum === 2 * C.pairs && C.oMin === C.oMax,
+      'RETURN: the deal counts exactly - the returned kind has 2·dbl copies with the 10-pair cap binding (round gives ' + (C && C.raw) + '), it is dealt, distinct and the total are unchanged, and the others share the rest evenly (' + JSON.stringify(C) + '). SABOTAGE: the double share to pool[0]; drop the Math.min cap');
+    expect(!!P && P.none.l11.name === null && P.none.l23.name === null && P.none.l11.max - P.none.l11.min <= 2 && P.none.l23.max - P.none.l23.min <= 2,
+      'RETURN: with no qualifier the deal is today\'s - no return and copies within one pair of each other at levels 11 and 23 (' + JSON.stringify(P && P.none) + ')');
+    expect(!!P && P.latch.first === P.latch.x && P.latch.kept === P.latch.x && P.latch.after === P.latch.y,
+      'RETURN: the latch - a kind with a smaller gap appearing later does not move the pick on regen; only a cleared latch picks it (' + JSON.stringify(P && P.latch) + '). SABOTAGE: pick afresh on every genLevel');
+    expect(!!P && P.reroll.r0 === P.reroll.x && P.reroll.r1 === null && P.reroll.latch === P.reroll.x,
+      'RETURN: no re-roll - once the returned kind has closed its gap the replay gets NO return, not the runner-up (' + JSON.stringify(P && P.reroll) + '). SABOTAGE: pick a new kind when the latched one fails');
+    expect(!!P && P.tie.idx.every(n => n === P.tie.a) && P.tie.tier === P.tie.b && P.tie.gapFirst === P.tie.a,
+      'RETURN: the tie-break is deterministic - equal gaps go to the lower index twelve times out of twelve, the higher earned tier beats the index, the smaller gap beats the tier (' + JSON.stringify(P && P.tie) + '). SABOTAGE: a random tie-break');
+    const R = P && P.reserve;
+    expect(!!P && R.res0.reserved === true && R.res0.live >= R.res0.gap && R.held.yTier >= 1 && R.held.on === false && R.held.shown === false && R.held.reserved === true,
+      'RETURN: the reservation - another kind\'s real tier-up while the returned kind can still reach its threshold shows nothing and does not spend the level\'s notice (' + JSON.stringify(R) + '). SABOTAGE: drop the reservation from showTierUp');
+    expect(!!P && R.got.xTier >= 1 && R.got.on === true && R.got.shown === true && R.got.tiered === true,
+      'RETURN: the reserved notice is the returned kind\'s - its tier-up shows the toast and marks it tiered (' + JSON.stringify(R && R.got) + ')');
+    const WM = P && P.win;
+    const pinned = WM ? WM.before.filter(r => r.ret) : [];
+    expect(!!P && WM.name === WM.x && WM.before.length === WM.topN && pinned.length === 1 && pinned[0].type === WM.x &&
+           WM.before[WM.before.length - 1].type === WM.x && pinned[0].pill === 'Returned' && !pinned[0].up &&
+           pinned[0].name.length > 0 && !/Returned|Upgraded/.test(pinned[0].name) && pinned[0].anim === 'none',
+      'RETURN: the win mark - with every other kind ahead on progress the returned kind is pinned into the last of exactly winTopN rows, with a «Returned» pill beside a clean name and no animation of its own (' + JSON.stringify(WM && WM.before) + '). SABOTAGE: drop the pin from renderWinTop; compare the pill against 1 instead of level.multAtStart (the kind starts at tier 1, so «Upgraded» would show before any tier-up)');
+    const upRow = WM ? WM.after.filter(r => r.ret) : [];
+    expect(!!P && WM.after.length === WM.topN && upRow.length === 1 && upRow[0].up && upRow[0].pill === 'Upgraded',
+      'RETURN: after the returned kind tiers up this level its row reads «Upgraded» - accMult against level.multAtStart (' + JSON.stringify(WM && WM.after) + ')');
+    // R12b the pill fits a 320 px screen, and under reduced motion neither the row nor the pill animates
+    await rp.setViewportSize({ width: 320, height: 700 });
+    await rp.emulateMedia({ reducedMotion: 'reduce' });
+    const fit = rBoot ? await rp.evaluate(async () => {
+      const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms));
+      g.winScreen(true); await sleep(200);
+      const row = document.querySelector('#winTopList .wt-row.wt-return');
+      if (!row){ g.winScreen(false); return { row: false }; }
+      const q = s => row.querySelector(s).getBoundingClientRect(), pill = row.querySelector('.wt-pill');
+      const p = q('.wt-pill'), n = q('.wt-name'), c = q('.wt-col'), m = q('.wt-mult');
+      const r = { row: true, vw: innerWidth, text: pill.textContent, pL: p.left, pR: p.right, pW: p.width, nR: n.right, nW: n.width, cR: c.right, mL: m.left,
+        clip: pill.scrollWidth - pill.clientWidth, pillAnim: getComputedStyle(pill).animationName, rowAnim: getComputedStyle(row).animationName };
+      g.winScreen(false); return r;
+    }) : null;
+    console.log('return/fit320:', JSON.stringify(fit));
+    expect(!!fit && fit.row && fit.text === 'Upgraded' && fit.pW > 0 && fit.nW > 0 && fit.pL >= fit.nR - 0.5 && fit.pR <= fit.cR + 0.5 &&
+           fit.pR <= fit.mL + 0.5 && fit.pR <= fit.vw && fit.clip <= 0 && fit.pillAnim === 'none' && fit.rowAnim === 'none',
+      'RETURN: the longer pill («Upgraded») fits a 320 px screen - beside the name, inside its column, clear of the ×N plate, not clipped - and under prefers-reduced-motion neither the row nor the pill animates (' + JSON.stringify(fit) + ')');
+    await rp.close();
+    // ---- page 2: the boosted kinds (Save.bo only grows)
+    const rq = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    rq.on('pageerror', e => errors.push('PAGEERROR(return2): ' + e.message));
+    await rq.goto('file://' + PAGE_FILE + '?dev=1');
+    const qBoot = await rq.waitForFunction(() => window.__game && window.__game.alive() > 0 && typeof window.__game.returnInfo === 'function', null, { timeout: 30000 }).then(() => true).catch(() => false);
+    if (qBoot) await rq.evaluate(() => window.__game.skipIntro());
+    const Q = qBoot ? await rq.evaluate(new Function('return (async () => {' + HELP + `
+      const out = {};
+      // R13 the release: the returned kind is bought to the cap, so it can no longer tier - the next other tier-up shows
+      stage(11, [[3, 12]]); g.skipIntro(); await sleep(300);
+      if (mt) mt.classList.remove('on', 'up');
+      const r0 = g.returnInfo();
+      const bo = {}; bo[nm(3)] = 99; g.mergeRaw({ bo });
+      const r1 = g.returnInfo();
+      const yUp = g.accGrant(nm(4), g.accGrant(nm(4), 0).next - g.accGrant(nm(4), 0).count); await sleep(60);
+      out.release = { r0: { name: r0.name, reserved: r0.reserved }, r1reserved: r1.reserved, yTier: yUp.tier, on: on(),
+        shown: !!g.level().multToastShown, released: g.returnInfo().released, x: nm(3) };
+      // R14 the cap is read by accTier: the same kind, its earned gap still inside the window, is no longer picked
+      const s3 = g.accGrant(nm(3), 0);
+      g.returnLatchClear(); g.regen();
+      out.cap = { name: g.returnInfo().name, gap: s3.next - s3.count, tier: s3.tier, W: g.returnInfo().window };
+      // R15 a boosted kind BELOW the cap is eligible
+      const bo2 = {}; bo2[nm(2)] = 1; g.mergeRaw({ bo: bo2 }); gapAt(2, 11); g.returnLatchClear(); g.regen();
+      out.boosted = { name: g.returnInfo().name, want: nm(2), tier: g.accGrant(nm(2), 0).tier };
+      // R16 the pin order at level 30: the newest plus distinct − 1 boosted kinds fill the deal; the returned kind is
+      // cancelled and never displaces a boosted one
+      g.storyClearAcc(); g.setLevel(30); g.returnLatchClear(); g.regen();
+      const w30 = g.returnInfo().window, xp = 8;
+      gapAt(xp, w30.upper); g.returnLatchClear(); g.regen();
+      const ctl = g.returnInfo();
+      const bo3 = {}, bIdx = [];
+      for (let i = 0; i <= ctl.typesCount - 2 && bIdx.length < ctl.distinct - 1; i++){ if (i === xp) continue; bIdx.push(i); bo3[nm(i)] = 1; }
+      g.mergeRaw({ bo: bo3 }); g.returnLatchClear(); g.regen();
+      const dealt = g.dealtTypes();
+      out.pin = { xp: nm(xp), ctlName: ctl.name, distinct: ctl.distinct, typesCount: ctl.typesCount, name: g.returnInfo().name,
+        boosted: bIdx.length, missing: bIdx.filter(i => dealt.indexOf(i) < 0).map(nm), dealtLen: dealt.length,
+        newestIn: dealt.indexOf(ctl.typesCount - 1) >= 0, xpIn: dealt.indexOf(xp) >= 0 };
+      return out;
+    })()`)) : null;
+    console.log('return/page2:', JSON.stringify(Q));
+    expect(!!Q && Q.release.r0.name === Q.release.x && Q.release.r0.reserved === true && Q.release.r1reserved === false &&
+           Q.release.yTier >= 1 && Q.release.on === true && Q.release.shown === true && Q.release.released === true,
+      'RETURN: the release - once the returned kind cannot tier any more (bought to the cap) the next other tier-up shows the notice (' + JSON.stringify(Q && Q.release) + '). SABOTAGE: never release the reservation');
+    expect(!!Q && Q.cap.name === null && Q.cap.gap > Q.cap.W.lower && Q.cap.gap <= Q.cap.W.upper,
+      'RETURN: the cap is read by accTier - a kind bought to the cap, with its EARNED gap still inside the window, is not returned (' + JSON.stringify(Q && Q.cap) + '). SABOTAGE: accCountTier in the cap check');
+    expect(!!Q && Q.boosted.name === Q.boosted.want && Q.boosted.tier >= 1,
+      'RETURN: a boosted kind below the cap is eligible (' + JSON.stringify(Q && Q.boosted) + ')');
+    expect(!!Q && Q.pin.ctlName === Q.pin.xp && Q.pin.boosted === Q.pin.distinct - 1 && Q.pin.name === null &&
+           Q.pin.missing.length === 0 && Q.pin.newestIn && !Q.pin.xpIn && Q.pin.dealtLen === Q.pin.distinct,
+      'RETURN: the pin order at level 30 - the kind is returned while there is room, and with the newest plus ' + (Q && Q.pin.boosted) + ' boosted kinds filling the deal the return is cancelled and no boosted kind is displaced (' + JSON.stringify(Q && Q.pin) + '). SABOTAGE: pin the returned kind before the boosted ones');
+    await rq.close();
+  }
+  // ⟦RETURN-SECTION-END⟧
+
+  // ⟦BOOSTPIN-SECTION-BEGIN⟧ — THE BOOST PROMISE (decision 7, 2026-09-13): a toast «This item will come to every level» on a
+  // SUCCESSFUL purchase only, visible over the menu, quiet; and the promise itself - a boosted type is dealt every level.
+  // `tools/section-dryrun.js` with SECTION=BOOSTPIN runs this block alone; keep the markers. Its own pages.
+  {
+    {
+      const html = fs.readFileSync(PAGE_FILE, 'utf8');
+      const okLine = html.split('\n').find(l => /if \(res\.ok\)\{/.test(l) && /boostCelebrate/.test(l)) || '';
+      expect(/toast\(BOOST_PIN_TEXT, true\)/.test(okLine),
+        'BOOSTPIN: the purchase\'s success branch fires the promise QUIETLY - the purchase rings its own sound ("' + okLine.trim().slice(0, 160) + '")');
+    }
+    const openShop = async (pg, bank) => {
+      await pg.goto('file://' + PAGE_FILE + '?dev=1');
+      const ok = await pg.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+      if (!ok) return false;
+      await pg.evaluate((b) => { const g = window.__game; g.skipIntro(); if (b) g.bankScore(b); }, bank);
+      await pg.click('#pauseBtn', { force: true }).catch(() => {});
+      return pg.waitForFunction(() => document.getElementById('mainScreen').classList.contains('open') &&
+        !!document.querySelector('#msGrid .msc:not(.lock) .msc-boost[data-act="boost"]'), null, { timeout: 15000 }).then(() => true).catch(() => false);
+    };
+    const tapBoost = (pg) => pg.evaluate(() => {
+      const g = window.__game; const btn = document.querySelector('#msGrid .msc:not(.lock) .msc-boost[data-act="boost"]');
+      const key = btn.closest('.msc').dataset.key; const t0 = g.accGrant(key, 0).tier;
+      btn.click();
+      const t = document.getElementById('toast'), ms = document.getElementById('mainScreen');
+      const cs = getComputedStyle(t), cm = getComputedStyle(ms);
+      return { key, t0, t1: g.accGrant(key, 0).tier, text: t.textContent, op: t.style.opacity, pin: g.boostPinText(),
+        zT: +cs.zIndex, zM: +cm.zIndex, posT: cs.position, posM: cm.position, bodyChild: t.parentElement === document.body, open: ms.classList.contains('open') };
+    });
+    const bp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    bp.on('pageerror', e => errors.push('PAGEERROR(boostpin): ' + e.message));
+    const bOpen = await openShop(bp, 300000);
+    const bought = bOpen ? await tapBoost(bp) : null;
+    console.log('boostpin/bought:', JSON.stringify({ bOpen, bought }));
+    expect(!!bought && bought.t1 === bought.t0 + 1 && bought.text === bought.pin && bought.op === '1',
+      'BOOSTPIN: a real purchase from the menu raises the tier and shows the promise "' + (bought && bought.pin) + '" (' + JSON.stringify(bought) + ')');
+    expect(!!bought && bought.open && bought.posT === 'fixed' && bought.posM === 'fixed' && bought.bodyChild && bought.zT > bought.zM,
+      'BOOSTPIN: the toast is drawn OVER the open menu - both fixed, the toast a body child, its z-index above the menu\'s (' + JSON.stringify(bought) + '). SABOTAGE: the toast back at z-index 8');
+    await bp.close();
+    const rp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    rp.on('pageerror', e => errors.push('PAGEERROR(boostpin-refuse): ' + e.message));
+    const rOpen = await openShop(rp, 0);
+    const refused = rOpen ? await tapBoost(rp) : null;
+    console.log('boostpin/refused:', JSON.stringify({ rOpen, refused }));
+    expect(!!refused && refused.t1 === refused.t0 && refused.text !== refused.pin && refused.text.length > 0,
+      'BOOSTPIN: a refused purchase (an empty wallet) never shows the promise - it shows its refusal (' + JSON.stringify(refused) + '). SABOTAGE: fire the promise in the else branch');
+    await rp.close();
+    // ---- THE PROMISE ITSELF: at level 40 the deal is capped (42 types, 26 dealt) - the boosted type is dealt EVERY time,
+    // an unboosted neighbour is left out at least once (0.6 per regen - the control that the cap bites at all).
+    const pp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    pp.on('pageerror', e => errors.push('PAGEERROR(boostpin-pin): ' + e.message));
+    await pp.goto('file://' + PAGE_FILE + '?dev=1');
+    const pBoot = await pp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const pin = pBoot ? await pp.evaluate(() => {
+      const g = window.__game; g.skipIntro(); g.setLevel(40); g.regen(); g.bankScore(300000);
+      const name = g.typeNameAt(0); const res = g.buyBoost(name);
+      let kept = 0, missed1 = 0, lens = new Set();
+      for (let i = 0; i < 25; i++){ g.regen(); const d = g.dealtTypes() || []; lens.add(d.length); if (d.includes(0)) kept++; if (!d.includes(1)) missed1++; }
+      g.setLevel(22); g.regen(); const d22 = (g.dealtTypes() || []).length;
+      // the cap and the unlock count READ LIVE (distinctCap = levelDistinctCap, levelTypesMin = LEVEL_TYPES_MIN) - a
+      // copy of 26/24 here would go red at the first retune of DISTINCT_BASE or of the type progression
+      const cap40 = g.distinctCap(40), open40 = g.levelTypesMin() + 39, cap22 = g.distinctCap(22), open22 = g.levelTypesMin() + 21;
+      return { name, ok: res.ok, kept, missed1, lens: [...lens], d22, cap40, open40, cap22, open22 };
+    }) : null;
+    console.log('boostpin/pin:', JSON.stringify(pin));
+    expect(!!pin && pin.ok && pin.kept === 25 && pin.missed1 >= 1 && pin.open40 > pin.cap40 && pin.lens.length === 1 && pin.lens[0] === pin.cap40,
+      'BOOSTPIN: the promise is true - at level 40 the deal is capped (open ' + (pin && pin.open40) + ' > cap ' + (pin && pin.cap40) + ') and a boosted type is dealt in 25 of 25 levels while an unboosted one is left out at least once (' + JSON.stringify(pin) + '). SABOTAGE: drop the boosted pin from genLevel');
+    expect(!!pin && pin.open22 <= pin.cap22 && pin.d22 === pin.open22,
+      'BOOSTPIN: sanity - level 22 deals every one of its ' + (pin && pin.open22) + ' open types, the cap ' + (pin && pin.cap22) + ' does not bind (' + (pin && pin.d22) + ')');
+    await pp.close();
+  }
+  // ⟦BOOSTPIN-SECTION-END⟧
+
+  // ⟦ACCSTEP-SECTION-BEGIN⟧ — THE TYPE MULTIPLIER'S STEP 0.25 → 0.5 (the owner's word 2026-09-13: «earned and bought
+  // alike», cap 9 → ×5.5, no migration; penalties and the grinder never read a tier). `tools/section-dryrun.js` with
+  // SECTION=ACCSTEP runs this block alone; keep the markers.
+  // NOTE: THE STEP IS DERIVED ONCE FROM A TIER-1 READING AND PINNED THERE TO HIS 0.5; every consumer arm uses the derived
+  // value, so the arms state «every consumer reads the same step» rather than repeating a literal beside each one.
+  // NOTE: THE ORDER IS LOAD-BEARING: the ice arm runs BEFORE the purchase (a bought tier makes the treasure spawn from level
+  // 10, and the ice never shares a pile with the treasure), and the penalty arm runs LAST (it caps every dealt type).
+  {
+    // a line of CODE only: a hit that stands after a `//` on its own line is prose
+    const codeHits = (text, re) => { let n = 0; for (const line of text.split('\n')){ const c = line.indexOf('//');
+      const rg = new RegExp(re.source, 'g'); let m; while ((m = rg.exec(line))){ if (c < 0 || m.index < c) n++; } } return n; };
+    // ---- AS0. NO LITERAL COPY OF THE STEP IN THE BUILD (the demo snapshot carried `1 + 0.25 * tier` until 2026-09-13).
+    {
+      const html = fs.readFileSync(PAGE_FILE, 'utf8');
+      const lit = codeHits(html, /1\s*\+\s*0\.\d+\s*\*\s*tier\b/);
+      expect(lit === 0,
+        'ACCSTEP: no literal copy of the tier step in the build\'s code — every multiplier is 1 + ACC_MULT_STEP·tier (' + lit +
+        ' hits). SABOTAGE: put `1 + 0.25 * tier` back into demoAccSnapshot');
+    }
+    const ap = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    ap.on('pageerror', e => errors.push('PAGEERROR(accstep): ' + e.message));
+    await ap.goto('file://' + PAGE_FILE + '?dev=1');
+    let apReady = true;
+    try { await ap.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); }
+    catch (e) { apReady = false; }
+    expect(apReady, 'ACCSTEP: the page came up');
+    if (apReady){
+      // ---- AS1. THE TIERS: step = tier-1 mult − 1 = 0.5 (his word), tier 2 = 1 + 2·step, the cap 9 = 1 + 9·step = 5.5.
+      const tiers = await ap.evaluate(async () => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms));
+        g.boostClear(); g.setLevel(3); g.regen(); g.skipIntro(); await sl(300);
+        const row = k => g.accSnapshot().find(r => r.key === k);
+        const rows = g.accSnapshot().slice(0, 5);
+        const kA = rows[0].key, kB = rows[1].key;
+        const t1 = g.accGrant(kA, 100 - row(kA).count);
+        const t2 = g.accGrant(kA, 300 - t1.count);
+        const t9 = g.accGrant(kB, 60000);
+        return { kA, kB, keys: rows.map(r => r.key), t1, t2, t9 };
+      });
+      const step = tiers.t1.mult - 1;
+      console.log('accstep/tiers:', JSON.stringify({ step, t1: tiers.t1, t2: tiers.t2, t9: tiers.t9 }));
+      expect(tiers.t1.tier === 1 && Math.abs(step - 0.5) < 1e-9 &&
+             tiers.t2.tier === 2 && Math.abs(tiers.t2.mult - (1 + 2 * step)) < 1e-9 &&
+             tiers.t9.tier === 9 && Math.abs(tiers.t9.mult - 5.5) < 1e-9 && tiers.t9.next === null,
+        'ACCSTEP: tier 1 = 1 + step with step 0.5 (the owner 2026-09-13), tier 2 = 1 + 2·step, the cap 9 = ×5.5 with no next tier (' +
+        JSON.stringify({ step, t1: tiers.t1, t2: tiers.t2, t9: tiers.t9 }) + '). SABOTAGE: ACC_MULT_STEP back to 0.25');
+      // ---- AS2. A TIER-2 PAIR PAYS 20·(1 + 2·step) RAW ON A LEVEL ≤17 AND ×1.2 MORE ON LEVEL 21 (the merge curve reads
+      // alongside the tier, neither replaces the other). regen resets the series; the fire is put out in the merge's task.
+      const merge = await ap.evaluate(async (kA) => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms));
+        const at = async (lv) => {
+          g.boostClear(); g.rivalClear(); g.setLevel(lv); g.regen(); g.skipIntro(); await sl(400);
+          g.cfg.baseRadius = 6; g.cfg.matchRadius = 6;                 // a pair of the type may lie far apart
+          g.extinguish(); const b = g.stats().score; const ok = g.matchType(kA); const gain = g.stats().score - b;
+          g.cfg.baseRadius = g.baseRadiusDefault();
+          const r = { lv, ok, gain, curve: g.mergeMultAt(lv), mult: g.accSnapshot().find(x => x.key === kA).mult };
+          await sl(600);
+          return r;
+        };
+        return { lo: await at(12), hi: await at(21) };
+      }, tiers.kA);
+      console.log('accstep/merge:', JSON.stringify(merge));
+      expect(merge.lo.ok && merge.lo.curve === 1 && merge.lo.gain === Math.round(20 * (1 + 2 * step)) &&
+             merge.hi.ok && merge.hi.curve > 1 && merge.hi.gain === Math.round(20 * (1 + 2 * step) * merge.hi.curve),
+        'ACCSTEP: a tier-2 pair pays 20·(1+2·step) = ' + Math.round(20 * (1 + 2 * step)) + ' raw on level 12 and ×curve more on level 21 (the curve read live, not the literal 1.2 of MERGE_CURVE_STEP 0.05) (' +
+        JSON.stringify(merge) + '). SABOTAGE: accMult back to 1 + 0.25·tier; drop accMult from doMatch');
+      // ---- AS3. THE ICE BREAK ON A TIER-2 KIND CREDITS EXACTLY MATCH_SCORE·FROZEN_BREAK_MULT·(1+2·step)·curve (closes the
+      // W7 fix of 2026-09-01-o, which only a lower bound guarded: accMult(it.key) instead of it.frozenType pays ×1).
+      const ice = await ap.evaluate(async (grantedHigh) => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms));
+        const row = k => g.accSnapshot().find(r => r.key === k);
+        g.boostClear();
+        let pick = null, lv = 0;
+        for (let i = 0; i < 8 && !pick; i++){
+          lv = Math.max(11, g.frozenNextAt()); g.setLevel(lv); g.regen(); g.skipIntro(); await sl(400);
+          pick = g.frozenInfo().find(b => b.type !== grantedHigh && row(b.type) && row(b.type).count <= 300) || null;
+        }
+        if (!pick) return { none: true, lv };
+        const r0 = row(pick.type); if (r0.count < 300) g.accGrant(pick.type, 300 - r0.count);
+        const rule = g.frozenRule(); const mult = row(pick.type).mult, curve = g.mergeMultAt(lv);
+        g.extinguish(); g.rivalClear();
+        const before = g.stats().score; const broke = g.frozenBreak(pick.index); const gain = g.stats().score - before;
+        return { lv, type: pick.type, tier: row(pick.type).tier, mult, curve, broke, gain,
+                 matchScore: rule.matchScore, breakMult: rule.breakMult };
+      }, tiers.kB);
+      console.log('accstep/ice:', JSON.stringify(ice));
+      expect(!ice.none && ice.broke && ice.tier === 2 && ice.breakMult === 3 && Math.abs(ice.mult - (1 + 2 * step)) < 1e-9 &&
+             ice.gain === Math.round(ice.matchScore * ice.breakMult * (1 + 2 * step) * ice.curve),
+        'ACCSTEP: breaking the ice of a tier-2 kind credits MATCH_SCORE·3·(1+2·step)·curve exactly (' + JSON.stringify(ice) +
+        '). SABOTAGE: accMult(it.key) in breakIce — the W7 bug — pays ×1');
+      // ---- AS4. A BOUGHT TIER ADDS EXACTLY ONE STEP, the step derived above (earned and bought alike).
+      const boost = await ap.evaluate(async (keys) => {
+        const g = window.__game;
+        const row = k => g.accSnapshot().find(r => r.key === k);
+        const k = keys.find(x => row(x).tier === 0 && row(x).boost === 0) || null;
+        if (!k) return { none: true };
+        g.starGrant(60000);
+        const m0 = row(k).mult, t0 = row(k).tier; const buy = g.buyBoost(k);
+        return { k, m0, t0, ok: !!(buy && buy.ok), m1: row(k).mult, t1: row(k).tier };
+      }, tiers.keys);
+      console.log('accstep/boost:', JSON.stringify(boost));
+      expect(!boost.none && boost.ok && boost.t1 === boost.t0 + 1 && Math.abs(boost.m1 - boost.m0 - step) < 1e-9,
+        'ACCSTEP: a bought tier adds exactly one step (' + step + ', read from the tier-1 reading) (' + JSON.stringify(boost) +
+        '). SABOTAGE: buyBoost adds two tiers');
+      // ---- AS5. PENALTIES AND THE GRINDER IGNORE THE TIERS: every dealt type at the cap (×5.5 — the control: a real merge
+      // pays it), yet the eaten pair costs the base grindPriceAt and a miss costs its plain rung.
+      const pen = await ap.evaluate(async () => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms));
+        g.boostClear(); g.rivalClear(); g.setLevel(12); g.regen(); g.skipIntro(); await sl(400);
+        const keys = new Set(g.accSnapshot().map(r => r.key));
+        const names = [...new Set(g.itemsGeo().map(i => i.name))].filter(n => keys.has(n));
+        for (const n of names) g.accGrant(n, 60000);
+        const tiers = names.map(n => g.accSnapshot().find(r => r.key === n).tier);
+        g.cfg.baseRadius = 6; g.cfg.matchRadius = 6;
+        g.extinguish(); const b0 = g.stats().score; const ok = g.autoMatch(); const mergeGain = g.stats().score - b0;
+        g.cfg.baseRadius = g.baseRadiusDefault();
+        await sl(500);
+        const b1 = g.stats().score; g.grindNow(); const grind = b1 - g.stats().score;
+        await sl(700);
+        const run = g.stats().missRun; const b2 = g.stats().score; g.penalizeTest(); const miss = b2 - g.stats().score;
+        return { n: names.length, allCap: tiers.every(t => t === 9), ok, mergeGain, grind, price: g.grindPriceAt(12).raw,
+                 miss, rung: g.missPenaltyAt(run + 1, 12).raw, curve: g.mergeMultAt(12) };
+      });
+      console.log('accstep/penalties:', JSON.stringify(pen));
+      expect(pen.n > 0 && pen.allCap && pen.ok && pen.mergeGain === Math.round(20 * (1 + 9 * step) * pen.curve) &&
+             pen.grind === pen.price && pen.price === 20 && pen.miss === pen.rung && pen.rung > 0,
+        'ACCSTEP: with every dealt type at ×5.5 a merge pays ×5.5, while the eaten pair costs its base ' + pen.price +
+        ' and a miss its plain rung ' + pen.rung + ' (' + JSON.stringify(pen) + '). SABOTAGE: the grinder charges pairScoreAt × accMult');
+    }
+    await ap.close();
+  }
+  // ⟦ACCSTEP-SECTION-END⟧
+
+  // ⟦BOWL140-SECTION-BEGIN⟧ — THE BOWL OF 140 ITEMS OF THE ENLARGED SIZE (the owner's word 2026-09-13: PAIRS 90 → 70 for
+  // every player; items 9% bigger, K = cbrt(180/140), in MESH_SCALE alone; the reach grows by the same K; FROZEN_PAIRS_N
+  // 3 → 2 so the ice stays reachable). `tools/section-dryrun.js` with SECTION=BOWL140 runs this block alone; keep the markers.
+  {
+    const bp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    bp.on('pageerror', e => errors.push('PAGEERROR(bowl140): ' + e.message));
+    await bp.goto('file://' + PAGE_FILE + '?dev=1');
+    let bpReady = true;
+    try { await bp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }); }
+    catch (e) { bpReady = false; }
+    expect(bpReady, 'BOWL140: the page came up');
+    if (bpReady){
+      // ---- B1. THE RULE: 40 at level 1, the ceiling 70 reached at level 7, flat after.
+      const rule = await bp.evaluate(() => { const g = window.__game; const r = g.pairsRule();
+        return { pairs: r.pairs, start: r.start, step: r.step, a1: r.at(1), a6: r.at(6), a7: r.at(7), a11: r.at(11), a200: r.at(200), ms: g.meshScale() }; });
+      console.log('bowl140/rule:', JSON.stringify(rule));
+      expect(rule.pairs === 70 && rule.start === 40 && rule.step === 5 &&
+             rule.a1 === 40 && rule.a6 === 65 && rule.a7 === 70 && rule.a11 === 70 && rule.a200 === 70,
+        'BOWL140: 40 pairs at level 1, +5 per level, the ceiling 70 (140 items) from level 7 on (' + JSON.stringify(rule) +
+        '). SABOTAGE: PAIRS left at 90');
+      // ---- B2. THE PRODUCT, NOT TWO LITERALS: (MESH_SCALE/0.62)^3 · 2·PAIRS ≈ 180 — «140 items with the volume of 180».
+      // NOTE: 0.62 is the historical base size by definition (the size the red line was tuned on), not a copy of the constant.
+      const product = Math.pow(rule.ms / 0.62, 3) * 2 * rule.pairs;
+      expect(Math.abs(product - 180) / 180 < 0.02,
+        'BOWL140: (MESH_SCALE/0.62)^3 · 2·PAIRS = ' + product.toFixed(2) + ' — the pile of 140 items keeps the volume of 180 ' +
+        '(MESH_SCALE ' + rule.ms.toFixed(4) + '). SABOTAGE: PAIRS 70 with MESH_SCALE left at 0.62, or the size without the cap');
+      // ---- B3. LIVE: exactly 140 non-extra items at levels 7, 11 and 21 (no silent trim of pairs by the bigger items).
+      const counts = await bp.evaluate(async () => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms)); const out = [];
+        for (const lv of [7, 11, 21]){
+          g.setLevel(lv); g.regen(); g.skipIntro(); await sl(500);
+          const sp = g.specialsCount(); const rv = g.rivalInfo();
+          out.push({ lv, nonExtra: g.alive() - sp.treasure - sp.bombs - ((rv && rv.index >= 0) ? 1 : 0) });
+        }
+        return out;
+      });
+      console.log('bowl140/counts:', JSON.stringify(counts));
+      expect(counts.length === 3 && counts.every(c => c.nonExtra === 140),
+        'BOWL140: exactly 140 items (the extras excluded) at levels 7, 11 and 21 (' + JSON.stringify(counts) + ')');
+      // ---- B4. THE PILE KEEPS ITS HEIGHT: the median top of 3 regens at levels 12 and 30 lies inside 7.3..9.0, with the
+      // count still 140 in the same readings (a trim that ate pairs would lower the top AND the count).
+      const tops = await bp.evaluate(async () => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms)); const out = {};
+        for (const lv of [12, 30]){
+          const arr = [];
+          for (let i = 0; i < 3; i++){
+            g.setLevel(lv); g.regen(); g.skipIntro(); await sl(1000);
+            const sp = g.specialsCount();
+            arr.push({ top: +g.topY().toFixed(2), nonExtra: g.alive() - sp.treasure - sp.bombs });
+          }
+          const s = arr.map(a => a.top).sort((a, b) => a - b);
+          out[lv] = { median: s[1], arr };
+        }
+        return out;
+      });
+      console.log('bowl140/tops:', JSON.stringify(tops));
+      expect([12, 30].every(lv => tops[lv].median >= 7.3 && tops[lv].median <= 9.0 && tops[lv].arr.every(a => a.nonExtra === 140)),
+        'BOWL140: the pile\'s median top at levels 12 and 30 stays at the red line 7.3..9.0 with 140 items in the bowl (' +
+        JSON.stringify(tops) + '). SABOTAGE: MESH_SCALE left at 0.62 with PAIRS 70');
+      // ---- B5. THE ICE IS STILL REACHABLE AT LEVEL 30: a dealt type holds ≥ 2N+2 copies (N read from the rule, 2 by his
+      // word), and walking the ice schedule from level 30 an ice block is actually dealt.
+      const iceDeep = await bp.evaluate(async () => {
+        const g = window.__game; const sl = ms => new Promise(r => setTimeout(r, ms)); const rule = g.frozenRule();
+        g.setLevel(30); g.regen(); g.skipIntro(); await sl(400);
+        const snap = g.typesSnapshot(); let maxCopies = 0; for (const k in snap) maxCopies = Math.max(maxCopies, snap[k].alive);
+        let seen = g.frozenInfo().length > 0, at = seen ? 30 : 0;
+        for (let i = 0; i < 8 && !seen; i++){
+          const lv = Math.max(30, g.frozenNextAt()); if (lv > 40) break;
+          g.setLevel(lv); g.regen(); g.skipIntro(); await sl(300);
+          if (g.frozenInfo().length){ seen = true; at = lv; }
+        }
+        return { n: rule.n, eligible: rule.eligibleCopies, maxCopies, seen, at };
+      });
+      console.log('bowl140/ice:', JSON.stringify(iceDeep));
+      expect(iceDeep.n === 2 && iceDeep.eligible === 6 && iceDeep.maxCopies >= iceDeep.eligible && iceDeep.seen,
+        'BOWL140: at level 30 a dealt type holds ≥ 2N+2 = ' + iceDeep.eligible + ' copies and an ice block is dealt (' +
+        JSON.stringify(iceDeep) + '). SABOTAGE: FROZEN_PAIRS_N left at 3 — no type reaches 8 copies from level 22');
+      // ---- B6. THE REACH GREW BY THE SAME K: every radius equals its pre-batch number × K, K read off the live item size.
+      const reach = await bp.evaluate(() => { const g = window.__game; const m = g.missRadius();
+        return { k: g.meshScale() / 0.62, base: g.baseRadiusDefault(), step: m.step, max: m.max, floor: m.floor, cap: m.comboCap }; });
+      const nr = (v, x) => Math.abs(v - x * reach.k) < 1e-9;
+      console.log('bowl140/reach:', JSON.stringify(reach));
+      expect(Math.abs(reach.k - Math.cbrt(180 / 140)) < 1e-9 && nr(reach.base, 0.45) && nr(reach.step, 0.05) &&
+             nr(reach.max, 0.20) && nr(reach.floor, 0.375) && nr(reach.cap, 0.8),
+        'BOWL140: the reach grew by the items\' own K = cbrt(180/140) — base 0.45·K, assist step 0.05·K, stop 0.20·K, floor ' +
+        '0.375·K, streak ceiling 0.8·K (' + JSON.stringify(reach) + '). SABOTAGE: leave one radius unscaled');
+    }
+    await bp.close();
+  }
+  // ⟦BOWL140-SECTION-END⟧
+
+  // ⟦PROGRESSION-SECTION-BEGIN⟧ — THE TWO PROGRESSION BOUNDARIES, DERIVED (stage «Stale notes», 2026-09-13). Four comments
+  // quoted these boundaries as literals («82», «89», «level 112», «a whole nine») and every one went stale on an edit of
+  // TYPES, PAIRS, LEVEL_TYPES_MIN or the distinct cap. This block states them from live hooks instead, so the numbers
+  // in prose (103 / 104 / 23 today) are checked, not trusted. `tools/section-dryrun.js` with SECTION=PROGRESSION runs
+  // this block alone; keep the markers. Its own page: a page left on a high level would change every neighbour's deal.
+  // NOTE: the old unsectioned New Object guard (the «starting set» arm, near the end of the file) stays where it is; it
+  // checks levels 1/2/5/20/400 and is blind to an end one level early — P1 below is the arm that sees that.
+  {
+    const pp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    pp.on('pageerror', e => errors.push('PAGEERROR(progression): ' + e.message));
+    try {
+      let ready = true;
+      try {
+        await pp.goto('file://' + PAGE_FILE + '?dev=1');
+        await pp.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+        await pp.evaluate(() => window.__game.skipIntro());
+      } catch (e) { ready = false; console.log('progression/boot failed: ' + (e && e.message)); }
+      expect(ready, 'PROGRESSION: the page boots with a live __game (a failed boot is this arm, not a dead section)');
+      if (ready){
+        // ---- P1. THE NEW OBJECT SCREEN'S LAST OCCASION: n = the live TYPES count, m = LEVEL_TYPES_MIN. The last kind (index
+        // n-1) opens at level n-m+1, so entering that level shows it; one level later there is nothing new (null).
+        // Today 103 -> fooddonutsprinkles, 104 -> null; the arm reads neither number.
+        let p1 = null;
+        try {
+          p1 = await pp.evaluate(() => {
+            const g = window.__game;
+            let n = 0; while (g.typeNameAt(n)) n++;
+            const m = g.levelTypesMin();
+            const at = lv => { g.setLevel(lv); return g.newObjDue(); };
+            const r = { n, m, first: at(1), lastLv: n - m + 1, last: at(n - m + 1), after: at(n - m + 2), before: at(n - m), expLast: g.typeNameAt(n - 1), expBefore: g.typeNameAt(n - 2) };
+            g.setLevel(1);
+            return r;
+          });
+        } catch (e) { p1 = { error: String(e && e.message || e) }; }
+        console.log('progression/new-object-end:', JSON.stringify(p1));
+        expect(!!(p1 && !p1.error && p1.n > 0 && p1.m > 0 && p1.first === null && p1.last === p1.expLast && p1.after === null && p1.before === p1.expBefore),
+          'PROGRESSION: the New Object screen has no occasion at level 1 (the whole starting set opens), shows the LAST kind on entering level n-m+1 and nothing from n-m+2 (n = live TYPES count, m = LEVEL_TYPES_MIN; ' + JSON.stringify(p1) + '). SABOTAGE: newObjDue ends one level early (idx >= TYPES.length - 1)');
+        // ---- P2. THE DISTINCT CAP'S FIRST CUT: L = the first level where m + L - 1 open kinds exceed distinctCap(L), and the
+        // pairs ceiling does not bind there (distinctCap(L) < pairsRule().at(L), both live). At L-1 every open kind is dealt;
+        // at L exactly distinctCap(L) kinds are. Counted with a Set of dealtTypes, never .length: a returned kind (decision 9)
+        // or a pin must not be able to move the count. The deal at L is random, so the Set size is exact, not a union.
+        let p2 = null;
+        try {
+          p2 = await pp.evaluate(async () => {
+            const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms));
+            const m = g.levelTypesMin(); let n = 0; while (g.typeNameAt(n)) n++;
+            let L = 0; for (let lv = 1; lv <= 400; lv++){ if (Math.min(n, m + lv - 1) > g.distinctCap(lv)){ L = lv; break; } }
+            if (!L) return { L, m, n };
+            const kinds = async lv => { g.setLevel(lv); g.regen(); g.skipIntro(); await sleep(250);
+              const d = g.dealtTypes() || []; return { set: new Set(d).size, len: d.length }; };
+            const pre = await kinds(L - 1), at = await kinds(L);
+            const r = { L, m, n, capPre: g.distinctCap(L - 1), cap: g.distinctCap(L), pairsAt: g.pairsRule().at(L), pre, at,
+                        openPre: Math.min(n, m + L - 2), openAt: Math.min(n, m + L - 1) };
+            g.setLevel(1); g.regen(); g.skipIntro();
+            return r;
+          });
+        } catch (e) { p2 = { error: String(e && e.message || e) }; }
+        console.log('progression/cap-boundary:', JSON.stringify(p2));
+        expect(!!(p2 && !p2.error && p2.L > 1 && p2.cap < p2.pairsAt && p2.pre.set === p2.openPre && p2.at.set === p2.cap && p2.at.set < p2.openAt),
+          'PROGRESSION: the deal is first cut at the derived level L (first m+L-1 > distinctCap(L), pairs not binding): every open kind dealt at L-1, exactly distinctCap(L) kinds at L, counted with a Set (' + JSON.stringify(p2) + '). SABOTAGE: drop levelDistinctCap from the deal in genLevel; DISTINCT_BASE 22 -> 23 must stay green (L moves with it)');
+      }
+    } finally { await pp.close(); }
+  }
+  // ⟦PROGRESSION-SECTION-END⟧
+
   // ⟦OG-SECTION-BEGIN⟧ — THE SHARE CARD (2026-09-09-f, his word «use this picture for the share»): the OG/Twitter metas in
   // the build point at https://blendo.monster/og.jpg; the file is tracked at the root (GitHub Pages serves it) and packed
   // into the site by tools/site-pack.py; the meta's width/height are the JPEG's own (read off its SOF marker), so a
@@ -12349,6 +13068,44 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     expect(linkM && linkA && gates.https && gates.wd && gates.frame && gates.kill && gates.unreg && gates.call && gates.upd,
       'PWA: the build links the manifest and an apple-touch-icon (iOS reads the icon from the LINK, not from the manifest), and the registration is gated on https, NOT under automation, NOT inside the portal\'s iframe, with ?nosw=1 as an escape hatch that UNREGISTERS (' +
       JSON.stringify({ linkM, linkA, gates }) + '). ⛔ EACH GATE IS LOAD-BEARING: the suite must never register one (13 MB of background fetches into the console the error gate reads); the portal frames the game on Playgama\'s origin, whose scope is not ours; and a bad worker that ever ships needs a way back that exists BEFORE it is needed. ⛔ SABOTAGE: drop the webdriver gate; drop the ?nosw=1 branch; delete the `update()` call (measured red). ⚠️ THE HONEST LIMIT OF `upd`, NAMED RATHER THAN HIDDEN: this is a TEXT assert over the built artefact, so it catches a DELETION and NOT a disabling — a variant that kept the call under `if (0)` stayed green here (measured). What the call actually DOES is proven only in a real browser against a real server, and that rig is in the batch entry: without it, four launches after a release fetched sw.js once and the new build never came.');
+
+    // ---- 3b. THE SILENT RECHECK ON RETURN TO THE SCREEN (the owner's decision 10, 2026-09-13), read off the SAME slice.
+    // The listeners are armed INSIDE register().then, so the four gates above hold for them too (the wrapper, the portal
+    // iframe and the suite never get one). Comment lines are stripped first: the prose around the call names the very
+    // strings these arms look for. What the check DOES on a real release is the rig's, as for `upd` above.
+    {
+      const strip = (t) => t.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+      const code = strip(reg);
+      // a top-level function ends at its first column-0 brace (the house style, and arm 3's own slice rule) — NOT at the
+      // next `\nfunction `: swRecheck is the last top-level function of 99-main, and that search found nothing after it
+      const fnBody = (name) => { const a = html.indexOf('function ' + name + '(');
+        const b = a >= 0 ? html.indexOf('\n}', a) : -1; return (a >= 0 && b > a) ? strip(html.slice(a, b + 2)) : ''; };
+      const due = fnBody('swRecheckDue'), fire = fnBody('swRecheckFire'), chk = fnBody('swRecheck');
+      const r = { iReg: code.indexOf("register('sw.js')"), iVis: code.indexOf("addEventListener('visibilitychange'"),
+        iShow: code.indexOf("addEventListener('pageshow'"), armOnce: /if \(swRecheckArmed\) return;/.test(code),
+        persisted: /\.persisted\b/.test(code), plainShow: /addEventListener\('pageshow', function\(e\)\{ swRecheck/.test(code),
+        // the HIDDEN STINT is measured by the wall clock: the hide stamps Date.now and the return subtracts it (the
+        // boot stamp `swLastCheckAt = Date.now()` alone would satisfy a bare «Date.now appears» — a hiddenAt on
+        // performance.now would then pass; it does not now)
+        stamp: /hiddenAt = Date\.now\(\)/.test(code) && /Date\.now\(\) - hiddenAt/.test(code),
+        bootCatch: /\.update\(\)\.catch\(/.test(code),
+        dueGap: /SW_RECHECK_GAP_MS/.test(due), dueHidden: /SW_RECHECK_HIDDEN_MS/.test(due), fireCatch: /\.catch\(/.test(fire),
+        atCheck: /getRegistration\(\)/.test(chk),
+        // NO payment gate (the review of 2026-09-13): the pending mark survives a fruitless poll round, so a gate on
+        // it switched the recheck off for good on any device that ever abandoned a Stripe page
+        noPayGate: !/payPending/.test(chk + '\n' + due),
+        // nothing ANYWHERE in the build listens for controllerchange (comment lines stripped — the prose names the word):
+        // the natural place for such a listener is 90-input or the shell, not this slice. location.reload stays scoped to
+        // the recheck's own code — the fatal screen's button is a legitimate one elsewhere
+        noReload: !/controllerchange/.test(strip(html)) && !/location\.reload/.test(code + '\n' + chk) };
+      console.log('pwa/recheck:', JSON.stringify(r));
+      expect(r.iReg > 0 && r.iVis > r.iReg && r.iShow > r.iReg && r.armOnce && r.stamp,
+        'PWA: the recheck listeners (visibilitychange, pageshow) are armed ONCE inside registerServiceWorker AFTER register(\'sw.js\') — i.e. behind all four gates — and the hidden duration is measured by Date.now (' + JSON.stringify(r) + '). SABOTAGE: arm the listeners above the gates (the wrapper and the portal get them)');
+      expect(r.persisted && !r.plainShow,
+        'PWA: the pageshow listener acts ONLY on a back-forward cache restore (`e.persisted`) — a plain pageshow fires on every load and would repeat the boot check (' + JSON.stringify({ persisted: r.persisted, plainShow: r.plainShow }) + '). SABOTAGE: drop the persisted test');
+      expect(r.bootCatch && r.fireCatch && r.dueGap && r.dueHidden && r.atCheck && r.noPayGate && r.noReload,
+        'PWA: BOTH update() promises are caught (the boot one and the recheck chain — a rejected promise is not caught by try/catch), the decision reads SW_RECHECK_GAP_MS and SW_RECHECK_HIDDEN_MS, the registration is asked at CHECK time, NO pending-payment gate (its mark survives a fruitless poll and would switch the recheck off for good), and nothing anywhere in the build listens for controllerchange — silent by his word (' + JSON.stringify(r) + '). SABOTAGE: drop the boot .catch; add a controllerchange listener in 90-input; gate the check on payPending');
+    }
 
     // ---- 4. the worker's own behaviour, in a sandbox: what it refuses to touch
     // ⚠️⚠️ ONE STORE PER CACHE NAME, and not one shared Map as before 2026-09-10-i: the gated prune and the
@@ -12541,6 +13298,116 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       JSON.stringify({ sky: skyTop, hex, theme: mf.theme_color }) + '). ⛔ SABOTAGE: change the palette and leave the manifest — the installed app gets a system bar in a colour that is on no screen');
   }
   // ⟦PWA-SECTION-END⟧
+
+  // ⟦SWRECHECK-SECTION-BEGIN⟧ — THE SILENT SERVICE-WORKER RECHECK ON RETURN TO THE SCREEN (the owner's decision 10,
+  // 2026-09-13: a check when the game comes back, no prompt, no reload). `tools/section-dryrun.js` with SECTION=SWRECHECK
+  // runs this block alone; keep the markers. Every wait is caught — a bare waitForFunction kills a section instead of
+  // reddening an arm.
+  // NAMED RATHER THAN IMPLIED: what the check DOES on a real release (one GET of sw.js, the background prefetch, no
+  // reload, the old build kept) is provable only in a real browser against the real site Worker — the 2026-09-10-i
+  // rig. The suite never registers a worker by its own gate, so this section states the decision, the chain and the gate.
+  {
+    const rp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    rp.on('pageerror', e => errors.push('PAGEERROR(swrecheck): ' + e.message));
+    let rpBooted = true;
+    try {
+      await rp.goto('file://' + PAGE_FILE + '?dev=1');
+      await rp.waitForFunction(() => window.__game && window.__game.alive() > 0 && typeof window.__game.swRecheckState === 'function',
+        null, { timeout: 30000 });
+    } catch (e) { rpBooted = false; }
+    expect(rpBooted, 'SWRECHECK: the page booted with the recheck hooks (swRecheckState, swRecheckDue, swRecheckWith)');
+    if (rpBooted) {
+      // ---- R1. THE PURE DECISION, a table derived from the LIVE constants (no literal but the one arm naming them)
+      const tbl = await rp.evaluate(() => {
+        const g = window.__game, s = g.swRecheckState(), G = s.gap, H = s.hidden, L = 1000000;
+        const d = (now, h, on, hid) => g.swRecheckDue(now, L, h, on, hid);
+        return { G, H,
+          due: d(L + G, H, true, false), gapShort: d(L + G - 1, H, true, false),
+          bfNoGap: d(L + 1000, Infinity, true, false), bfcache: d(L + G, Infinity, true, false),
+          flick: d(L + G, H - 1, true, false), zero: d(L + G, 0, true, false),
+          offline: d(L + G, H, false, false), noOnline: d(L + G, H, undefined, false),
+          stillHidden: d(L + G, H, true, true) };
+      });
+      console.log('swrecheck/table:', JSON.stringify(tbl));
+      // THE ONE ARM THAT NAMES NUMBERS, AND THEY ARE NOT HIS: decision 10 says «a silent check on return» and names no
+      // interval — 5 min / 30 s are the dispatcher's defaults written into it. This arm pins them so a retune is a
+      // deliberate edit; the arms below derive everything from the live constants.
+      expect(tbl.G === 5 * 60 * 1000 && tbl.H === 30 * 1000,
+        'SWRECHECK: the dispatcher\'s defaults behind decision 10 (2026-09-13; his word names no interval) — at most one check per 5 minutes, and only after 30 seconds hidden (' + JSON.stringify({ gap: tbl.G, hidden: tbl.H }) + ')');
+      expect(tbl.due && !tbl.gapShort && !tbl.bfNoGap,
+        'SWRECHECK: the GAP — due exactly at SW_RECHECK_GAP_MS since the last check, not a millisecond earlier, and a back-forward restore inside the gap does not check either (' + JSON.stringify(tbl) + '). SABOTAGE: drop the gap term');
+      expect(tbl.bfcache && !tbl.flick && !tbl.zero,
+        'SWRECHECK: the HIDDEN STINT — a tab flick under SW_RECHECK_HIDDEN_MS (or a return with no hidden moment at all) is not a check, a restore from the back-forward cache (Infinity) is (' + JSON.stringify(tbl) + '). SABOTAGE: drop the hidden term');
+      expect(!tbl.offline && tbl.noOnline,
+        'SWRECHECK: OFFLINE skips the check, while an engine that does not report navigator.onLine is not read as offline (' + JSON.stringify({ offline: tbl.offline, noOnline: tbl.noOnline }) + '). SABOTAGE: drop the online term');
+      expect(!tbl.stillHidden,
+        'SWRECHECK: a page that is still hidden does not check (' + JSON.stringify({ stillHidden: tbl.stillHidden }) + '). SABOTAGE: drop the hidden-page term');
+      // THE PAYMENT ARM IS GONE WITH THE TERM (the review of 2026-09-13): 83-pay keeps its pending mark through a
+      // fruitless poll round, so a gate on it switched the recheck off for good on a device that once abandoned a Stripe
+      // page. PWA arm 3b states the absence (`noPayGate`).
+
+      // ---- R2. THE CHAIN, on a fake registration through the PRODUCTION swRecheckFire. The unhandledrejection counter is
+      // installed BEFORE any call; each read waits past the microtask queue and a task (the event fires after both).
+      const beh = await rp.evaluate(async () => {
+        const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms));
+        let urj = 0; const onU = () => { urj++; };
+        window.addEventListener('unhandledrejection', onU);
+        // each stage reads its OWN delta of the counter: a cumulative count would redden every later arm on the one
+        // sabotage that drops the .catch (measured: the null-registration arm and the control both went red with it)
+        const out = {};
+        let c1 = 0, u0 = urj;
+        g.swRecheckWith({ active: {}, update(){ c1++; return Promise.reject(new Error('offline')); } });
+        await sleep(250); out.reject = { calls: c1, urj: urj - u0 };
+        let c2 = 0, threw = false; u0 = urj;
+        try {
+          g.swRecheckWith(null); g.swRecheckWith(undefined);
+          g.swRecheckWith({ active: null, update(){ c2++; return Promise.resolve(); } });
+        } catch (e) { threw = true; }
+        await sleep(250); out.inactive = { calls: c2, threw, urj: urj - u0 };
+        u0 = urj;
+        g.swRecheckWith(Promise.reject(new Error('no registration')));   // getRegistration itself rejecting
+        await sleep(250); out.getRegReject = { urj: urj - u0 };
+        let c4 = 0; u0 = urj;
+        g.swRecheckWith({ active: {}, update(){ c4++; return Promise.resolve(); } });
+        await sleep(250); out.ok = { calls: c4, urj: urj - u0 };
+        window.removeEventListener('unhandledrejection', onU);
+        return out;
+      });
+      console.log('swrecheck/chain:', JSON.stringify(beh));
+      expect(beh.reject.calls === 1 && beh.reject.urj === 0 && beh.getRegReject.urj === 0,
+        'SWRECHECK: an update() that REJECTS (offline) is called exactly once and raises ZERO unhandledrejection events, and a getRegistration that rejects is caught too (' + JSON.stringify({ reject: beh.reject, getRegReject: beh.getRegReject }) + '). SABOTAGE: drop the .catch of swRecheckFire');
+      expect(beh.inactive.calls === 0 && !beh.inactive.threw && beh.inactive.urj === 0,
+        'SWRECHECK: a NULL registration, an undefined one and a registration with no active worker make ZERO update() calls and do not throw (' + JSON.stringify(beh.inactive) + '). SABOTAGE: drop the `r && r.active` guard');
+      expect(beh.ok.calls === 1 && beh.ok.urj === 0,
+        'SWRECHECK: the CONTROL — a registration with an active worker gets exactly one update() (without it the arms above are satisfied by a chain that never calls at all) (' + JSON.stringify(beh.ok) + ')');
+
+      // ---- R3. THE GATE ON THE AUTOMATED PAGE (file:// and navigator.webdriver): the listeners are NOT armed, so a
+      // return to the screen and a bfcache pageshow reach nothing — and nothing asks for a registration.
+      const gate = await rp.evaluate(async () => {
+        const g = window.__game; const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const sw = navigator.serviceWorker; let getReg = 0, orig = null;
+        if (sw && typeof sw.getRegistration === 'function') {
+          orig = sw.getRegistration;
+          try { sw.getRegistration = function(){ getReg++; return orig.apply(this, arguments); }; } catch (e) {}
+        }
+        const before = g.swRecheckState();
+        let dispatched = true;
+        try {
+          document.dispatchEvent(new Event('visibilitychange'));
+          window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+        } catch (e) { dispatched = false; }
+        await sleep(250);
+        const after = g.swRecheckState();
+        if (orig) { try { sw.getRegistration = orig; } catch (e) {} }
+        return { before, after, getReg, dispatched, webdriver: !!navigator.webdriver, proto: location.protocol };
+      });
+      console.log('swrecheck/gate:', JSON.stringify(gate));
+      expect(gate.dispatched && gate.before.armed === false && gate.after.armed === false && gate.after.last === 0 && gate.getReg === 0,
+        'SWRECHECK: on the automated page (' + gate.proto + ', webdriver ' + gate.webdriver + ') the recheck is NOT armed — a visibilitychange and a persisted pageshow check nothing, the stamp stays 0 and no registration is asked for (' + JSON.stringify(gate) + '). SABOTAGE: arm the listeners above the gates in registerServiceWorker');
+    }
+    await rp.close();
+  }
+  // ⟦SWRECHECK-SECTION-END⟧
 
   // ===== THE FLIGHT FALL CAP (the owner's word 2026-09-05 about the phone in Low Power Mode:
   // «after the bomb and after the toss reduce the falling speed … there is a braking effect»):
@@ -17296,6 +18163,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       const ice = info[0];
       steps.type = ice.type; steps.index = ice.index;
       steps.copiesOfType = (g.typesSnapshot()[ice.type] || {}).alive || 0;
+      steps.eligible = g.frozenRule().eligibleCopies;   // 2N+2 from the live rule (6 since N 3 → 2 on 2026-09-13)
       steps.countedWithoutIce = g.missRadius().counted < g.alive();
       // the ice block to the top — the pixel will be its own, covered by nothing
       g.place(ice.index, 0, g.topY() + 1.2, 0); await sl(700);
@@ -17316,8 +18184,9 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     const st = phase1.steps;
     expect(st.beforeThreshold === 0 && st.atThreshold >= 1 && st.atThreshold <= 2,
       '⚠️⚠️ ICE BLOCK: before the 11th level there is none, at the 11th there are 1-2 (' + JSON.stringify({ before: st.beforeThreshold, at: st.atThreshold }) + ')');
-    expect(st.copiesOfType >= 8 && st.countedWithoutIce === true,
-      '⚠️ ICE BLOCK: a type with a stock of pairs (copies ' + st.copiesOfType + ' ≥ 2N+2), it is excluded from the counted ones of the endgame');
+    expect(st.eligible > 0 && st.copiesOfType >= st.eligible && st.countedWithoutIce === true,
+      'NOTE: ICE BLOCK: a type with a stock of pairs (copies ' + st.copiesOfType + ' ≥ 2N+2 = ' + st.eligible +
+      ', read from frozenRule — N 3 → 2 on 2026-09-13), it is excluded from the counted ones of the endgame');
     // ── A TAP BEFORE THE TIME: a real click → a double penalty, the miss is counted
     if (st.pixel && !st.pixel.occluded){
       // ⚠️ visiblePixel hands out the fields px/py, not x/y — the first version crashed the click
@@ -17506,14 +18375,14 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     await noPage.waitForTimeout(1200);
 
     // THE REASON IS DERIVED FROM THE PROGRESSION, AND NOT FROM A SEPARATE LIST. The rule is one with
-    // genLevel: 9 types at lv.1 and exactly one new one for each next, by
+    // genLevel: LEVEL_TYPES_MIN types at lv.1 (3 today) and exactly one new one for each next, by
     // the order of the array. The guard checks THE KEY against this rule, and not against a literal —
     // let the order of the types change, and it will move after it (a copy of a number next to the working
     // value is the law on which the project has been burned five times).
     const reason = await noPage.evaluate(() => {
       const g = window.__game, out = {};
       const keyAt = (lv) => { g.setLevel(lv); return g.newObjDue(); };
-      out.lv1 = keyAt(1);                      // the starting nine — there is no ONE new one
+      out.lv1 = keyAt(1);                      // the starting set — there is no ONE new one
       out.lv2 = keyAt(2); out.lv5 = keyAt(5); out.lv20 = keyAt(20);
       out.pastPool = keyAt(400);               // the pool is exhausted — there is no screen
       // ⚠️ THE INDEX IS COUNTED FROM A LIVE CONSTANT (`LEVEL_TYPES_MIN + lv − 2`), and
@@ -17531,7 +18400,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     console.log('the new item/the reason:', JSON.stringify(reason));
     expect(reason.lv1 === null && reason.pastPool === null,
       '⚠️ THE NEW ITEM: at the first level and beyond the limits of the pool there is NO reason — there either the ' +
-      'whole starting nine opens, or nothing opens (' + JSON.stringify(reason) + ')');
+      'whole starting set opens, or nothing opens (' + JSON.stringify(reason) + ')');
     expect(reason.lv2 === reason.exp2 && reason.lv5 === reason.exp5 && reason.lv20 === reason.exp20,
       '⚠️ THE NEW ITEM: the reason = the type that THE PROGRESSION opens (the rule is one with genLevel), ' +
       'and not a separate list (' + JSON.stringify(reason) + ')');
@@ -17896,7 +18765,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       for (let i = 0; i < 20; i++){ window.__game.autoMatch(); await sleep(110); }
       out.live = window.__sfx.src.slice(a).filter(v => v !== 1);
       // ⚠️⚠️ THE LARGE CALIBER — EXACTLY THIS TYPE, AND NOT «whatever the bot happens to hit».
-      // `foodbanana` (rc 1.4) is in the first level's nine, it has the `juicy`
+      // `foodbanana` (rc 1.4) is in the first level's three (index 1), it has the `juicy`
       // voice, and its pitch is obliged to land in a narrow corridor below one.
       // ⛔ This is the only assert that catches THE WIRING BEING TORN OUT: remove `r:` from the call
       // in 80-gameplay — the fallback will give exactly the caliber of a standard item, that is,
@@ -18179,6 +19048,8 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // ⚠️ The strict ordering is safe: the corridors of the three sizes with a ±5% jitter do
     // not overlap (1.226..1.356 / 0.95..1.05 / 0.803..0.887) — computed, and
     // not merely hoped for.
+    // NOTE: THOSE CORRIDORS ARE AT THE PIVOT 0.62. Since 2026-09-13 the pivot is MESH_SCALE 0.6742 and the
+    // three synthetic radii give 1.233..1.363 / 0.991..1.095 / 0.836..0.924 — still apart, still inside 0.72..1.38.
     expect(sfxOut.bySize.length === 3 && sfxOut.bySize[0] > sfxOut.bySize[1] &&
            sfxOut.bySize[1] > sfxOut.bySize[2],
       '⚠️ THE SOUND OF THE MATERIAL: a large thing sounds LOWER than a small one (0.6 → ' + sfxOut.bySize[0] +
@@ -18203,6 +19074,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
     // `it.r` = 1.4·MESH_SCALE = 0.868, which means √(0.62/0.868) = 0.845, and with
     // a ±5% jitter — the corridor 0.802..0.887. It does NOT overlap the corridor of
     // a standard item (0.95..1.05), which is why torn-out wiring (no
+    // (NOTE: since 2026-09-13 the banana's r is 1.4·0.6742 = 0.944; the ratio √(MESH_SCALE/r) = √(1/1.4) = 0.845 is unchanged.)
     // `r:` in the call) drops EXACTLY this assert and no other.
     // ⚠️ The threshold is 2, and not 3: how many bananas survive until the measurement is not our handle.
     // Zero is forbidden separately (`every` on an empty one is true, that would be a
@@ -19458,6 +20330,43 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚠️ `onHost` IS PART OF THE PREDICATE: «the shell is gone» is also true of a run where the ' +
       'canvas went nowhere at all, i.e. of a probe that measured nothing.');
     await cfPage.close();
+    // ═══ WHICH TYPE THE CHARGE LANDS ON (the owner's decision 7, 2026-09-13): the MOST UPGRADED eligible type, random
+    // only among ties; the `prefer` test door still wins; WHEN it arrives stays random. Its own page, a fresh save. ═══
+    const ct = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    ct.on('pageerror', e => errors.push('PAGEERROR(charge-tier): ' + e.message));
+    await ct.goto('file://' + PAGE_FILE + '?dev=1');
+    const ctBoot = await ct.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const pick = ctBoot ? await ct.evaluate(() => {
+      const g = window.__game; g.skipIntro();
+      // the control FIRST, on the fresh save: every level-1 type at tier 0, so the draw must still spread
+      const tieNames = new Set(); let tieGave = 0;
+      for (let i = 0; i < 12; i++){ g.regen(); g.skipIntro(); if (g.chargeGive()){ tieGave++; tieNames.add(g.charge().name); } }
+      g.regen(); g.skipIntro();
+      const kinds = Object.keys(g.aliveByType()).filter(k => k !== 'foodorange');
+      const star = kinds[0]; const r0 = g.accGrant(star, 0); g.accGrant(star, Math.max(0, 100 - r0.count));
+      const starTier = g.accGrant(star, 0).tier, orangeTier = g.accGrant('foodorange', 0).tier;
+      const got = [];
+      for (let i = 0; i < 10; i++){ g.regen(); g.skipIntro(); got.push(g.chargeGive() ? g.charge().name : null); }
+      g.regen(); g.skipIntro(); const prefGave = g.chargeGive('foodorange'); const pref = g.charge().name;
+      return { tieGave, tieNames: [...tieNames], star, starTier, orangeTier, got, prefGave, pref };
+    }) : null;
+    console.log('charge tier pick:', JSON.stringify(pick));
+    expect(!!pick && pick.tieGave === 12 && pick.tieNames.length >= 2,
+      'CHARGE PICK: with every type tied (a fresh save) the charge is still drawn at random - 12 grants gave ' + (pick && pick.tieNames.length) + ' different types (' + JSON.stringify(pick && pick.tieNames) + '). SABOTAGE: always the first of the pool');
+    expect(!!pick && pick.starTier > pick.orangeTier && pick.got.every(n => n === pick.star),
+      'CHARGE PICK: the most upgraded eligible type is the target every time - 10 grants of 10 on "' + (pick && pick.star) + '" (tier ' + (pick && pick.starTier) + ' against 0) (' + JSON.stringify(pick && pick.got) + '). SABOTAGE: restore the random draw');
+    expect(!!pick && pick.prefGave === true && pick.pref === 'foodorange',
+      'CHARGE PICK: the test door still wins over the tier rule - chargeGive(\'foodorange\') gave "' + (pick && pick.pref) + '". SABOTAGE: ask the tier rule before `prefer`');
+    // WHEN stays random: level 24 schedules a charge on a coin toss and at a random moment of the round
+    const when = ctBoot ? await ct.evaluate(() => {
+      const g = window.__game; g.setLevel(24); let on = 0, off = 0; const offs = new Set();
+      for (let i = 0; i < 60; i++){ g.regen(); const a = g.level().chargeAt; if (a){ on++; offs.add(Math.round((a - performance.now()) / 250)); } else off++; }
+      g.setLevel(1); return { on, off, distinct: offs.size };
+    }) : null;
+    console.log('charge tier timing:', JSON.stringify(when));
+    expect(!!when && when.on >= 1 && when.off >= 1 && when.distinct > 1,
+      'CHARGE PICK: the schedule\'s timing is still random - over 60 levels at 24 a charge was armed ' + (when && when.on) + ' times and not ' + (when && when.off) + ', at ' + (when && when.distinct) + ' different moments');
+    await ct.close();
   }
   // ⟦CHARGEFX-SECTION-END⟧
 

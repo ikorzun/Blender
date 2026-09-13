@@ -233,6 +233,15 @@ memory. They will go stale again — reconcile with a run, and not with this par
 is done is shown in the chronology below (`__game.accSnapshot()` on level 200
 gives out the whole pool, the field `tex` gives the pack).
 
+**RECONCILED 2026-09-13 (read from `30-shapes.js` / `00-config.js` and the PROGRESSION section; the numbers below this block are older):**
+- `TYPES` = **105** types in **10** packs: food 35, animal 24, props 19, car 12, holiday 5, brick 3, toycar 3, pirate 2, factory 1, survival 1.
+- `LEVEL_TYPES_MIN` = **3** (9 until 2026-08-11): `typesCount = min(TYPES.length, 3 + (level − 1))`; index `i` opens at level `i − LEVEL_TYPES_MIN + 2`.
+- The whole pool is open from **level 103** (`TYPES.length − LEVEL_TYPES_MIN + 1`); the last entry, `fooddonutsprinkles` (index 104), opens there.
+- The New Object screen shows on entering levels **2..103**; from level 104 `newObjDue` is null.
+- The deal is cut (`distinct < typesCount`) from **level 23** by `levelDistinctCap` (25 open against 24); the pairs ceiling alone would cut from `PAIRS − LEVEL_TYPES_MIN + 2` = **69** (PAIRS 70 since 2026-09-13; 89 at PAIRS 90) and is dominated.
+- THREE kinds are pinned into a cut deal: the newest unlock, every boosted kind, and the returned kind (decision 9, 2026-09-13; pinned last, cancelled when no slot is left).
+- Recompute every number here after any edit of TYPES, LEVEL_TYPES_MIN, PAIRS or DISTINCT_BASE/STEP; the PROGRESSION section derives the 103/104 and 23 boundaries.
+
 **⚠️⚠️ THE POOL HAS BEEN CUT DOWN 120 → 88 TYPES (the owner's word 2026-08-15, «remove them from
 the models completely» + two batches of screenshots), AND SINCE 2026-08-20 — 87 (the chest, see below).** 32 types were cut out: `brickcorner`,
 `brickstud`, `bricksquare`, `brickduo`; `piratecannon`, `piratecrate`,
@@ -253,7 +262,7 @@ is CLOSED FOR GOOD — there are no chests in the game at all. The occasion: the
 owner wanted neither. ⚠️ Both the TYPES line and the model from the
 generated module were removed — «bringing a type back = one line» DOES NOT WORK here any more, a source file is needed.
 ⚠️ WHAT THIS SHIFTED: the whole pool opens from level ~88 instead of 112 (types
-9+level); `index.html` 10.34 → 10.34 MB.
+9+level) (at LEVEL_TYPES_MIN 9; see the 2026-09-13 reconciliation above); `index.html` 10.34 → 10.34 MB.
 ⛔⛔ **A TOMBSTONE 2026-08-20: «BRINGING A TYPE BACK = ONE LINE IN TYPES» NO LONGER
 HOLDS FOR ANY OF THE 32.** Here it said «the geometries stayed in the generated
 modules — only the TYPES lines were cut out», and that was true exactly up to the batch
@@ -276,7 +285,7 @@ not their own property) — lowered to 80; the shuffling sentinels were taken by
 of the actual composition (`piratepalm`/`cartaxi`/`foodeggplant`), and not from memory —
 my first replacement missed, the snowman is not open yet by lvl.20.
 
-**The pool: `TYPES` = 120 types, 12 atlases** (by the field `tex`):
+**The pool as of 2026-07-31: `TYPES` = 120 types, 12 atlases** (by the field `tex`; today 105 types in 10 packs — see the reconciliation at the top of this section):
 
 | pack | pcs | pack | pcs | pack | pcs |
 |---|---|---|---|---|---|
@@ -292,10 +301,10 @@ my first replacement missed, the snowman is not open yet by lvl.20.
   ⚠️ THE ORDER OF THE ARRAY AND THE SPAWN FORMULA ARE A DIFFICULTY LEVER, and not cosmetics: any
   edit that changes the COMPOSITION of a level (a rearrangement of types, a different selection in genLevel),
   is made ONLY BY THE OWNER'S SPEC. The ban is in force, not historical.
-- THE PROGRESSION: `typesCount = LEVEL_TYPES_MIN + (level − 1)` = `9 + (level−1)`,
-  the types open UP IN THE ORDER of the array. Hence: the first Kenney is visible from lvl.8,
-  the last one — from lvl.112; the WHOLE pool is open from lvl.112.
-- ⚠️ THE DONUT `fooddonutsprinkles` STANDS AT INDEX 117 → it opens from lvl.110,
+- THE PROGRESSION: `typesCount = LEVEL_TYPES_MIN + (level − 1)` = `3 + (level−1)` (9 until 2026-08-11),
+  the types open UP IN THE ORDER of the array; index `i` opens at level `i − LEVEL_TYPES_MIN + 2`.
+  The WHOLE pool (105) is open from lvl.103 (`TYPES.length − LEVEL_TYPES_MIN + 1`).
+- ⚠️ THE DONUT `fooddonutsprinkles` STANDS AT INDEX 104 (the last entry today) → it opens from lvl.103,
   and since v181 it DOES ACTUALLY get into the pile (see the chronology: earlier the tail was
   dead, and «the question of the convex hull hole» was considered closed by the fact that the object is not in the
   game). ✅ **CLOSED 2026-08-07 (PHYSICS): the hole is real** — the type flag
@@ -316,11 +325,11 @@ my first replacement missed, the snowman is not open yet by lvl.20.
   in 40-items); `paint` stands on exactly 7 types, all of them brick packs.
 - 16 types have `wr` set — an override of the horizontal extent for the wall test
   (the enclosing radius overestimates it on flat models, see the physics section).
-- ⚠️ THE COMPOSITION OF THE PILE IS NON-DETERMINISTIC when `typesCount > pairsCnt` (from lvl.83 — on the 82nd
-  there is exact equality 90 = 90, ALL the open types are taken and the set is still deterministic): genLevel
-  takes RANDOM `pairsCnt` types out of the open ones (Fisher-Yates). Asserts «type X
-  is in the pile» above lvl.82 MUST collect a UNION over several regens —
-  a single regen gives a false failure ~26% of the time.
+- ⚠️ THE COMPOSITION OF THE PILE IS NON-DETERMINISTIC when `distinct = min(typesCount, pairsCnt, levelDistinctCap(lv)) < typesCount`
+  — from lvl.23 today (25 open against a cap of 24; the pairs ceiling alone would cut from `PAIRS − LEVEL_TYPES_MIN + 2` = 69):
+  genLevel deals a RANDOM `distinct` of the open types (Fisher-Yates), with the newest unlock, every boosted type and the returned kind pinned.
+  Asserts «type X is in the pile» at lvl.23+ MUST collect a UNION over several regens (see «THE DISTINCT CAP MOVED THE
+  «COMPOSITION IS RANDOM» BOUNDARY FROM 89 DOWN TO 23»). A kind COUNT is exact at any level: count a Set of dealtTypes.
 
 **Special objects — OUTSIDE the `TYPES` pool** (they do not move the type progression):
 - THE SURPRISE — a golden FISH (`animalfishGeo`, fallback `gemGeo`), `makeSurprise`
@@ -492,7 +501,7 @@ at the end of the session.
 - THE POINTS OF APPLICATION: handleTap (the live match) and findHintGroup (a hint must not
   promise a group larger than the one that will actually connect). The autoMatch bot
   matches in pairs — the cap does not concern it; the bomb lives by its own BOMB_MAX=7.
-- A MEASUREMENT OF THE CEILING BY ACCESSIBILITY (before the cap): lvl.1 (9 types) up to 16 pieces,
+- A MEASUREMENT OF THE CEILING BY ACCESSIBILITY (before the cap, at LEVEL_TYPES_MIN 9 and 180 items): lvl.1 (9 types) up to 16 pieces,
   lvl.10 (18 types) 10, lvl.40 (48 types) 3-4 (Hard 3). ⚠️ This means the cap really
   works ONLY ON THE EARLY levels, on the late ones it changes nothing.
   A check in combat (21 real taps on lvl.1): the distribution of the groups
@@ -1853,7 +1862,11 @@ are needed» + Boost («upgrading an item for currency») — «yes».
   a console.warn in accAuditOrphans). The tier thresholds are the ×2+100 series,
   approved by the owner: 100/300/700/1500/3100/6300… = 100·(2^n−1); the first tier
   happens in the first session (~lv.7). A type's SCORE MULTIPLIER = 1+0.25×tier
-  (ACC_MULT_STEP), cap ACC_TIER_CAP=9 (×3.25). The tier/multiplier are COMPUTED
+  (ACC_MULT_STEP), cap ACC_TIER_CAP=9 (×3.25).
+  TOMBSTONE 2026-09-13 (the owner's word «make the item upgrade step 0.5 instead of 0.25»): SINCE THEN THE STEP
+  IS 0.5 — a multiplier = 1+0.5×tier, the cap 9 gives ×5.5, five bought tiers alone give ×3.5; earned and bought
+  tiers alike, one constant, no migration (see BATCH 2026-09-13, «Constants»). The 0.25 / ×3.25 above is history.
+  The tier/multiplier are COMPUTED
   from the counter — they are not duplicated in the save.
 - The increment is in doMatch BY the N items of the group, BEFORE the score is
   counted: a match that crossed the threshold already goes at the new multiplier
@@ -2398,9 +2411,9 @@ with the platform.
   camR>=13.5, it melts away completely by camR<=10 (a smoothstep on bowlMat.opacity
   in loop; bowlMesh.visible is turned off — a draw call is saved).
 - The level progression (`levelNum`, lives in localStorage `mixer_level`,
-  a level-up on a win): the types are 9+the level (the ceiling is `TYPES.length`; the types are
+  a level-up on a win): the types are `LEVEL_TYPES_MIN + (level − 1)` = 3 + (level − 1) (the ceiling is `TYPES.length`; the types are
   opened in the order of the array — the current numbers are in the «THE STATE OF THE OBJECTS»
-  section above, as of 2026-07-31 it is 120 types and the donut from lv.110);
+  section above, as of 2026-09-13 it is 105 types and the last one, the donut, from lv.103);
   the mixer's patience is NOT by the level but by the difficulty (Easy 10 / Hard 3.3);
   the radius does NOT take part in the ramp — it is dynamic (see above).
   THE MAIN lever of difficulty is the number of types (a bot measurement: the deadlocks depend
@@ -2875,7 +2888,7 @@ length of the cycle is DERIVED from base/step/max, never written as a literal); 
 `MIXER_PERIOD`=2; ⛔ `MIXER_PENALTY`=20 IS GONE (2026-09-12) — the grinder charges `pairScoreAt(level)`, the eaten pair's base value (2), and does NOT climb;
 ⛔ «THE PENALTIES ARE MULTIPLIED BY THE BOOSTER (2026-07-28)» IS CANCELLED — since 2026-09-03-h (re-affirmed 2026-09-12: «a boost never multiplies penalties») scorePenalty charges the plain amount under any boost.
 `SURPRISE_BONUS`=150; the mixer's patience by DIFFICULTY `MIXER_IDLE_EASY/HARD`=
-**15/10 s** (retuned in `304fdf0` 2026-07-27; the former 10/3.3 went stale in the canon); the progression: `LEVEL_TYPES_MIN`=9 +1/level
+**15/10 s** (retuned in `304fdf0` 2026-07-27; the former 10/3.3 went stale in the canon); the progression: `LEVEL_TYPES_MIN`=3 +1/level (9 until 2026-08-11)
 up to TYPES.length; combo/chain: COMBO_RADIUS=1.1 (the ceiling EVERYWHERE), COMBO_MS=4000,
 COMBO_STEPS=5, COMBO_MISS_DROP=2, CHAIN_COMBO_AT=10, CHAIN_MS=10000,
 CHAIN_MISSES=2; sizes: lvl.1-15 a single size (SIZE_UNIFORM_LEVELS=15),
@@ -17814,6 +17827,8 @@ land in the console, and the error gate reads console errors); `window.top === w
 and **`?nosw=1`, which does not merely skip the registration — it UNREGISTERS what is installed.** If a bad
 worker ever ships that line is the only way back for a player who has one, and it must exist BEFORE it is
 needed. The registration runs AFTER `window.__booted`, never competing with the load.
+Since 2026-09-13 the return-to-screen recheck listeners (visibilitychange, pageshow) are armed inside the same gated
+`register().then`, so the suite, the portal iframe and the wrapper never get them (BATCH 2026-09-13-c).
 
 ### THE WIRING, AND THE ONE LINE THE SITE WORKER NEEDED
 `build.py` writes `sw.js` from `src/sw.js` (a build artefact, committed, like index.html and music.mp3);
@@ -19715,12 +19730,18 @@ sees another build, each named to him:
    previous build.
 2. **`registration.update()` runs once per boot**: a tab left open, or an installed app resumed from
    the background, never re-checks and keeps its build until a real relaunch. The only one that lasts days.
+   TOMBSTONE 2026-09-13 (his answer «silent check on return»): SINCE THEN THE GAME ALSO RE-CHECKS SILENTLY WHEN IT
+   RETURNS TO THE SCREEN — a gap of 5 min since the last check and at least 30 s hidden (both the dispatcher's
+   defaults), armed inside the gated register().then — so a tab left open or a resumed app picks up a release
+   on its next launch (no prompt, no reload; see BATCH 2026-09-13-c). «never re-checks … until a real relaunch»
+   above is history; the boot check itself still runs once per boot and seeds the gap.
 3. **GitHub Pages is another origin**: its own worker, cache and save, plus `max-age=600`.
 4. **The dev panel's `#buildVer` was a hand-typed literal** («build v1-test-239 · 2026-08-01»), so
    neither the perf report (`perfReport().build`) nor telemetry could name a device's build. Fixed below.
 5. **Telemetry is off** (`79-telemetry.js`, `URL = ''`): there is no server-side view of versions at all.
-⛔ OFFERED, NOT DONE: `update()` on `visibilitychange → visible` (throttled) for case 2; a «new version —
-tap to restart» prompt; telemetry. Each is his word.
+⛔ OFFERED, NOT DONE: `update()` on `visibilitychange → visible` (throttled) for case 2 [DONE 2026-09-13 by his
+answer «silent check on return» — BATCH 2026-09-13-c]; a «new version — tap to restart» prompt; telemetry [both
+STILL OFFERED, NOT DONE]. Each is his word.
 
 ### THE BUILD LABEL IS THE STAMP OF THE BUILD WITH ITS OWN LABEL BLANK
 `src/shell.html` carries `id="buildVer">__BUILDVER__<`; `build.py` hashes the assembled document WITH
@@ -19853,3 +19874,843 @@ double; C1/C2: a new model every second level from level 21 / from level 1) and 
 measured as the item count during the pour and the shakes, not the small sizes. NOTHING OF IT IS IN THE CODE, and
 none of it goes in until he picks. The intro video's sound after the loader is also still open: the four
 questions of 09-12 await his answers.
+
+## BATCH 2026-09-13: THE TIER STEP 0.5, THE BOWL AT 140 BIGGER ITEMS, «YOUR ITEM RETURNS», THE UPGRADED-ITEMS LINE, THE SILENT UPDATE CHECK
+
+His words (2026-09-13, translated from Russian): «1. Make the item upgrade step 0.5 instead of 0.25 · 2. Balanced (recommended): A plus «your item returns» — take it into work · 3. Limit the number of items in the bowl to 140 · 4. The game may choose which old item returns in double quantity · 5. Change it for all players, luckily there are very few and they are testers · 6. Do nothing with the intro sound, I understood the limits · 7. Check that the bridge is current and write the separate track for ads when the hints run out (we will go through it separately)» and «What else did I forget from the proposals? If nothing, do it and build a full run. And right after, write the command so I update prod on the web».
+His item 6 closes the intro-sound question left open in BATCH 2026-09-12-b: nothing is done to the intro sound.
+
+### HIS ANSWERS TO THE TWO ROUNDS OF QUESTIONS (2026-09-13)
+ROUND 1:
+- The merge-curve step STAYS 0.05 (`MERGE_CURVE_STEP`): points per level fall about 22% from the 140 cap, and the tier step 0.5 returns about half of that.
+- The items get 9% BIGGER so the pile keeps its height (`ITEM_SIZE_K = cbrt(180/140)`, see «Constants» below).
+- The New Object screen STAYS AS IT IS: every win, one model. The two-model idea of package A was declined.
+- A SILENT service-worker check on return to the screen, no prompt (see BATCH 2026-09-13-c below).
+ROUND 2:
+- The ice from 2 pairs instead of 3 (`FROZEN_PAIRS_N` 3 → 2).
+- The bowl ceiling from level 7 (`PAIRS_STEP` 5 kept).
+- The lightning charge keeps 6 copies (`CHARGE_MIN_COPIES` 6).
+- The match reach grows by the same 9%.
+NOT IN THIS BATCH: the stretched unlock pace (a new model every second level). His «I am still thinking» of the same morning stands (BATCH 2026-09-12-b, «WHAT DID NOT SHIP, BY HIS WORD: THE LEVEL PACING»).
+
+### BATCH 2026-09-13 (stage «Constants»): THE TIER STEP 0.5, THE BOWL AT 140 ITEMS OF THE ENLARGED SIZE, THE REACH BY THE SAME K, THE ICE AT N=2 (the owner's decisions 1-6 of 2026-09-13, all final)
+
+#### WHAT CHANGED, BY HIS WORD
+1. **`ACC_MULT_STEP` 0.25 → 0.5** (00-config) — «earned and bought tiers alike», one constant, no migration.
+   `ACC_TIER_CAP` stays 9, so the ceiling is **×5.5** (was ×3.25) and five bought tiers alone give **×3.5**
+   (was ×2.25). The merge curve step 0.05 stays. Penalties and the grinder never read a tier multiplier
+   (`scorePenalty` reads none; the grinder charges `pairScoreAt`, the base value — his rule of 2026-09-12).
+   The one literal copy of the step (`demoAccSnapshot`, 85-hud, `1 + 0.25 * tier`, dead code in production)
+   reads `ACC_MULT_STEP` now. Comments at 00-config, 77-save (the toast «×1.5», the «next ×2 at 300» example),
+   80-gameplay (the reward stack «up to ×5.5») and shell.html (the chip fit: reachable strings ×1.5…×5.5, four
+   characters) moved with it.
+2. **`PAIRS` 90 → 70** — the bowl holds 140 items for every player, no migration. `PAIRS_START 40 / PAIRS_STEP 5`
+   unchanged, so the ceiling arrives at **level 7** (40 + 5·6) and levels 8/9/10 lose 10/20/30 items.
+   `PAIRS*2 + 1 = 141` (the turbo refill cap and the Continue top-up) is literally true again.
+3. **One size factor `ITEM_SIZE_K = Math.cbrt(180/140) = 1.08738`** declared in 00-config; **`MESH_SCALE =
+   0.62 * ITEM_SIZE_K = 0.67418`** (30-shapes) is the ONLY place the size goes. Everything derives from it in
+   one step: the mesh, `r`, `wallR`, `scl`, the colliders, the access samples, the OBB reach, `sizes()` (still
+   [1] — it divides by MESH_SCALE), the audio pitch pivot, the rival (S = MESH_SCALE), the thumbnails
+   (frameCylinder / frameSilhouette normalise by mesh.scale — the New Object screen is unchanged, decision 8),
+   and the bomb (`BOMB_SCALE·MESH_SCALE`) and the golden fish (`1.2·MESH_SCALE`), which grow with the pile.
+   NOTE: K LIVES IN 00-config, NOT 30-shapes, because the reach radii below are defined in 00-config and a
+   `const` of a later module is in the temporal dead zone for top-level code of an earlier one (the TDZ law of
+   2026-08-13). NB: A second factor in makeItem/levelSize would double-scale a consumer and break `sizes()`.
+   **The spawn column's layer step is derived:** `SPAWN_LAYER_STEP = MESH_SCALE·(1.35/0.62) = 1.466`
+   (40-items) — genLevel's layers, the bomb's and the rival's spawn heights all read it. Left literal, 1.35 would
+   equal the new base diameter 1.348 and the layers would touch (the 2026-07-18 «start overlaps blew the column
+   up»). 140 items = 18 layers × 1.466 = 26 against the old 23 × 1.35 = 31, so the tall temp wall is fine.
+4. **The reach grows by the same K** («increase by the same 9%»): `BASE_RADIUS_DEFAULT 0.45·K = 0.4893`,
+   `COMBO_RADIUS 0.8·K = 0.8699`, `MATCH_R_MIN 0.375·K = 0.4078`, `MISS_ASSIST_STEP 0.05·K = 0.0544`,
+   `MISS_ASSIST_MAX 0.20·K = 0.2175`. Each is written as the pre-batch literal × K, so the two answers stay one
+   number. The relation «base + full assist < the streak ceiling» holds (0.707 < 0.870).
+   NOTE: **THE DEV SLIDER DOES NOT PERSIST** (`#radiusRange`, 90-input writes `CFG.baseRadius` for the session only;
+   step 0.05, range 0.3..2.2); its markup `value="0.9"` has been stale since 2026-08-11. Touching it writes a
+   grid value over the K-scaled base until reload. Named, not changed.
+5. **`FROZEN_PAIRS_N` 3 → 2** — eligibility is `2N+2 = 6` copies. With 70 pairs no type reached 8 copies from
+   level 22 (types with 8 copies: lv19 7, lv20 4, lv21 1, lv22+ 0) and the ice silently left the game;
+   at N=2 it stays reachable to about level 129. The 00-config feasibility table (lv.10 → 7 …) is marked history.
+6. `CHARGE_MIN_COPIES` stays 6 (no edit).
+
+#### NUMBERS, MEASURED (headless Chromium, 1280×832, file://, the healthy build vs the pre-batch build of this tree)
+| skipIntro, 3 regens | before (PAIRS 90, 0.62) | after (PAIRS 70, K) |
+|---|---|---|
+| lv7 top / non-extra / max copies | 6.79-7.06 / 140 / 16 | 7.74-8.47 / 140 / 16 |
+| lv11 | 7.70-8.10 / 180 / 14 | 7.58-8.76 / 140 / 12 |
+| lv12 | 7.68-7.98 / 180 / 14 | 7.76-7.96 / 140 / 10 |
+| lv21 | 7.24-7.50 / 180 / 8 | 7.49-7.77 / 140 / 8 |
+| lv30 | 7.50-7.84 / 180 / 8 | 7.36-8.17 / 140 / **6** |
+The pile keeps its height (the red line 7.5-9.0) at every capped level; levels 1-7 got taller (lv7 +0.9) —
+named consequence. BOWL140's own dry-run: medians 7.82 (lv12) and 7.92 (lv30).
+
+**THE REAL INTRO AT LEVEL 12** (3 cold loads each, `[rescue]`/`[floor]` console lines counted, wall excess read
+after calm): before — intro 5.25-5.66 s, rescues **0/0/0**, floor lifts 0, `maxWallExcess` −0.119/−0.120/−0.120,
+top 7.59-8.08, alive 181; after — intro 5.01-5.61 s, rescues **0/0/0**, floor lifts 0, `maxWallExcess`
+−0.121/−0.124/−0.135, top 7.80-7.97, alive 141. No regression in rescues or wall excess; the derived layer step
+held the column. (The probe lives in the session scratchpad, `constants/intro-probe.js`.)
+
+The build: `index.html` 12931193 B after this stage's comment edits.
+
+#### THE HOOKS ADDED (99-main, the literal grepped first — no duplicate key)
+`meshScale()`, `pairsRule()` (`{pairs, start, step, at: lv => pairsForLevel(lv)}`), `frozenRule()`
+(`{n, eligibleCopies, breakMult, fromLevel, matchScore}`), `spawnLayerStep()`.
+
+#### THE GUARDS
+**New sections (each on its own page, dry-runnable):**
+- **ACCSTEP** (7 arms): AS0 no literal `1 + 0.N * tier` in the build's CODE (comments excluded); AS1 the step is
+  read from a tier-1 reading and pinned to 0.5, tier 2 = 1+2·step, the cap 9 = ×5.5 with no next; AS2 a tier-2
+  pair pays 20·(1+2·step) = 40 raw at level 12 and ×1.2 more (48) at level 21; AS3 breaking the ice of a tier-2
+  kind credits exactly MATCH_SCORE·FROZEN_BREAK_MULT·(1+2·step)·curve (measured 81 at lv24, curve 1.35) — closes
+  the W7 fix of 2026-09-01-o that only a lower bound guarded; AS4 a bought tier adds exactly one step derived
+  from AS1; AS5 with every dealt type at ×5.5 a merge pays ×5.5 while the eaten pair costs its base 20 and a miss
+  its plain rung 100. NOTE: ORDER IS LOAD-BEARING: the ice arm runs before the purchase (a boost pins types and the
+  treasure spawns from 10 with a bought boost), the penalty arm last (it caps every dealt type).
+- **BOWL140** (7 arms): B1 `pairsRule` at(1)=40, at(6)=65, at(7)=70, at(11)=70, at(200)=70; B2 the PRODUCT
+  (MESH_SCALE/0.62)³·2·PAIRS within 2% of 180 (0.62 is the historical base by definition, not a copy); B3 exactly
+  140 non-extra items at levels 7/11/21; B4 the median top of 3 regens at levels 12 and 30 in 7.3..9.0 with 140 in
+  the same readings (a silent trim is caught); B5 at level 30 a dealt type holds ≥ 2N+2 copies (N read from
+  `frozenRule`) and walking the ice schedule deals a block; B6 every reach radius = its pre-batch literal × K,
+  K read off `meshScale()/0.62` and pinned to cbrt(180/140).
+
+**Unsectioned arms repaired (main run — NOT executed in this stage, see concerns):**
+~1686 comment (ceiling ≥7); ~2634 RADIUS numbers in force re-derived as pre-batch × K from `meshScale()` with his
+word in the message, the relation arm kept; ~3228/3230 tier 1/2 via a derived `accStep` pinned once to 0.5;
+~3247 the tier-2 pair = round(20·t2.mult·curve); ~3513 the bought tier adds `accStep`; ~3741 the vitrine fit pins
+the reachable ×1.5/×5.5 (it was stale-green on ×1.25/×3.25); ~8555/~9004 `multToastTest` 2.25 → 2.5 (a reachable
+value); ~8838 the size spread divides by `g.meshScale()` instead of the literal 0.62; ~8855 progression ceiling
+≤150 (~140), the exact 140 pinned in BOWL140; ~17319 the ice guard reads `frozenRule().eligibleCopies` instead of
+the literal 8.
+
+**PROVEN AGAINST EIGHT VARIANTS** (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`):
+- ACC_MULT_STEP 0.25 → ACCSTEP AS1 alone (step 0.25);
+- `accMult(it.key)` in the ice break (the W7 bug) → AS3 alone (gain 39 against 81 — ×1);
+- the demo literal `1 + 0.25 * tier` restored → AS0 alone;
+- the grinder charging `pairScoreAt × accMult` → AS5 alone (grind 110 against 20);
+- PAIRS 90 → BOWL140 B1, B2 (231.4), B3 (180), B4 (176-180 non-extra);
+- MESH_SCALE 0.62 → B2 (140.0), B4 (lv12 median 6.71), B6 (k 1);
+- FROZEN_PAIRS_N 3 → B5 alone (max copies 6 < 8, no ice dealt);
+- COMBO_RADIUS 0.8 unscaled → B6 alone.
+Neighbours on the healthy build of this stage: SCOREMATH 7, WAVES 2, INTRO 60, PWA 11 green; re-run after the
+final comment edits: ACCSTEP 7, BOWL140 7, SCOREMATH 7, PWA 11 green.
+
+#### TRAPS
+- NB: **K MUST BE ONE NUMBER IN ONE MODULE** — 00-config. Putting it in 30-shapes puts the radii (00-config) in the
+  TDZ; defining a second K anywhere makes the size and the reach two answers.
+- NB: **EDIT PAIRS WITHOUT MESH_SCALE (OR THE REVERSE) AND THE PILE DROPS OR OVERFILLS** — the product 180 is the
+  statement, BOWL140 B2 pins it; the per-arm `fill.topY > 5.5` at test.js ~1691 is green on the half-change
+  (predicted ~6.4-7.0) and cannot see it.
+- NOTE: **THE REACH IS ABSOLUTE SURFACE GAPS** (`pairDist`/GJK) — without ×K the bigger items would have been a
+  silent ~8% reach nerf relative to size.
+- NOTE: **THE SPAWN STEP EQUALLED THE NEW DIAMETER** (1.35 vs 1.348) — derive every spawn height from
+  `SPAWN_LAYER_STEP`, never a literal.
+- NOTE: **THE DEV SLIDER'S 0.9 MARKUP** is stale and not persisted — a manual poke overrides the K base for the session.
+- NOTE: **LITERALS IN FOREIGN GUARDS** (0.62, 1.25, 30, 0.25, 8, 180) broke or went stale-green from the constant
+  edits; each moved to a live hook or a derived value, not to a new literal (the canon's «a literal in someone
+  else's guard breaks from an edit of a constant»).
+
+#### CONSEQUENCES NAMED, NOT DECIDED
+- The bomb r 0.8835 → 0.9607 and the fish 0.744 → 0.809: the point-blank ice reach (`FROZEN_BOMB_RADIUS` 2.86 is a
+  gap) reaches ~0.08 further; BOMB_MAX 7 of 140 is relatively stronger. One number (`BOMB_SCALE` 1.3105) keeps the
+  bomb at today's size.
+- Copies per type fall ~22% at every capped level (lv11 13.8 → 10.8, lv30 7.2 → 5.6): level income falls ~22-30%
+  from level 11 (quadratic merges); the goal auto-scales (parBase is computed live). The canon's «lv50 available
+  pairs 26 → 47» was measured on 180 items.
+- The scheduled charge (CHARGE_MIN_COPIES 6, live copies) thins at depth: types with 6 copies at the deal lv30
+  20/25, lv60 14/28, lv100 6/32, none from ~lv130.
+- The ×5.5 ceiling: the top reward stack is curve×4×5.5×5×3×2 = 1320×curve (was 780×curve); a tier-9 charge is up
+  to 3080 raw. The «≈+7-9% of income» note at CHARGE_MIN_COPIES is stale (not edited).
+- `accNextText` ignores bought tiers (pre-existing): with a bought tier the «next ×N» text is one step low — the
+  doubled step doubles the error; its only consumer today is the `metaTexts` hook.
+- The ACC_TIER table's Boost ladder (2000…32000) now buys twice the value per tier.
+
+#### THE ADVERSARIAL REVIEW OF THIS STAGE (2026-09-13) — ONE RED THE FULL SUITE WOULD HAVE HIT, FIXED
+- NB: THE COLD-START ARM (test.js ~2575, «THE LEVEL SAVE SURVIVES A RELOAD») PINNED `alive > 150` — a literal from
+  the 181-item bowl. Level 11 now carries 141 items, so the arm was RED on a healthy build; it is outside every
+  section, so no dry-run could see it. The threshold is derived now: the midpoint of `2·pairsRule().at(1)` and
+  `2·pairsRule().at(11)` (110), which separates level 1 (80) from level 11 (140) with the same margin the old one
+  had. Proven by a standalone probe of the arm's own scene, 3 cold loads: alive 141 each, the old predicate false
+  3/3, the new one true 3/3.
+- NOTE: ACCSTEP AS2 carried the literal 1.2 — a copy of MERGE_CURVE_STEP 0.05 at level 21. It reads the live
+  `mergeMultAt` value now (`curve > 1` as the control); dry-run 7 green.
+- Comments made true: the audio corridors at the old pivot (test.js ~18418) and the banana's r (~18442; the ratio
+  is unchanged), the progression note «a ceiling of ~180» (~8812), and the charge's «≈+7-9% of income» at
+  CHARGE_MIN_COPIES (00-config), now marked as history of the 180-item bowl at step 0.25.
+- NAMED, NOT CHANGED: `dropOneFromSky` stacks refill partners at `FUNNEL.H + 2 + k·1.2`, below the new diameter
+  1.348 (the XZ is random per item, so they rarely coincide; not in the owner's decision 3); BOWL140 B4's floor 7.3
+  sits 0.06 under the lowest healthy level-30 top measured (7.36) — a flake margin to watch;
+  `frozenRule().eligibleCopies` repeats the formula of 40-items rather than reading it, so a change of the production eligibility
+  would not move the ice guard at ~17557.
+
+### BATCH 2026-09-13-a «PACKAGE A» (the owner's decision 7): THE TIER SHARE ON THE WIN SCREEN, THE BOOST PROMISE, THE CHARGE ON THE MOST UPGRADED TYPE
+
+#### WHAT CHANGED
+1. **The win screen says what the type multipliers earned this level** — a line of its own, `#winUpg`, the FIRST child
+   of `.win-top` (above Top Items): «Your upgraded items: +N points» («point» at exactly 1). Never a score pop, never
+   a toast. Hidden when N is 0.
+2. **A successful Boost purchase shows a toast** «This item will come to every level» — quiet (the purchase already rings).
+3. **The type charge lands on the most upgraded eligible type** (the highest `accTier` among live kinds with at least
+   `CHARGE_MIN_COPIES` = 6 copies), random only among ties; the `prefer` test door is asked first; both sources (turbo
+   ignition and the schedule) go through the one `tryGiveCharge`. WHEN it arrives stays random (`chargeAtFor` untouched).
+   No multiplier label on any score pop.
+
+#### THE NUMBERS
+- `stats.tierRaw` (a new field of the stats literal, reset per level by genLevel) accumulates RAW points at the four
+  reward sites — `doMatch`, the ice break (not by bomb), `bowlCollectAll` (per kind), `detonateCharge` — as
+  `gained − the same payout without accMult`, every factor read ONCE into a name, `gained`'s product order unchanged.
+  At tier 0 `am` is exactly 1, so the share is exactly 0.
+- The win line: `N = max(0, min(floor(tierRaw / SCORE_DENOM), floor(score / SCORE_DENOM)))` — floored once at display,
+  capped at the level's banked points. It counts BOUGHT tiers too (accMult does not tell earned from bought).
+- Measured at level 16 (curve ×1), step 0.5: a tier-1 pair pays 30 and adds 10 raw; under ×5 it pays 150 and adds 50;
+  the win line then reads «+5 points».
+- `#toast` z-index 8 → 35 (above `#mainScreen` 30 and `#msSticky` 31; below the shop/leaderboard 40, `#newObj` 46,
+  `#multToast` 60).
+
+#### THE OWNER'S WORDS
+Decision 7 (2026-09-13): «Your upgraded items: +N points» on the win screen; a toast «This item will come to every
+level» after a Boost purchase; the charge on the most upgraded object; no «×» labels on score pops.
+
+#### TRAPS
+- **The toast was never visible over the menu.** z-index 8 against the menu's opaque 30: «Not enough points», «Max tier
+  reached», «Coming soon» fired from the menu were drawn and never seen. Raising it unhides those too. The one new
+  exposure: a toast fired in the 1.6 s before the win overlay (z 20) shows over it.
+- **The share is never a subtraction from the score.** SCOREMATH S1 counts the one `stats.score -=` line of the build;
+  the share is `stats.tierRaw +=` on its own counter.
+- **`rewardMult()` reads the clock** — read it once per payout, or the payout and its plain twin can straddle a window's
+  edge and the share takes a spurious rounding.
+- **`.win-upg` sets `display`, so `.win-upg[hidden] { display:none }` is load-bearing** — an author display beats the
+  UA's `[hidden]`, and a line with nothing to say would still take its row.
+- **A rect read inside the entrance lies**: the line enters on `winRise` (a transform); the guard compares LAYOUT
+  offsets (`offsetTop`), not rects. The first dry run read the line «below» the list 80 ms into the animation.
+- **The tier pick needs the pin to stay a test door**: `chargeGive('foodorange')` still wins, so the CHARGEFX sweep and
+  contour arms keep their round item on a fresh save.
+
+#### THE ARMS AND WHAT EACH CATCHES
+TIERSHARE (new section, own page, 10 arms):
+- structure: one `stats.tierRaw +=` in each of the four reward bodies, four in the build — catches a site left out;
+- pop ban: no `scorePop(` line in those bodies carries accMult/accMultText/accTier/ACC_MULT_STEP/tierRaw/am, with the
+  `×(n-1)` group pop as the positive control — catches a multiplier label on a pop;
+- tier 0: share 0, a new level starts at 0 — catches a missing literal (NaN) and a share at tier 0;
+- tier 1: share = gain − 20 with the step read live — catches «the whole payout» as the share;
+- ×5: share = boosted gain − 100 — catches «the plain base without the boost» (invisible at ×1);
+- charge: share = gain − round(gain / am) — catches the charge site left out;
+- the line: the text equals `winUpgText(min(floor(tr/10), floor(score/10)))` from stats(), first child of `.win-top`,
+  above the list, visible — catches wiring and placement;
+- the old win rules with the line shown: buttons under the list, no Top Items heading, one header row;
+- hidden at 0: hidden, zero height, computed display none — catches «always write the text» and a dropped [hidden] rule;
+- the cap: a share on a level that ended below zero shows nothing — catches the cap removed.
+
+BOOSTPIN (new section, own pages, 6 arms):
+- static: the success branch fires `toast(BOOST_PIN_TEXT, true)` — catches the toast removed or made loud;
+- a real purchase from the open menu raises the tier and shows the promise — catches the wiring;
+- the toast over the menu: both fixed, a body child, z above the menu — catches z-index 8;
+- a refusal (empty wallet) never shows the promise — catches the promise in the else branch;
+- the pin promise: at level 40 a boosted type is dealt 25/25 while an unboosted one is missed at least once — catches
+  the boosted pin removed from genLevel;
+- level 22 deals 24 — a sanity read.
+
+CHARGEFX (three new arms and a timing arm on their own page):
+- ties on a fresh save: 12 grants give ≥2 types — catches a deterministic pick;
+- the most upgraded type is the target 10/10 — catches the random draw restored;
+- `prefer` still wins — catches the tier rule asked before the door;
+- level 24's schedule is still a coin toss at random moments — catches a timing change.
+
+#### THE ADVERSARIAL REVIEW OF THIS STAGE (2026-09-13) — WHAT IT FIXED
+- **A literal copy of live constants in two guards.** BOOSTPIN pinned `lens[0] === 26` and `d22 === 24` (copies of
+  `levelDistinctCap(40)` and of `LEVEL_TYPES_MIN + 21`), and TIERSHARE pinned a pair's price as `20` / `100` (a copy of
+  `MATCH_SCORE·2·levelMergeMult(16)`). Both would have gone red on a sound build at the first retune of DISTINCT_BASE,
+  of the type progression or of MATCH_SCORE / MERGE_CURVE_FROM. They now read `distinctCap(lv)`, `levelTypesMin()` and
+  `grindPriceAt(16).raw` live, and the pin arm additionally states the cap BINDS at 40 (open 42 > cap 26) and does NOT
+  at 22 (open 24 = cap 24) — the precondition that makes «the boosted type is kept» mean anything.
+- **A comment that lied after the change:** tryGiveCharge's `prefer` note still said «production callers pass nothing
+  and the draw stays random» — now it names the most-upgraded rule and tombstones the old words.
+- **The pin loop in genLevel gained a note** that it now backs a player-facing string (BOOST_PIN_TEXT): the promise
+  holds through level 22 by the progression and from 23 only by this loop, and breaks past `levelDistinctCap(lv) − 1`
+  boosted types.
+- Dry-runs after the fixes: TIERSHARE 10 green, BOOSTPIN 6 green (cap40 26, open40 42, cap22 24, open22 24).
+
+#### WHAT THE REVIEW CHECKED AND FOUND SOUND
+The `gained` product order is byte-identical at all four sites (the factors pulled into names in the same order);
+`rewardMult()` is read once per site; the ice share sits inside `!byBomb`; the collect-all reads the tier before
+`accAdd`, as the payout always did; `tierRaw:0` lives in the stats literal (no TDZ, reset per level);
+`.win-upg[hidden]{display:none}` is present and the line is also in the reduced-motion list; the two new `__game`
+keys (`winUpgText`, `boostPinText`) have no duplicate in the literal; no existing `toast()` caller passed a second
+argument, so `quiet` silences nothing else; `accTier(k)` is keyed by the type name, as the pool keys are; no unsectioned
+test.js arm matches the old `gained` line text.
+
+#### WHAT REMAINS (named, not fixed)
+- The unmarked main-run win-screen guards (test.js ~1370-1400, ~1440) were not re-run with the line SHOWN in their own
+  context; on the suite's main page the line is almost surely hidden (tier 0 at the first win).
+- The win card grows by one row when the line shows: on a short phone Next may slide below the fold (the overlay
+  scrolls). Not measured at 375×667.
+- `#toast` z 35 over the win overlay (20): a toast fired in the 1.6 s before the win screen now shows over it.
+- BOOSTPIN asserts the quiet argument statically; the sound itself is not measured.
+
+### BATCH 2026-09-13-b: «YOUR ITEM RETURNS» — FROM LEVEL 11 ONE OLD KIND CLOSE TO ITS NEXT TIER IS DEALT A DOUBLE SHARE (the owner's decision 9 of 2026-09-13, package B; every default below was fixed by the dispatcher's brief of that day, and the ones that are unmeasured are named as such)
+
+#### WHAT HE ASKED FOR, AND WHAT IT MEANS IN THE GAME
+The analysis of 2026-09-12/13 said upgrading an old item feels pointless: with 13-32 kinds sharing a flat 140-item bowl,
+a kind gets 4-10 copies a level and its next tier is several levels away. Decision 9: from level 11 the game may pick ONE
+old unlocked kind that is close to its next EARNED tier and deal it a double share, so it actually gets there on that
+level — and the win screen says so. The total number of pairs and the number of dealt kinds do not change: the double
+share is taken from the other kinds' round-robin.
+
+#### THE NUMBERS
+- `RETURN_FROM_LEVEL = 11`, `RETURN_MAX_PAIRS = 10` (20 copies, 14% of the 140-item bowl), `RETURN_MERGE_SHARE = 0.75`.
+- WARNING: **`RETURN_MERGE_SHARE` IS UNMEASURED.** It is the assumed share of a kind's copies a player actually merges (the
+  owner's simulation used 0.85 and 0.70). The window is gap-safe under it; nobody has measured merge completion per kind
+  under bombs, the idle grinder and the finale sweep, none of which accumulate.
+- `returnWindow(pairsCnt, distinct)` (00-config, pure — the level is an argument, never read from scope):
+  `dbl = min(RETURN_MAX_PAIRS, round(2·pairs/distinct))`; `upper = floor(2·dbl·share)`;
+  `lower = floor(2·round(pairs/distinct)·share)`. A kind is returned only when its gap to the next earned threshold
+  lies in (lower, upper]: the double share closes it even at the merge share, and the PLAIN share would not.
+
+| level | typesCount | distinct | pairs/distinct | dbl | window (lower, upper] |
+|---|---|---|---|---|---|
+| 11 | 13 | 13 | 5.38 | 10 (round gives 11 — the cap binds) | (7, 15] |
+| 12 | 14 | 14 | 5.00 | 10 | (7, 15] |
+| 15 | 17 | 17 | 4.12 | 8 | (6, 12] |
+| 20 | 22 | 22 | 3.18 | 6 | (4, 9] |
+| 23 | 25 | 24 | 2.92 | 6 | (4, 9] |
+| 30 | 32 | 25 | 2.80 | 6 | (4, 9] |
+| 50 | 52 | 27 | 2.59 | 5 | (4, 7] |
+| 100 | 87+ | 32 | 2.19 | 4 | (3, 6] |
+
+WARNING: Recompute this table the day PAIRS, DISTINCT_BASE/DISTINCT_STEP or the merge share move. On a fresh save every gap is
+100, so no return appears until a kind has been played into its window — which is why the existing fresh-page guards are
+untouched.
+
+#### THE ELIGIBILITY — `pickReturnKind(lv, typesCount, pairsCnt, distinct, only)` (40-items)
+- never the NEWEST unlock (the walk stops at typesCount − 2);
+- never a HEAVY kind — a TYPES entry with `tex:'car'` (the frame law of 2026-08-29: a doubled car is thousands of
+  triangles). WARNING: This excludes the light carcone/carbox and does NOT exclude the toycar pack or heavy props — named;
+- never a kind whose RESULTING tier (`accTier`, earned + bought) is at `ACC_TIER_CAP` — the boostPrice rule; `accTier`
+  and not `accCountTier`, or a kind bought to the cap would be dealt a double share that raises nothing;
+- a boosted kind BELOW the cap IS eligible (a double share rewards a purchase);
+- the gap must lie in the window above.
+The winner: the smallest gap, then the higher EARNED tier, then the lower TYPES index. Pure over `Save.ac` and the
+arguments, **no Math.random**. `only` restricts the walk to one name — the latch re-validates with THIS rule, never a copy.
+
+#### THE LATCH — PER levelNum, SESSION MEMORY, NEVER A RE-ROLL
+`let returnLevelNo = -1, returnLatchName = ''` beside the ad-hint cap (40-items). A new levelNum picks once and latches
+the name (or '' for no pick). The same levelNum — Restart, regen — re-validates the latched kind by the same rule and
+NEVER picks another: a kind whose gap closed on a previous try gives no return on the replay (no farming a double share
+by restarting), and a level latched with no pick stays without one.
+WARNING: Session memory only: a reload mid-level re-derives the pick from the grown `Save.ac` and can name a different kind —
+the copy counts are the same, nothing to farm, named as a residual. No save field, so `mergeSave` needs no name.
+WARNING: **EVERY READ BEFORE THE LEVEL LITERAL USES THE LOCAL `returnPick`**: `level` still holds the PREVIOUS level at that
+point in genLevel (the canon rule of 2026-08-17). A structural arm states it.
+
+#### THE PIN AND THE DEAL
+- The returned kind is pushed onto the pin list AFTER the newest unlock and the boosted kinds ("THREE KINDS OF TYPE ARE
+  PINNED", tombstoned from "TWO" in place); if the rebuilt pool puts it at or past `distinct`, the return is CANCELLED for
+  this deal — it never displaces a pin that carries a promise.
+- The deal: `dbl` whole pairs of the returned kind, the remaining `pairsCnt − dbl` round-robin over the other
+  `distinct − 1` dealt kinds. Whole pairs, so no orphans; `pairsCnt`, `distinct` and `dealtTypes` are unchanged and the
+  returned kind is inside `dealtTypes`, so `dropOneFromSky` still rains dealt kinds only. With no pick the original
+  round-robin line runs byte for byte. The comment «just as even … otherwise rare types would produce orphans» carries a
+  tombstone. NOTE: The canon's «THE ORDER OF THE ARRAY AND THE SPAWN FORMULA ARE A DIFFICULTY LEVER … ONLY BY THE OWNER'S
+  SPEC» — this is his spec of 2026-09-13.
+- At level 11 the arithmetic is exact: 10 pairs for the returned kind, 60 over 12 others = 5 pairs (10 copies) each.
+- `level.returnKind = {name, idx, dbl, copies, gap, tier0, tiered, released}` or null, plus `level.returnWin`. On the
+  level object only: rebuilt by genLevel, read by showTierUp and renderWinTop, never saved.
+- The frozen block is UNCHANGED: the returned kind stays eligible for ice (a thawed copy still counts toward its gap).
+
+#### THE ONE TIER-UP NOTICE IS RESERVED FOR THE RETURNED KIND
+`showTierUp` (85-hud) gains a SECOND early exit before the once-per-level flag: while the returned kind has not tiered and
+the reservation is not released, another kind's tier-up is dropped WITHOUT spending `level.multToastShown` as long as
+`returnReachable(rk)` — `accTier < cap`, a next threshold exists, and `accCount + live copies ≥ next` (live = alive, not
+surprise/bomb/rival; a frozen copy counts). The returned kind's own tier-up (`ev.key === rk.name`) marks it `tiered` and
+shows the notice. Once it is unreachable (its copies eaten, a boost capped it) the reservation is released for good.
+WARNING: The gate stays on the DISPLAY: `accAdd`, the `acc_up` telemetry and `onAccTierUp` are untouched (2026-08-23-a).
+WARNING: The price, named: tier-ups of other kinds swallowed while the reservation holds are not shown later after a release.
+
+#### THE WIN MARK
+`renderWinTop` pins the returned kind into the shown rows — it takes the LAST row by progress when it would not make the
+cut — and the row carries `.wt-return` with a pill beside the name: «Returned», or «Upgraded» (`.wt-return-up`, the
+progress lime with black text) once `accMult(k) > level.multAtStart[k]`. The row count stays exactly `winTopN()`.
+`.wt-name` keeps the name alone: the pill is its sibling inside `.wt-head`. `level` is still the finished level there
+(checkEnd shows the screen before genLevel). The pill has no animation of its own (it rides the row's entrance, which
+the prefers-reduced-motion list stops), and the name gives way with its ellipsis so the pill fits a 320 px screen —
+measured: «Upgraded» 67.8 px beside a 28 px «Bee», clear of the ×N plate, not clipped.
+NOTE: `level.multAtStart` got a truthful comment in 40-items and 80-gameplay: «by it the toast decides…» and «the win screen
+and the meta read it» had both been false since 2026-08-23-a — nothing read it for three weeks. Its one reader now is
+this pill. Package A's win line (`stats.tierRaw`) counts the returned kind's multiplier like any other kind's.
+WARNING: The wording «Returned» / «Upgraded» is a dispatcher's default in English, points and tiers only, never stars.
+
+#### THE HOOKS (99-main, both names grepped against the literal first — zero occurrences)
+- `returnInfo()` — always an object while a level exists: `name` null means no return; `idx, dbl, copies, gap, tier0,
+  tiered, released`, `live`, `reserved`, `window` (the level's own {dbl, lower, upper}), `fromLevel, maxPairs, share`,
+  `latchLevel, latchName`, `topN`, `distinct, typesCount, pairs`.
+- `returnLatchClear()` — a TEST DOOR that forgets the session latch; production never calls it.
+
+#### THE GUARD — `⟦RETURN-SECTION⟧`, 21 ARMS ON TWO PAGES OF ITS OWN
+Staging: `storyClearAcc` → `setLevel` → `accGrant` to an exact gap read live from `accGrant(name, 0).next` →
+`returnLatchClear` → `regen`. Windows come from `returnInfo().window`, type indices from the live TYPES, the car found at
+runtime. Page 2 carries the boosts (Save.bo only grows).
+1. STRUCTURE: genLevel reads no `level.returnKind` before the literal, and uses the local pick.
+2. STRUCTURE: `pickReturnKind` draws no `Math.random` (text read).
+3. The gate: lv10 null, lv11 picked.
+4. The upper bound: gap upper + 1 null, gap upper picked.
+5. The lower («worth it») bound: gap lower null, lower + 1 picked.
+6. The newest: alone null; beside an older kind the older one is picked though the newest has the smaller gap.
+7. Cars: the first `tex:'car'` alone null; a non-car control at the same gap picked.
+8. The exact deal at lv11: 20 copies = 2·dbl with the cap binding (round gives 11), dealt, `distinct` 13, total 140,
+   the others 10 each.
+9. No qualifier: lv11 and lv23 give no return and copies within one pair.
+10. The latch: a later, smaller gap does not move the pick on regen; a cleared latch picks it.
+11. No re-roll: the picked kind closes its gap → the replay gets NO return, not the runner-up.
+12. The tie-break: equal gaps → the lower index twelve times of twelve; the higher earned tier beats the index; the
+    smaller gap beats the tier.
+13. The reservation: another kind's real tier-up shows nothing and leaves the flag unspent while reachable.
+14. The reserved notice: the returned kind's tier-up shows it and marks it tiered.
+15. The win mark: exactly winTopN rows, the returned kind pinned LAST, «Returned», a clean name, no animation.
+16. After it tiers: «Upgraded» on the pinned row.
+17. The 320 px fit of «Upgraded» and no animation under reduced motion.
+18. (page 2) The release: bought to the cap → the next other tier-up shows.
+19. The cap by accTier: earned gap still in the window, accTier at the cap → null.
+20. A boosted kind below the cap is eligible.
+21. The pin order at lv30: returned while there is room; with the newest + 24 boosted filling distinct 25 the return is
+    cancelled and no boosted kind is displaced.
+
+#### PROVEN AGAINST SIXTEEN VARIANTS (`tools/build-variant.py` outside the tree + `tools/section-dryrun.js`)
+Healthy: 21 green. Each variant reddens its own arm(s); the cascades are honest and named:
+- RETURN_FROM_LEVEL = 1 → the gate arm alone.
+- the `gap <= upper` term dropped → the upper arm, and a cascade of six (lower, newest, car, no-qualifier, re-roll, cap):
+  without the upper bound every fresh kind at gap 100 qualifies, so every «null» arm reads a pick — the upper bound is
+  what keeps a fresh save quiet.
+- the `gap > lower` term dropped → the lower arm alone.
+- the walk to typesCount − 1 → the newest arm alone.
+- the car skip dropped → the car arm alone.
+- `accCountTier` in the cap check → the cap arm alone.
+- the double share dealt to pool[0] (the newest) → the deal arm, and the reservation, win and release arms: with 10 copies
+  the named kind can no longer reach its threshold (88 + 10 < 100), so everything that stands on the real copies moves.
+- the Math.min cap dropped → the deal arm alone (22 copies).
+- no latch (pick on every genLevel) → the latch and re-roll arms.
+- a re-pick when the latched kind fails → the re-roll arm alone.
+- a random tie-break → the structural Math.random arm and the twelve-regen tie arm (WARNING: the first form of the section,
+  five regens and no structural read, stayed GREEN on this very variant: a coin toss between two candidates came out
+  equal five times — the reason the text read was added and the loop went to twelve).
+- no reservation (`else if (false) return`) → the two reservation arms.
+- never released (`else return` instead of `else rk.released = true`) → the release arm alone.
+- no win pin → the win-mark arm, the «Upgraded» arm and the 320 fit arm (all three read the pinned row).
+- the return pinned right after the newest, before the boosted (`pin.splice(1, 0, idx)`) → the pin-order arm alone.
+- a comment edit → 21 green; the tool calls an empty sabotage empty.
+- NB: THE ADVERSARIAL REVIEW (2026-09-13) BUILT A SEVENTEENTH AND THE SECTION WAS BLIND TO IT: the pill compared against 1
+  instead of `level.multAtStart` (`accMult(k) > 1`) → **21 green**. R12 staged the returned kind at earned tier 0, where
+  both reads agree. R12 now stages it at EARNED TIER 1 (count 288, ×1.5 at the start; the others at 97, vitFrac 0.97
+  against its 0.94): the same variant reddens the win-mark arm alone («Upgraded» before any tier-up), the healthy build
+  is 21 green twice. The general form: a comparison against a snapshot is indistinguishable from a comparison against
+  the snapshot's usual value unless the staging makes the two differ.
+
+#### THE MAIN-PAGE GUARDS THIS TOUCHES, AND WHAT WAS DONE
+- ONE TOAST (lv21) and META-TEXT (lv21): comments now name the dependency — `storyClearAcc()` is ALSO what keeps a
+  returned kind (and its reservation) off level 21. Drop it and those arms read «not shown» on a sound build.
+- The once-per-level toast gate (lv8): its message now says a second early exit stands before the flag and is inert
+  without a returned kind — so the reservation is not read as a regression of that gate.
+- CHAINBOLT (lv12, main page): «~12-14 copies per type at 14 types» tombstoned — under PAIRS 70 ~10 copies, 20 if
+  pickBiggest lands on a returned kind; b.n > a.n still holds, the margin is data-dependent.
+- The TAIL union at lv161: the derivation comment counts a returned kind as one more pin (miss over 24 regens
+  ~2.6e-5 → ~3.3e-5).
+- WIN TOP ITEMS (lv4) is below the gate and untouched; any move of it to ≥ 11 must stage no qualifier or assert the pin.
+- WARNING: The ≥ 23 union rule of 2026-09-01-l gains a THIRD pinned exemption: the newest, the boosted, and the returned kind.
+
+#### TRAPS AND OPEN POINTS
+- ICE AT ≥ 23: frozen eligibility is 2·FROZEN_PAIRS_N + 2 = 6 copies (decision 5). The base deal at ≥ 23 gives 4-6 copies
+  a kind, so kinds WITH 6 are eligible on every level, return or not (BOWL140's B5 arm deals ice at level 30 on a fresh
+  page); a returned kind (12 copies at lv23) is simply one more eligible kind. NB: The map's «ice at ≥ 23 lands only on a
+  returned kind» was written for FROZEN_PAIRS_N 3 (8 copies) and is false under 2 — corrected by the review of 2026-09-13.
+  The returned kind stays eligible for ice by default.
+- The goal (`finalizeFill`) rises slightly on return levels: the extra pairs count at the returned kind's multiplier.
+- Package A: the charge's target and the returned kind are likely the same big group; not coupled here.
+- The pick is re-derived after a reload (session latch), named above.
+- The dry-runs of the neighbouring sections on the healthy build, sequential: TIERSHARE 10 green, BOOSTPIN 6, BOWL140 7,
+  ACCSTEP 7, SCOREMATH 7; RETURN 21 (twice, the second after the tie arm was hardened). No full suite — his rule of
+  9 September. WARNING: The main-page arms outside marked sections (ONE TOAST, META-TEXT, the toast gate, CHAINBOLT, the tail
+  union) got comment and message edits only, no predicate changed; they are provable only in a full run.
+- Build: `index.html` 12 950 891 B, 31 modules, build 4c4f86bb0571; after the review's comment fix in 00-config
+  (the cap «binds at 11-12» → at 11 only) 12 950 977 B, build 90362205256d. RETURN 21 green on it, three runs.
+
+### BATCH 2026-09-13-c: THE SILENT SERVICE-WORKER RECHECK ON RETURN TO THE SCREEN (the owner's decision 10 of 2026-09-13, final: «a silent service-worker update check when the game returns to the screen; no prompt, no reload»)
+(The draft carried `2026-09-13-?`; the letter `c` was assigned by the canon stage of 2026-09-13.)
+
+#### WHY IT WAS NEEDED — THE ONE CASE THE BOOT CHECK NEVER COVERED
+Since 2026-09-10-i the game calls an explicit `registration.update()` once per BOOT (99-main
+`registerServiceWorker`) — measured then as load-bearing: `register()` on an existing registration
+byte-checks nothing. A tab left open, or an installed app resumed from the background, never boots
+again, so it kept its build until a real relaunch — for days. This was case 2 of the 2026-09-12-b
+version check («OFFERED, NOT DONE: update() on visibilitychange → visible (throttled)»). It is done.
+DONE IN PLACE BY THE CANON STAGE (2026-09-13): the first clause of that «OFFERED, NOT DONE» line is marked
+DONE (the prompt and telemetry stay offered), the item «registration.update() runs once per boot» in the same
+list carries a tombstone, and THE FOUR GATES (2026-09-09-h) gained one line saying the recheck listeners live
+inside the gated register().then.
+
+#### THE MECHANISM, AND THE ONE THING IT DOES NOT CHANGE
+- The worker (`src/sw.js`) is UNTOUCHED apart from a header note: update() fetches sw.js, a release
+  installs, prefetches the document into the new cache, `skipWaiting`, activates, prunes the old caches
+  only once the new one holds './', `clients.claim()`. Nothing in src listens for `controllerchange`
+  and the only `location.reload()` is the fatal screen's button, so the RUNNING page keeps its loaded
+  build and the new build opens on the next launch — the cache-first price he agreed to on 2026-09-10-i
+  («after a release you will see the old one once») stands exactly as it was.
+- Browsers put NO throttle on a page-initiated update() (implementations only coalesce concurrent jobs;
+  Chrome bypasses the HTTP cache for the top-level script, so each call is a round trip to the site
+  Worker). The throttle is therefore ours — two constants in 00-config, read at call time only:
+  - `SW_RECHECK_GAP_MS = 5 * 60 * 1000` — the least time between two checks, SEEDED BY THE BOOT CHECK
+    (`swLastCheckAt = Date.now()` in the register().then, whether or not a worker was active);
+  - `SW_RECHECK_HIDDEN_MS = 30 * 1000` — the least wall-clock time the page must have been hidden
+    (a genuine background stint, not a tab flick). Both are the dispatcher's defaults written into
+    his decision; each is one number.
+- WHY Date.now AND NOT performance.now: iOS freezes a hidden page; the hidden stint must be wall-clock.
+
+#### WHERE IT LIVES (99-main), AND THREE THINGS THAT ARE LOAD-BEARING
+1. THE LISTENERS ARE ARMED ONCE, INSIDE `register('sw.js').then(...)`, guarded by `swRecheckArmed`.
+   Inside that .then all four registration gates already hold — https, not `navigator.webdriver`,
+   `window.top === window.self`, not `?nosw=1` — so the WKWebView wrapper (blendo://), the Playgama
+   iframe and the whole suite never get a listener. Do NOT merge the check into 90-input's
+   visibilitychange handler: that one is attached unconditionally (the suite, the portal, the wrapper)
+   and would bypass the gates; it also owns the pause (openMainScreen) — the recheck never touches the
+   pause.
+2. `visibilitychange` stamps `hiddenAt = Date.now()` on hide and passes `Date.now() − hiddenAt` on
+   return (0 when no hide was seen, so a stray visible event never checks). `pageshow` acts ONLY when
+   `e.persisted` (a back-forward-cache restore, passed as Infinity): a plain pageshow fires on every
+   load and would repeat the boot check. A bfcache restore also fires visibilitychange — the gap
+   dedupes the pair.
+3. THE BOOT update() PROMISE IS CAUGHT NOW: `r.update().catch(function(){})`. It was
+   `try { r.update(); } catch(e){}` — a try/catch does not catch a rejected promise, so every OFFLINE
+   boot of an installed game raised an unhandled rejection (a 'promise' error for 79-telemetry the day
+   its URL is switched on). Pre-existing, found by the map, fixed in the same line.
+PWA ARM 3 READS registerServiceWorker BY A LAZY TEXT SLICE ending at its first column-0 `}`, and its
+`upd` gate is the literal `.update()` inside it. Both constraints were kept: the boot call stays
+literally inside the function, every nested brace is indented, and the new state/helpers stand at TOP
+LEVEL after the function's closing brace.
+
+#### THE THREE TOP-LEVEL PIECES
+- `let swLastCheckAt = 0, swRecheckArmed = false;` — read only from async callbacks after evaluation
+  (no TDZ).
+- `swRecheckDue(now, last, hiddenMs, online, hidden)` — the PURE decision:
+  `!hidden && online !== false && hiddenMs >= HIDDEN && (now − last) >= GAP`.
+  `online !== false`, not `=== true`: an engine that does not report navigator.onLine is not offline.
+  NO PAYMENT TERM, AND THAT IS THE ADVERSARIAL REVIEW'S BLOCKER-CLASS FINDING (2026-09-13). The first
+  implementation skipped the check while `payPending()` (83-pay's localStorage mark) held a value, «so the
+  install prefetch cannot switch the build under a paying tab». Both halves of that reason were wrong:
+  nothing reloads the running page (no controllerchange listener anywhere), and the pay worker is
+  cross-origin, which the service worker never touches. And the mark is kept ON PURPOSE through a
+  fruitless poll round — 83-pay clears it only on a grant or a cancel — so a player who once closed
+  Stripe's page without paying (no `?paid=cancel`) keeps it for ever: the recheck would have been
+  switched off on that device for good, silently, against decision 10's «when the game returns to the
+  screen». The term, its hook argument, its R1 arm and its 3b read are gone; 3b now asserts the absence
+  (`noPayGate`), and the boot check never had such a gate either.
+- `swRecheckFire(regPromise)` — THE EFFECT, ONE CHAIN FOR PRODUCTION AND THE TEST DOOR:
+  `Promise.resolve(regPromise).then(r => { if (r && r.active) return r.update(); }).catch(() => {})`.
+  A door carrying its own copy of the chain would stay green while the live chain lost its .catch —
+  so `__game.swRecheckWith(fakeReg)` calls THIS function and returns nothing (a rejection the chain
+  failed to catch must surface as the page's own unhandledrejection, not be swallowed by an await).
+- `swRecheck(hiddenMs)` — the decision with the live state, then `swLastCheckAt = Date.now()` and
+  `swRecheckFire(navigator.serviceWorker.getRegistration())`, the whole body in a try.
+  THE REGISTRATION IS ASKED AT CHECK TIME, never captured at boot: iOS may clear service-worker state
+  after long inactivity, and a stale registration's update() rejects; a missing one (undefined) is a
+  no-op by the `r && r.active` guard.
+- Hooks (the literal was grepped first — zero `swRecheck*` names in src/ and test.js):
+  `__game.swRecheckDue(...)`, `__game.swRecheckState()` → `{armed, last, gap, hidden}`,
+  `__game.swRecheckWith(fakeReg)`. Deleted outside DEV like every hook.
+
+#### THE GUARDS
+**PWA arm 3b** (three new expects on the same `reg` slice, comment lines stripped first because the prose
+around the call names the very strings looked for): (1) the visibilitychange and pageshow listeners
+stand AFTER `register('sw.js')` in the slice, armed once (`if (swRecheckArmed) return;`), and the
+hidden stint on the wall clock — `hiddenAt = Date.now()` AND `Date.now() - hiddenAt` (the review: a bare
+«Date.now appears» was satisfied by the boot stamp alone, so a hiddenAt on performance.now passed);
+(2) the pageshow handler tests `.persisted` and no plain `function(e){ swRecheck` form exists;
+(3) the boot `.update().catch(`, a `.catch(` in `swRecheckFire`, `swRecheckDue` reading both constants,
+`getRegistration()` inside `swRecheck`, NO `payPending` in the decision or its caller, NO
+`controllerchange` ANYWHERE in the comment-stripped build (the review: the first form searched only the
+reg slice and swRecheck's body, so a listener in 90-input — the natural place — stayed green), and no
+`location.reload` in the recheck's own code (the fatal screen's button is legitimate elsewhere).
+Its function-body helper ends a top-level function at its first column-0 `}` and NOT at the next
+`\nfunction ` — `swRecheck` is the last top-level function of 99-main and that search found nothing
+after it (the first dry-run went red on a healthy build for exactly that: `atCheck`/`pending` false).
+
+**SWRECHECK** (new section, its own 390 page on `file://?dev=1`, every wait caught): R1 the decision table
+derived from `swRecheckState()`'s LIVE gap/hidden — one arm naming the numbers (300000 / 30000; they are
+the dispatcher's defaults, NOT his: decision 10 names no interval, and the arm's message says so now), then
+four arms each carrying ONE term: the gap (due at exactly GAP, not GAP−1; a bfcache restore inside the
+gap is not a check), the hidden stint (a flick at HIDDEN−1 and a zero are not, Infinity is), offline
+(false is skipped, `undefined` is not offline), a still-hidden page. (The payment arm is gone with its
+term — see the decision above.) R2 the chain
+through the production `swRecheckFire` on fake registrations, with an `unhandledrejection` counter
+installed before any call and each stage reading its OWN delta: an update() that rejects → exactly one
+call and zero events, and a rejecting getRegistration is caught too; null / undefined / no active worker
+→ zero calls, no throw; the CONTROL — an active registration gets exactly one call (without it the arms
+above are satisfied by a chain that never calls). R3 the gate on the automated page (`file:`,
+webdriver): not armed, and a dispatched visibilitychange plus a `PageTransitionEvent('pageshow',
+{persisted:true})` leave the stamp at 0 and ask getRegistration zero times (counted through a wrapper).
+R2's FIRST FORM READ A CUMULATIVE COUNTER and the .catch sabotage reddened three arms (the null arm and
+the control inherited the first stage's event) — per-stage deltas made it one.
+
+#### WHAT IS NOT PROVEN HERE, NAMED
+What the check DOES on a real release — one GET of sw.js after a return past the gap, the background
+prefetch, the old build kept on screen, no reload, the next launch new — is provable only by the
+2026-09-10-i real-browser rig (`wrangler dev --local-protocol https`, Chromium with the webdriver flag
+hidden) against the real site Worker. Not run in this stage. The suite never registers a worker by its
+own gate, so its arms state the decision, the chain and the gate. His devices are the check for iOS
+(does a standalone Home-screen app emit `pageshow{persisted}` on resume, or only visibilitychange — the
+latter covers resume either way).
+
+#### THE PRICES AND OPEN ITEMS, FOR HIM
+- Cellular: a RELEASE found on return triggers the install prefetch — a full GET of the document
+  (~4.5 MB brotli at the edge) in the background; once per release per device, and 90-input has already
+  opened the paused menu on hide, so it lands during a pause.
+- Worker quota: at most one sw.js request per 5 minutes per foregrounded device beyond today's.
+- Not done, his word if wanted: re-check on window `focus`/`online`; a periodic check for a desktop tab
+  left VISIBLE for hours (it never re-checks under this design); a «new version — tap to restart»
+  prompt; telemetry of versions.
+
+#### THE RUNS (his rule of 9 September: no full suite)
+THE FINAL BUILD (after the review below): index.html 12 956 400 B, 31 modules, build 6e5184a6c3a6;
+SWRECHECK 10 green, PWA 14 green. THE IMPLEMENTER'S FIRST PASS, SUPERSEDED — kept as the record of the
+variant table: `npm run build`: index.html 12 956 059 B, 31 modules, build 717b8e891601 (sw.js rewritten from src/sw.js);
+`node --check test.js` passes. Healthy dry-runs: SWRECHECK 11 green, PWA 14 green (11 before + the three
+3b arms). TEN SABOTAGE VARIANTS (`tools/build-variant.py` outside the tree, the tree's index.html md5
+e12d7753… identical before and after), each red on its own arm(s):
+| variant | SWRECHECK | PWA |
+|---|---|---|
+| boot `.catch` dropped | — | 3b catch arm alone |
+| listeners hoisted above the gates (a copy armed before `'serviceWorker' in navigator`) | the gate arm alone (armed true, stamp set, getRegistration asked once on file://) | 3b order arm alone |
+| `e.persisted` test dropped | — | 3b persisted arm alone |
+| `.catch` of swRecheckFire dropped | the reject arm alone (urj 1 on the reject stage and on the getRegistration stage) | 3b catch arm alone |
+| `r && r.active` guard dropped | the null/inactive arm alone (1 call) | — |
+| the gap term dropped | the gap arm alone | 3b catch arm (the decision no longer names SW_RECHECK_GAP_MS) |
+| the hidden term dropped | the hidden-stint arm alone | 3b catch arm (no SW_RECHECK_HIDDEN_MS) |
+| the online term dropped | the offline arm alone | — |
+| ~~the pending term dropped~~ (the term itself is gone after the review) | — | — |
+| a comment edit | 11 green | 14 green |
+
+**AFTER THE ADVERSARIAL REVIEW (same day):** healthy SWRECHECK **10 green** (11 minus the removed payment
+arm), PWA **14 green**, run twice on the rebuilt build (index.html md5 38c63d1e…). Three new sabotage
+variants, each red on exactly its own arm:
+| variant | PWA |
+|---|---|
+| a `controllerchange` listener added in 90-input (outside the old read's slice) | the 3b catch arm alone (`noReload false`) |
+| the `payPending` gate put back into `swRecheckDue` | the 3b catch arm alone (`noPayGate false`) |
+| `hiddenAt = performance.now()` on the hide | the 3b order arm alone (`stamp false`) |
+The tree's index.html md5 was unchanged by the variant runs.
+No full suite — his rule of 9 September. The emoji census of every added line: zero (the section's
+«SABOTAGE:» markers were written without the house's red sign, by the stage rule).
+
+### BATCH 2026-09-13 (stage «Stale notes»): THE PROGRESSION BOUNDARIES DERIVED, THE 180-ITEM PROSE MARKED, THE SKY DROP STEP FOLLOWS THE SIZE
+
+Comment and test-comment work, plus one derived constant and one new dry-runnable section. No behaviour changed
+except the sky drop's stack step (below), which follows the owner's decision 3 of 2026-09-13 («items 9% bigger»).
+
+#### THE FOUR STALE NOTES, WITH THE VALUES VERIFIED ON THE LIVE BUILD
+1. **The «composition is random» boundary (40-items, genLevel).** The paragraph was a tombstone of a tombstone
+   («82», then «89», then an NB saying 89 is moot). It is rewritten in derived form: the deal is cut wherever
+   `distinct < typesCount`, and two limits can do it:
+   (a) the distinct cap: the first level where `LEVEL_TYPES_MIN + level − 1 > levelDistinctCap(level)`, **level 23 today**
+   (25 open, cap 24);
+   (b) the pairs ceiling: `PAIRS − LEVEL_TYPES_MIN + 2`, **69 today** (PAIRS 70; it was 89 at PAIRS 90). Dominated
+   by (a) while `levelDistinctCap(lv) <= PAIRS`, and binding again from level **490** (22 + 49 = 71 > 70); it moves
+   with PAIRS or LEVEL_TYPES_MIN, NOT with TYPES. NOTE: The first draft said «binds only if the cap is removed» — false.
+   «The curve 1..82 is unaffected» became «the early levels are unaffected while typesCount <= min(pairsCnt, cap)».
+   The «IT WAS: pairsCnt=90, indices 0..89» block is chronology and stays verbatim.
+2. **The New Object screen (85-hud, newObjDue).** «9 of them» / «a whole nine» / «from level 112» corrected:
+   LEVEL_TYPES_MIN (3) open at level 1; the last kind (index 104, `fooddonutsprinkles`) opens at
+   `TYPES.length − LEVEL_TYPES_MIN + 1` = **103**, `newObjDue` is null from **104**.
+3. **`level.multAtStart`.** NOT deleted: Package B (decision 9) adopted it as the reader of the win screen's «Upgraded»
+   pill (renderWinTop), and its tombstones at 80-gameplay and 40-items were written by that stage. Only 85-hud's
+   «multAtStart / chargeGiven / continueUsed» lost `continueUsed` (gone since 2026-09-03).
+4. **CLAUDE.md** — not edited by this stage; the reconciliation block and line fixes it prepared were applied in place by the canon stage on 2026-09-13 (see the end of this subsection).
+
+Also fixed (other copies of the old progression): 85-hud `unlockedTypeCount` note («9 at level 1») and the vitrine
+count note («there are always ≥9 types» → level 1 deals LEVEL_TYPES_MIN = 3 = VIT_MAX, nothing to spare); 77-save
+(«9 at lv.1»); 30-shapes header («9 on the 1st level», «up to 15», «9+level−1», the 2026-07-30 layout marked
+HISTORICAL — steak and forestplant are no longer in TYPES — and «forestplant is LAST» → the sentinel is derived since
+2026-09-01-e; «PAIRS-1 (89)» marked as the PAIRS 90 era); 00-config («117 instead of 111» → then, at a pool of 120;
+today 103; the group-cap accessibility measurement dated «2026-07-27, at LEVEL_TYPES_MIN 9 and 180 items»).
+
+#### THE 180-ITEM PROSE (the count-size map and the Constants review)
+Already tombstoned by the Constants stage (not touched again): 00-config PAIRS/ITEM_SIZE_K/progression notes and the
+merge-curve totals, the ice feasibility table at FROZEN_PAIRS_N, 40-items `pairsCnt` comment, 75-audio pivot, 50-physics
+ring figures. Marked by this stage as measurements of the 180-item bowl, numbers unchanged: 10-stage (matcap patch
+«one shader for all 181» ×2 → «every item material (181 at the 180-item bowl)», «all 181 materials», «all 183»);
+99-main («~100 bodies out of 182», «the 1st flip of 183 materials», «180 items at level 11+ met a throttled GPU»);
+30-shapes «(89)»; test.js «pairsCnt (90) … types (121)» (now «90 then, 70 since 2026-09-13 … 121 then, 105 today»).
+The Constants review's test.js:18130 is today's banana note «the first level's nine» → «three (index 1)».
+
+#### THE SKY DROP'S STACK STEP (40-items, dropOneFromSky) — THE ONE BEHAVIOUR EDIT
+`dropOneFromSky` (the chain refill, the final pairs, the Continue top-up) stacked the k-th drop at `FUNNEL.H + 2 + k·1.2`.
+1.2 was 1.935 radii at the size 0.62; after the +9% of MESH_SCALE it would be 1.78 radii. Now
+`DROP_STACK_STEP = SPAWN_LAYER_STEP · (1.2/1.35)` ≡ `MESH_SCALE · (1.2/0.62)` = **1.305**, declared next to
+`SPAWN_LAYER_STEP`. It stays below one diameter (1.348) as it always was (1.2 < 1.24): the XZ of each drop is random.
+NOT the full SPAWN_LAYER_STEP (1.466): the final pairs stack ~25-47 items and a 12% taller column moves the finale's
+timing, which unsectioned arms (test.js ~4067-4076) watch.
+**MEASURED** (probe `scratchpad/stale/refill-probe.js`, headless Chromium 1280×832, file://, level 30, skipIntro →
+`leaveSingles()` → wait `finalRefillDone` → 5 s; 3 cold loads each):
+| | before (k·1.2) | after (k·1.305) |
+|---|---|---|
+| singles / alive after refill | 27/52, 27/52, 27/52 | 27/52, 28/53, 27/52 |
+| top of the column at refill | 40.66 / 40.27 / 40.37 | 42.75 / 42.81 / 42.87 (+2.1..2.5 measured, against 26 × 0.105 = 2.73 predicted for k = 0..26; the read lands after physics has moved the top) |
+| alive after 5 s | 52 / 52 / 52 | 52 / 53 / 52 (nothing lost) |
+| top after 5 s | 5.05 / 4.61 / 4.41 | 3.86 / 4.92 / 4.15 |
+| max wall excess (walled) | −0.154 / −0.156 / −0.139 | −0.106 / −0.139 / −0.130 |
+| `[rescue]`/`[floor]` lines | 2 / 0 / 1 | 1 / 1 / 0 |
+No regression: no item lost, rescues at the same noise level, wall excess stays negative.
+NOTE: NO DRY-RUNNABLE SECTION REACHES `dropOneFromSky` (a grep of every marked block for refill/turbo/finale/chain found
+prose only). The probe is the evidence; the full suite's unsectioned finale arms were not run (his rule).
+
+#### THE NEW SECTION: PROGRESSION (test.js, after BOWL140, its own page, every wait caught)
+- **P0** the page boots with a live `__game` (a failed boot is a red arm, not a dead section).
+- **P1 the New Object end, derived:** n = the live TYPES count (walk `typeNameAt`), m = `levelTypesMin()`. Entering level
+  n−m+1 shows `typeNameAt(n−1)`; n−m+2 shows null; n−m shows `typeNameAt(n−2)`; level 1 shows null (the whole starting
+  set opens, so both ends of the screen are pinned here). Today 103 → fooddonutsprinkles, 104 → null,
+  102 → foodicecreamscoopmint. The old unsectioned New Object guard (levels 1/2/5/20/400) stays in place and
+  is blind to an end one level early.
+- **P2 the cap boundary, derived:** L = the first level where min(n, m+L−1) > `distinctCap(L)`, with the pairs ceiling
+  checked not to bind (`distinctCap(L) < pairsRule().at(L)`, both live). At L−1 the Set of `dealtTypes()` equals every
+  open kind; at L it equals `distinctCap(L)` and is below the open count. Counted with a Set, never `.length`, so a
+  returned kind (decision 9) or a pin cannot move the count. Today L = 23: 24 of 24 at 22, 24 of 25 at 23.
+
+**Proven against variants (tools/build-variant.py outside the tree + section-dryrun):**
+- 85-hud `idx >= TYPES.length` → `TYPES.length - 1` (the screen ends a level early): P1 alone red (`last` null at 103).
+  The old guard stays green on it.
+- 40-items `Math.min(typesCount, pairsCnt, levelDistinctCap(levelNum))` → without the cap: P2 alone red (25 kinds at 23).
+- 00-config `DISTINCT_BASE = 22` → 23: all GREEN (L moves to 24) — proves P2 is derived, not a literal.
+Healthy build: PROGRESSION green (P0-P2, the level-1 reading added to P1 after review); BOWL140 7 green after the
+40-items edit. The build: `index.html` 12 958 749 B, 31 modules, build 6fe93a765bf7. `node --check test.js` passes.
+Not on this stage's list, left as dated measurements: 50-physics (182 items at 141/153/155/695, «~180 bodies» at 740) and
+80-gameplay:445 («alive 181 -> 179»).
+
+#### TRAPS
+- NB: A NUMBER QUOTED NEXT TO ITS FORMULA GOES STALE ON THE NEXT EDIT OF TYPES, PAIRS, LEVEL_TYPES_MIN OR
+  DISTINCT_BASE/STEP. Every rewritten comment writes the formula first and marks the number «today»; the PROGRESSION
+  section is what checks them.
+- NOTE: the pairs boundary moves with PAIRS, not with TYPES — the old «every future edit of TYPES moves that number»
+  was false.
+- NOTE: the progression comments do not mention the cap and the pairs ceiling as the same thing: the cap (a) cuts from 23,
+  the pairs ceiling (b) would cut from 69 and binds only where the cap itself passes PAIRS (level 490 today).
+
+#### ADVERSARIAL REVIEW OF THIS STAGE (same day) — FOUND AND FIXED
+- `40-items` (b) comment «binds only if the cap is removed» contradicted `levelDistinctCap`'s own ramp: from level
+  490 the cap is 71 > PAIRS 70 and `min(typesCount, pairsCnt, cap)` is set by pairs again. Rewritten with the 490.
+- DROP_STACK_STEP moved two comments into lies: `50-physics` RESCUE_CEIL's «staircase `FUNNEL.H + 2 + k*1.2`» and the
+  unsectioned test.js top-up note (~4100). Both now name DROP_STACK_STEP with 1.2 as the measured value.
+- DROP_STACK_STEP's unnamed price: the final-pairs staircase peak `11.2 + (orphans−1)·step` against RESCUE_CEIL 90,
+  orphans bounded by the distinct cap — first breach ~level 450 at 1.2 (67 orphans), ~level 400 at 1.305 (62 → 90.8).
+  Named at the constant; not re-tuned (the ceiling is physics'). The refillTop guard (level 41, 26 orphans) peaks 43.8.
+- Checked and clean: the 23 / 69 / 103 / 104 arithmetic; P1/P2 hooks unique in `__game`; the unsectioned test.js
+  edits are comments plus one message string (no predicate touched); the multAtStart tombstones match their reader.
+- NOTE: new comment text carries no `*bonus*(` form and no `BONUS_` token (the bonus-level build guard reads by form).
+
+CLAUDE.md: the reconciliation block and the nine line fixes this stage prepared were applied in place by the canon stage on 2026-09-13 (the block sits at the top of «THE STATE OF THE OBJECTS»; the markers of the lines it replaced were kept).
+
+**Leave verbatim (dated chronology):** the sections «THE PROGRESSION, ANSWERED WITH NUMBERS», «HIS ITEM 3 — THE PROGRESSION,
+WITH THE NUMBERS THIS BATCH CHANGED», «TWO SMALL DEFECTS FIXED IN PASSING», «THE INDEX→LEVEL TABLE WAS PRINTED», and the
+2026-08-20 record (annotated only). Out of scope, named: the CLAUDE.md level-progression note «Easy 10 / Hard 3.3» (real 15/10); 30-shapes
+«THE DONUT … a compound collider is a Physics task after launch» (closed 2026-08-07 by `phys:'ring'`); docs/3D-ASSETS.md:133
+and docs/OBJECTS-STATE.md:105 (dated).
+
+### Stage "Sabotage proof" (2026-09-13): the sections of this batch discriminate
+
+No source and no test was edited in this stage. Every change was a sabotage built OUTSIDE the tree with
+`tools/build-variant.py` (temp dir `blendo-variants/<name>`), driven by `scratchpad/sabF/drive.py`, and dry-run with
+`MIXER_PAGE=<variant> SECTION=<name> node tools/section-dryrun.js`. The tree's index.html md5 was
+380c8f0fd5b4836617e6d5af2124578b before the first variant and after the last. No full suite was run.
+
+#### Healthy build, every section this batch touched (dry-run alone, sequential)
+
+| Section | Green |
+|---|---|
+| ACCSTEP | 7 |
+| BOWL140 | 7, 7, 7 (three runs) |
+| SCOREMATH | 7 |
+| TIERSHARE | 10 |
+| BOOSTPIN | 6 |
+| CHARGEFX | 13 |
+| RETURN | 21 |
+| SWRECHECK | 10 |
+| PWA | 14 |
+| PROGRESSION | 3 |
+| WAVES | 2 |
+| INTRO | 60 |
+
+#### BOWL140 B4 flake check (floor 7.3, median of 3 regens)
+
+Healthy medians (level 12 / level 30): run 1 8.32 / 8.20; run 2 7.94 / 7.60; run 3 7.97 / 7.96.
+The closest median is 7.60, 0.30 above the floor, so the 0.25 trigger is NOT met and B4 stays a median of 3.
+One single reading in run 2 was 7.31 (level 30); the median absorbed it. On MESH_SCALE 0.62 the medians fell to
+6.89 / 6.84 (single readings up to 7.18), so the arm separates the two builds by about 0.7 in the median.
+If a future healthy median lands under 7.55, move B4 to a median of 5 (it stays red on 0.62).
+
+#### Variants and what each reddened (all others in the section stayed green)
+
+| Variant | Section | Red arm(s) |
+|---|---|---|
+| ACC_MULT_STEP 0.5 -> 0.25 | ACCSTEP 6/7; TIERSHARE 10/10 | AS1 only; TIERSHARE derives the step and stays green |
+| `* am` dropped from doMatch's gained | ACCSTEP 5/7; TIERSHARE 6/10 | AS2, AS5; T one, five, plus the line and cap arms (their precondition is a positive share, which is now 0) |
+| PAIRS 70 -> 90 | BOWL140 3/7 | B1, B2, B3, B4 |
+| MESH_SCALE 0.62*K -> 0.62 (PAIRS 70) | BOWL140 4/7 | B2, B4 (medians 6.89/6.84), B6 (K read off meshScale is 1) |
+| BASE_RADIUS_DEFAULT unscaled | BOWL140 6/7 | B6 |
+| COMBO_RADIUS unscaled | BOWL140 6/7 | B6 |
+| MISS_ASSIST_MAX unscaled | BOWL140 6/7 | B6 |
+| MATCH_R_MIN unscaled | BOWL140 6/7 | B6 |
+| MISS_ASSIST_STEP unscaled | BOWL140 6/7 | B6 |
+| FROZEN_PAIRS_N 2 -> 3 | BOWL140 6/7; ACCSTEP 6/7 | B5; also ACCSTEP AS3 (see traps) |
+| tierRaw accumulator removed from detonateCharge | TIERSHARE 8/10 | T1 structure, the charge arm |
+| doMatch `tierRaw += gained` (whole payout) | TIERSHARE 7/10 | zero, one, five |
+| win line never hidden (`upg.hidden = false`) | TIERSHARE 8/10 | off, cap |
+| Boost toast removed | BOOSTPIN 4/6 | the quiet-call text arm, the purchase arm |
+| charge target back to random over the pool | CHARGEFX 12/13 | "most upgraded" |
+| tier pick before prefer (prefer wins only a tie) | CHARGEFX 12/13 | "test door still wins" |
+| boosted pin neutralised in genLevel | BOOSTPIN 5/6 | the promise arm (kept 17/25) |
+| RETURN upper bound dropped | RETURN 14/21 | upper, plus lower, newest, car, none, reroll, cap (one cause, see traps) |
+| RETURN upper bound off by one (`<= upper + 1`) | RETURN 20/21 | upper only |
+| RETURN lower bound dropped | RETURN 20/21 | lower only |
+| latch removed (`if (true)`) | RETURN 19/21 | latch, reroll |
+| car skip dropped | RETURN 20/21 | car |
+| reservation removed (`else if (returnReachable(rk)) return;`) | RETURN 19/21 | reserve, reserved-notice (release stays green) |
+| win pin removed from renderWinTop | RETURN 18/21 | win mark, Upgraded, fit320 |
+| return mark removed (`isRet = false`) | RETURN 18/21 | win mark, Upgraded, fit320 |
+| `.catch` dropped from swRecheckFire | SWRECHECK 9/10; PWA 13/14 | the reject arm; PWA 3b catch arm |
+| arming block hoisted above the https gate | SWRECHECK 9/10; PWA 13/14 | the automated-page gate arm (armed true); PWA 3b order arm |
+| SW gap term removed from swRecheckDue | SWRECHECK 9/10; PWA 13/14 | the GAP arm; PWA 3b (dueGap) |
+| newObjDue ends one level early | PROGRESSION 2/3 | P1 |
+| distinct cap dropped from the deal | PROGRESSION 2/3; BOOSTPIN 5/6 | P2; BOOSTPIN promise arm (the cap no longer bites: lens 42, missed1 0) |
+| comment-only edit (`(was 1 + 0.25 * tier ...)` after ACC_MULT_STEP) | ACCSTEP 7/7 | none; also proves AS0 skips prose |
+
+No variant went uncaught, so no arm in test.js was changed.
+
+#### Traps (named, not fixed)
+
+- ACCSTEP AS3 goes red on FROZEN_PAIRS_N 3 with `none:true`. The ice schedule `frozenNextLevel` is global and
+  only moves forward, so after AS2 (level 21) the first scheduled ice is past level 22. With N 3 no kind has 8
+  copies there, so AS3 has no ice block to break. The cause is the same as B5: the ice is not reachable. AS3's
+  SABOTAGE text names the W7 `it.key` bug and does not mention this. It could be separated only with a
+  schedule-reset test door; none exists and none was added.
+- Dropping RETURN's upper bound lets every unstaged kind (gap 100 on the cleared save) qualify, so seven arms go
+  red for one reason. The off-by-one variant shows the upper arm catches the bound by itself.
+- The hoist variant must move `swRecheckArmed = true` together with the listeners. Only then does the SWRECHECK
+  gate arm see `armed:true`. There is no TDZ issue: registerServiceWorker runs in a promise after the top-level
+  `let swLastCheckAt, swRecheckArmed` is set.
+- The tier-before-prefer variant has to let `prefer` win a tie. A plain reorder also sends the CHARGEFX sweep,
+  contour and leak arms (pinned to foodorange on a fresh save) to a random item, which reddens them for a reason
+  that has nothing to do with the sabotage.
+- MISS_ASSIST_MAX is its own literal × K (00-config), not derived from MISS_ASSIST_STEP. B6 checks it on its own,
+  and the unscaled variant proves that.
+
+### ITEM 7: THE BRIDGE AND THE ADS TRACK
+- THE BRIDGE IS CURRENT: the vendored `playgama-bridge.js` is 2.1.0, which is the newest tag and the npm `latest`. Do NOT swap it for the code-split CDN build.
+- THE TRACK (ads when the hints run out) is written to `docs/ADS-TRACK.md` and waits for his decisions D1-D9; nothing of it is in the code («we will go through it separately»).
+- TWO DEFECTS FOUND AND NOT FIXED IN THIS BATCH, named:
+  1. The game never passes the placement name to the SDK: both offers go out as the fallback 'rewarded'.
+  2. On blendo.monster, GitHub Pages and the iOS wrapper the «Ad» badge gives the shake or the tip at once and without a limit — the no-fill rule of 2026-08-05 meeting a platform that has no ads at all.
+
+### THE RUN AND THE RELEASE
+FULL SUITE, ON HIS WORD («build a full run»): **run 56: 1287 green, 1 red**. The red was an arm, not the game:
+the streak-radius ceiling check (test.js ~2195) compared `+peak.toFixed(3)` with the cap, and the cap is now
+0.8 x ITEM_SIZE_K = 0.86990…, so a peak clamped exactly to it printed as 0.870 and read as above it. The arm now
+compares the unrounded peak (`peakRaw`) and keeps the rounded one for its message. **Run 57: 1288 green, 0 red,
+`ERRORS(tail): none`, SUITE: PASS** — the radius arm green with peakRaw === cap. Build 508311ae346c, index.html
+md5 380c8f0fd5b4836617e6d5af2124578b (a rebuild from the same sources byte-identical before each run), sw.js md5
+c4c848937a18186f19dcc9912ae1c38f.
+NB: THE LAW THIS RED ADDS: once a constant is multiplied by an irrational factor, every guard that rounds a
+reading and then compares it with that constant is a coin toss at the boundary — compare the raw value.
+THE RELEASE, BY HIS WORD THIS TIME: commit and push v2 and v2:main after a green run; the site deploy is HIS command (he asked «write the command so I update prod on the web»), given to him with the md5 to check. This does not change the standing rule that I deploy the site myself; it is his instruction for this batch.

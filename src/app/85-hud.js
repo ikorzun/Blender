@@ -418,6 +418,17 @@ function renderWinScreen(){
   // as much as went into the balance (bankLevelScore) and by how much the chip grew. A single
   // balance: chip/wallet/leaderboard/win — one scale (dispatcher's decision v113)
   const bal = Math.floor(score / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10));
+  // THE TIER LINE (the owner's decision 7, 2026-09-13): «Your upgraded items: +N points», above the Top Items list.
+  // N is stats.tierRaw floored ONCE here (each merge adds its raw share, so no rounding piles up per merge), and
+  // CAPPED at the level's banked points: a share cannot claim more than the level actually paid (a level that
+  // ended below zero banks 0 and shows no line). Hidden at 0 - a line saying «+0» is noise, not information.
+  const upg = $('winUpg');
+  if (upg){
+    const tr = (typeof stats !== 'undefined' && stats) ? Math.max(0, stats.tierRaw || 0) : 0;
+    const nUp = Math.max(0, Math.min(Math.floor(tr / (typeof SCORE_DENOM === 'number' ? SCORE_DENOM : 10)), bal));
+    upg.textContent = nUp > 0 ? winUpgText(nUp) : '';
+    upg.hidden = !(nUp > 0);
+  }
   const secs = (typeof stats !== 'undefined' && stats && stats.t0)
     ? Math.max(0, Math.round((performance.now() - stats.t0) / 1000)) : 0;
   const lt = $('winLevel'); if (lt) lt.textContent = 'Level ' + lv;
@@ -1245,9 +1256,19 @@ function renderWinTop(reduce){
   if (!keys.length && vitAll){ try { keys = vitAll.map(e => e.k); } catch(e){} }
   keys.sort((a, b)=> vitFrac(b) - vitFrac(a) || accCount(b) - accCount(a));
   const step = 0.09;
-  keys.slice(0, winTopN()).forEach((k, i)=>{
+  // «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the returned kind is PINNED into the shown rows - it takes the last row
+  // by progress when it would not make the cut - and wears a pill, «Returned», or «Upgraded» once its multiplier grew this
+  // level (read against level.multAtStart). `level` is still the finished level here: checkEnd shows the screen before
+  // genLevel runs. The number of rows stays exactly winTopN().
+  const rk = (typeof level !== 'undefined' && level && level.returnKind) ? level.returnKind : null;
+  const shown = keys.slice(0, winTopN());
+  if (rk && keys.indexOf(rk.name) >= 0 && shown.indexOf(rk.name) < 0 && shown.length) shown[shown.length - 1] = rk.name;
+  shown.forEach((k, i)=>{
     const row = document.createElement('div');
     row.className = 'wt-row';
+    const isRet = !!(rk && k === rk.name);
+    const upg = isRet && typeof accMult === 'function' && accMult(k) > (((level.multAtStart || {})[k]) || 1);
+    if (isRet){ row.classList.add('wt-return'); if (upg) row.classList.add('wt-return-up'); }
     // ⚠️ THE ROW CARRIES ITS TYPE KEY (2026-08-25-d): the visible name is `accLabel`, and a guard
     // that has to compare this row's picture with the one production would compute for it would
     // otherwise have to reproduce that mapping — a copy of a translation table beside the
@@ -1260,9 +1281,12 @@ function renderWinTop(reduce){
     try { const it = thumbItemForKey(k); if (it) url = itemThumb(it, true); } catch(e){}
     row.innerHTML =
       '<div class="wt-thumb">' + (url ? '<img alt="" src="' + url + '">' : '') + '</div>' +
-      '<div class="wt-body"><div class="wt-col"><div class="wt-name"></div>' +
+      '<div class="wt-body"><div class="wt-col">' +
+      // the pill is the name's SIBLING, so `.wt-name` keeps the name alone
+      (isRet ? '<div class="wt-head"><div class="wt-name"></div><span class="wt-pill"></span></div>' : '<div class="wt-name"></div>') +
       '<div class="wt-bar"><i></i></div></div><div class="wt-mult"></div></div>';
     row.querySelector('.wt-name').textContent = (typeof accLabel === 'function' ? accLabel(k) : k);
+    if (isRet) row.querySelector('.wt-pill').textContent = upg ? 'Upgraded' : 'Returned';
     row.querySelector('.wt-mult').textContent = fmtMult(typeof accMult === 'function' ? accMult(k) : 1);
     host.appendChild(row);
     // ⛔⛔ REVIEW FINDING 18, SETTLED BY THE OWNER 2026-08-30: «pokazyvaem obshchuyu, kak v
@@ -1285,7 +1309,9 @@ function renderWinTop(reduce){
     }
   });
 }
-function toast(msg){
+// `quiet` (2026-09-13, the owner's decision 7): the Boost promise follows a purchase that already rang its own
+// sound; every other caller passes one argument and keeps the ding.
+function toast(msg, quiet){
   const t = $('toast');
   // ⚠️ THE GAME'S REFUSAL CHANNEL («Not enough coins», «No hints left», «No shakes left») and it
   // was silent - the sound inventory named it.
@@ -1296,7 +1322,7 @@ function toast(msg){
   // the owner rather than buried here.
   // ⚠️ It can overlap the delegated `ui` click when a BUTTON raised the toast, and that is
   // correct rather than a double-up: the pair reads as «pressed, and answered».
-  try { Sound.play('toast'); } catch (e) {}
+  if (!quiet){ try { Sound.play('toast'); } catch (e) {} }
   t.textContent = msg; t.style.opacity = 1;
   clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.opacity = 0; }, 1600);
 }
@@ -2435,7 +2461,7 @@ function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 // is also an event (`acc_up` telemetry) and a documented hook (`onAccTierUp`) that the suite
 // pins; gating the EVENT would silently stop both, so what is gated is only the DISPLAY.
 // ⚠️ THE FLAG LIVES ON `level`, which genLevel builds fresh — so it resets by itself, in
-// the same way as multAtStart / chargeGiven / continueUsed. No reset line is needed, and
+// the same way as multAtStart / chargeGiven (continueUsed is gone since 2026-09-03). No reset line is needed, and
 // adding one would just be a second truth.
 // ⚠️ `multToastTest` (99-main) DELIBERATELY BYPASSES THIS GATE: it calls showMultToast
 // directly, so the suite can still raise the toast at will. If that ever changes, the toast
@@ -2443,6 +2469,16 @@ function fmtMult(m){ return '×' + (+m).toFixed(2).replace(/\.?0+$/, ''); }
 function showTierUp(ev){
   try {
     if (typeof level === 'undefined' || !level) return;
+    // «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the level's one notice is RESERVED for the returned kind. Another kind's
+    // tier-up is dropped WITHOUT spending the flag while the returned kind can still reach its threshold; the reservation is
+    // released for good once that kind tiers or becomes unreachable (its copies eaten, a boost capped it). A SECOND early
+    // exit, standing BEFORE the once-per-level one below - that gate itself is unchanged.
+    const rk = level.returnKind;
+    if (rk && !rk.tiered && !rk.released){
+      if (ev && ev.key === rk.name) rk.tiered = true;
+      else if (returnReachable(rk)) return;
+      else rk.released = true;
+    }
     if (level.multToastShown) return;
     level.multToastShown = true;
     // ⚠️ INSIDE the once-per-level gate on purpose: the owner capped this notice at one per
@@ -2463,7 +2499,7 @@ function demoAccSnapshot(){
   return Object.keys(byKey).slice(0, 12).map((k, i) => {
     const count = 40 + i * 97 % 900 + byKey[k].n * 7;
     let tier = 0; while (tier < ACC_TIERS_DEMO.length && count >= ACC_TIERS_DEMO[tier]) tier++;
-    return { name: k, count, tier, mult: 1 + 0.25 * tier,
+    return { name: k, count, tier, mult: 1 + ACC_MULT_STEP * tier,
       next: ACC_TIERS_DEMO[tier] || null, _item: byKey[k].it };
   });
 }
@@ -2583,7 +2619,7 @@ function setWalletNumber(el, n){
   if (grouped !== plain && !fits()) el.textContent = plain;
   if (plain !== short && !fits()) el.textContent = short;
 }
-// how many types are opened by the progression: 9 at level 1, +1 per level, the pool's ceiling
+// how many types are opened by the progression: LEVEL_TYPES_MIN (3) at level 1, +1 per level, the pool's ceiling
 // (the types are opened IN THE ORDER of the TYPES array — as in genLevel)
 function unlockedTypeCount(){
   const lvl = (typeof levelNum === 'number' ? levelNum : 1);
@@ -3619,7 +3655,7 @@ function buildVitrine(){
   }
   vitSlots = [];
   const ranked = vitRankedAll();
-  const count = Math.min(VIT_MAX, ranked.length); // EXACTLY 3 (there are always ≥9 types)
+  const count = Math.min(VIT_MAX, ranked.length); // EXACTLY 3 (level 1 deals LEVEL_TYPES_MIN = 3 = VIT_MAX types, nothing to spare; see 00-config)
   // we cap the cascade's step so that the unfolding does not drag on (~0.45 s)
   const step = Math.min(0.07, 0.45 / Math.max(1, count));
   for (let i = 0; i < count; i++){
@@ -3713,14 +3749,16 @@ function tickVitrine(now){
 // desk.). The owner's word: «it goes seamlessly right after the level completion screen».
 //
 // ⚠️⚠️ WHAT COUNTS AS A «NEW ITEM» IS DERIVED FROM THE PROGRESSION AND NOT INVENTED.
-// The types are opened IN THE ORDER of the array: 9 of them at the first level and EXACTLY ONE
+// The types are opened IN THE ORDER of the array: LEVEL_TYPES_MIN (3) of them at the first level and EXACTLY ONE
 // new one for each subsequent one (`LEVEL_TYPES_MIN + (level − 1)`, the single rule of
 // genLevel and `isTypeUnlocked`). Which means the screen has a natural and
 // deterministic occasion: to show that single item which will open at
 // the level the player has just moved on to.
-// ⛔ FOR THAT VERY REASON IT IS NOT THERE BEFORE THE FIRST LEVEL (there a whole nine open at once —
-// a single «new item» does not stand out) AND WHEN THE POOL IS EXHAUSTED (from level 112 no new types
-// appear any more). Both branches are obliged to hand control on, otherwise
+// NB: FOR THAT VERY REASON IT IS NOT THERE BEFORE THE FIRST LEVEL (there the whole starting set of
+// LEVEL_TYPES_MIN opens at once — a single «new item» does not stand out) AND WHEN THE POOL IS
+// EXHAUSTED (the last kind opens at level TYPES.length - LEVEL_TYPES_MIN + 1 = 103 today, so from
+// level 104 no new types appear any more; «nine» and «level 112» stood here until 2026-09-13; the
+// PROGRESSION section of test.js derives both ends). Both branches are obliged to hand control on, otherwise
 // the «Next» button will silently stop starting a level — the same rake as with
 // the story announcement.
 function newObjDue(){

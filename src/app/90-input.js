@@ -780,7 +780,10 @@ $('msGrid').addEventListener('click', e => {
     const res = buyBoost(boostKey);
     // refreshMainScreen rebuilds the grid (the balance/the availability of the others) — we hang
     // the celebration AFTER, on the fresh card by key (the green top-up + the particles of joy)
-    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); }
+    // THE PIN PROMISE (the owner's decision 7, 2026-09-13): «This item will come to every level», on a successful
+    // purchase only. QUIET: the purchase already rings its own sound one line up, and a second ding on the same tap
+    // reads as two events.
+    if (res.ok){ Sound.play('surprise', 0.55); vibrate([15, 30, 15]); refreshMainScreen(); boostCelebrate(boostKey); toast(BOOST_PIN_TEXT, true); }
     else toast(res.reason === 'capped' ? 'Max tier reached' : 'Not enough points');
     return;
   }

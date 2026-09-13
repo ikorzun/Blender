@@ -111,10 +111,11 @@ function doMatch(list){
         if (!again) chainNextDrop = nowMs + 600; // an active chain's refill is already ticking
         comboCount = 0; // the series is «spent» on the launch — the next one piles up anew
         // THE «TYPE CHARGE» DROP (the owner's spec 2026-07-31, 00-config):
-        // 1/level (level.chargeGiven) and only into an empty slot. The type is random
-        // among the LIVE ones with >= CHARGE_MIN_COPIES copies: below that threshold
-        // the charge would blow up 1-2 items and disappoint (measurement: median
-        // copies 14 early / 6 at lv.25).
+        // 1/level (level.chargeGiven) and only into an empty slot, among the LIVE types
+        // with >= CHARGE_MIN_COPIES copies: below that threshold the charge would blow up
+        // 1-2 items and disappoint (measurement: median copies 14 early / 6 at lv.25).
+        // CANCELLED 2026-09-13: «the type is random». Decision 7 - the most upgraded
+        // eligible type, random only among ties (the rule lives in tryGiveCharge, 40-items).
         tryGiveCharge();
         const mid1 = new THREE.Vector3();
         list.forEach(it => mid1.add(it.p));
@@ -172,7 +173,7 @@ function doMatch(list){
   frozenCredit(typeName, n);                 // credit of pairs into the ice blocks of this type
   tapAccMs += performance.now() - _ta0;      // the type's accumulation + writing the save
   // ⚠️ The purchased booster is the LAST multiplier of the stack (combo ×2 × accumulation
-  // up to ×3.25 × booster up to ×5 × the rival's ×3, all through `rewardMult`), and since
+  // up to ×5.5 (×3.25 until 2026-09-13) × booster up to ×5 × the rival's ×3, all through `rewardMult`), and since
   // 2026-09-12 the level's merge curve (`levelMergeMult`, ×1 through level 17).
   // ⛔⛔ «IT MULTIPLIES THE PENALTIES TOO (the owner's decision 2026-07-28)» STOOD HERE UNTIL
   // 2026-09-12, nine days after scorePenalty stopped doing it (2026-09-03-h). The rule in force is
@@ -192,7 +193,17 @@ function doMatch(list){
   // and fire multipliers do not work (a promise to the owner); the type's upgrade, the
   // purchased booster and the level's merge curve stay — none of them is series-based.
   const hasRefill = list.some(i => i.refill);
-  const gained = Math.round(MATCH_SCORE * n * (n-1) * levelMergeMult(levelNum) * ((comboHot && !hasRefill) ? seriesMult(nowMs) : 1) * accMult(typeName) * rewardMult() * ((fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1));
+  // THE TIER SHARE (the owner's decision 7, 2026-09-13: the win screen says «Your upgraded items: +N points»). Every
+  // factor is read ONCE into a name, so the payout and the same payout WITHOUT the type multiplier see identical
+  // numbers (rewardMult reads the clock; a second read could land on the other side of a window's edge). The
+  // product order of `gained` is the one it always had - at tier 0 am is exactly 1 and the share is exactly 0.
+  // The share is RAW (floored once at the win screen, never per merge) and it counts BOUGHT tiers too - accMult
+  // does not tell earned from bought. WARNING: it is written as `+=` on its own counter; never as a subtraction
+  // from the score (SCOREMATH S1 counts the one charging line of the build).
+  const lmm = levelMergeMult(levelNum), sm = (comboHot && !hasRefill) ? seriesMult(nowMs) : 1,
+        am = accMult(typeName), rm = rewardMult(), fm = (fireHot && !hasRefill) ? FIRE_BONUS_MULT : 1;
+  const gained = Math.round(MATCH_SCORE * n * (n-1) * lmm * sm * am * rm * fm);
+  stats.tierRaw += gained - Math.round(MATCH_SCORE * n * (n-1) * lmm * sm * rm * fm);
   // the multiplier toast under the eyes (node 829:1242): only for upgraded types
   // ⚠️ ONLY WHEN THE MULTIPLIER GREW DURING THIS RUN (the owner's word 2026-08-05:
   // «the toast under the eyes is shown only if the item's multiplier was increased
@@ -211,8 +222,9 @@ function doMatch(list){
   // popping on every collection of a kind that grew this run, i.e. the complaint would have
   // survived the fix untouched. The tier-up path (showTierUp → showMultToast) is now the
   // ONLY producer, and it is gated to once per level.
-  // ⚠️ `level.multAtStart` STAYS ALIVE — it is a snapshot the win screen and the meta read;
-  // it is not this toast's private state, and deleting it here would break other readers.
+  // `level.multAtStart` STAYS ALIVE - it is not this toast's private state.
+  // TOMBSTONE 2026-09-13: «a snapshot the win screen and the meta read» was a claim, not a reader - from 2026-08-23-a until
+  // decision 9 nothing read it. Its one reader now is the win screen's returned-kind pill («Upgraded», renderWinTop, 85-hud).
   const scoreBefore = stats.score;
   stats.score += gained;
   const shownGain = scoreShownDelta(scoreBefore, stats.score); // denom. gain of the chip (#10)
@@ -399,10 +411,13 @@ function breakIce(it, byBomb){
   // condition being fulfilled is not paid for.
   if (!byBomb){
     const before = stats.score;
-    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * levelMergeMult(levelNum) * accMult(it.frozenType)   /* ⛔ NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
+    // the tier share of decision 7 (2026-09-13) - each factor read once, the plain payout without accMult beside it
+    const ilmm = levelMergeMult(levelNum), iam = accMult(it.frozenType), irm = rewardMult();
+    const gained = Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * ilmm * iam   /* NOT it.key: the line above restores 'T'+idx, while Save.ac/Save.bo are keyed by
                               type.name (every accAdd passes a name) - so accTier was 0 and this multiplier was
                               exactly 1, always, against a comment promising «x the type's multiplier».
-                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * rewardMult());
+                              frozenCredit two screens up already uses the right field. Audit 2026-09-01-o. */ * irm);
+    stats.tierRaw += gained - Math.round(MATCH_SCORE * FROZEN_BREAK_MULT * ilmm * irm);
     stats.score += gained;
     const shown = scoreShownDelta(before, stats.score);
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
@@ -584,7 +599,11 @@ function bowlCollectAll(){
   for (const [name, list] of Object.entries(byType)){
     const k = list.length;
     const kk = Math.min(k, MATCH_MAX_N);
-    gainedTotal += Math.round(MATCH_SCORE * kk * (kk - 1) * levelMergeMult(levelNum) * accMult(name) * rewardMult());
+    // the tier share of decision 7 (2026-09-13), per kind - each factor read once
+    const blmm = levelMergeMult(levelNum), bam = accMult(name), brm = rewardMult();
+    const bg = Math.round(MATCH_SCORE * kk * (kk - 1) * blmm * bam * brm);
+    gainedTotal += bg;
+    stats.tierRaw += bg - Math.round(MATCH_SCORE * kk * (kk - 1) * blmm * brm);
     accAdd(name, k, list[0]);
   }
   stats.score += gainedTotal;
@@ -674,7 +693,10 @@ function detonateCharge(){
   const N = Math.min(n, MATCH_MAX_N);            // the price cap — as with a group
   // ⚠️ THE BOOSTER MULTIPLIES THE CHARGE TOO (the owner's word 2026-08-01: «it multiplies») —
   // like all the score points; the combo ×2 still does NOT take part (the rationale is at the formula).
-  const gained = Math.round(MATCH_SCORE * N * (N - 1) * levelMergeMult(levelNum) * accMult(name) * rewardMult());
+  // the tier share of decision 7 (2026-09-13) - each factor read once, the plain payout without accMult beside it
+  const clmm = levelMergeMult(levelNum), cam = accMult(name), crm = rewardMult();
+  const gained = Math.round(MATCH_SCORE * N * (N - 1) * clmm * cam * crm);
+  stats.tierRaw += gained - Math.round(MATCH_SCORE * N * (N - 1) * clmm * crm);
   const chargeScoreBefore = stats.score;   // for the pop below: the SHOWN delta, not the raw one
   stats.score += gained;
   accAdd(name, n, victims[0]);                   // A RESCUE: it accumulates for all n

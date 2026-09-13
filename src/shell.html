@@ -1677,7 +1677,12 @@
   }
   #toast { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); background:rgba(15,20,30,.92);
     border:1px solid rgba(255,255,255,.12); padding:9px 16px; border-radius:12px; font-size:14px; font-weight:600;
-    opacity:0; transition:opacity .25s; pointer-events:none; z-index:8; white-space:nowrap; }
+    opacity:0; transition:opacity .25s; pointer-events:none; z-index:35; white-space:nowrap; }
+  /* THE TOAST WAS UNDER THE MENU (2026-09-13, measured while wiring the owner's decision 7): z-index 8 against
+     #mainScreen 30 with its opaque sky, so every toast fired from inside the menu - «Not enough points», «Max tier
+     reached», «Coming soon», and now the Boost promise - was drawn and never seen. 35 is above the menu (30) and
+     its floating header (31), below the shop/leaderboard overlays (40), #newObj (46) and #multToast (60).
+     WARNING, the one new exposure: a toast fired in the 1.6 s before the win overlay (20) shows over it now. */
   #debugPanel { display:none; position:fixed; right:12px; bottom:90px; z-index:7; background:rgba(15,20,30,.95);
     border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px 16px; font-size:14px; width:230px; }
   #debugPanel .row { display:flex; align-items:center; justify-content:space-between; margin:8px 0; gap:8px; }
@@ -1919,7 +1924,9 @@
        width and the right edges coincide, long ones («×3.25») outgrow it — the
        cropping, because of which the owner wrote «the multiplier does not fit», will not
        happen at any value. 56 = the former fixed width: on it the edges
-       were aligned, now this is a FLOOR, and not a ceiling. */
+       were aligned, now this is a FLOOR, and not a ceiling.
+       NOTE: SINCE 2026-09-13 (ACC_MULT_STEP 0.5) the reachable strings are ×1.5…×5.5 — four
+       characters; «×1.25»/«×3.25» above are the history of the fit. */
     min-width:56px;
     background:rgba(255,255,255,.4); border-radius:32px; line-height:1.2; }
   /* ⚠️ EVENING/NIGHT = A DARK THEME (mock-ups 776:649/776:701). The html.night signal is
@@ -2668,6 +2675,15 @@
   .wt-body { flex:1; min-width:0; display:flex; align-items:center; gap:16px; }
   .wt-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
   .wt-name { color:#fff; font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* «YOUR ITEM RETURNS» (decision 9, 2026-09-13): the returned kind's row carries a short pill beside its name - «Returned»,
+     or «Upgraded» in the progress lime once it tiered up this level. The pill is the name's sibling (`.wt-name` keeps the
+     name alone), it never shrinks, and the NAME gives way with its ellipsis - so the pill fits down to a 320 px screen.
+     It has NO animation of its own: it rides the row's entrance, which the prefers-reduced-motion list already stops. */
+  .wt-head { display:flex; align-items:center; gap:6px; min-width:0; }
+  .wt-head .wt-name { flex:0 1 auto; min-width:0; }
+  .wt-pill { flex:none; font-size:11px; font-weight:800; line-height:1; padding:3px 8px; border-radius:32px;
+    background:rgba(255,255,255,.16); color:#fff; white-space:nowrap; }
+  .wt-return-up .wt-pill { background:#c0ff47; color:#000; }
   /* ⛔ THE HEIGHT 10 → 12 (node 779:1056 in the redrawn frame 891:4251). */
   .wt-bar { height:12px; border-radius:32px; background:rgba(0,0,0,.2); overflow:hidden; }
   .wt-bar i { display:block; height:100%; width:0; background:#c0ff47; border-radius:40px;
@@ -2717,6 +2733,12 @@
   @media (hover:hover) and (pointer:fine){ .win-next:hover { background:#d2ff7e; } }
   .win-in .win-next { animation:winRise .4s ease-out .94s both; }
   .win-in .win-top-label { animation:winRise .35s ease-out 1s both; }
+  /* THE TIER LINE (the owner's decision 7, 2026-09-13): a line of its own above the Top Items list. It enters just
+     before the list's plate (1 s). The [hidden] rule is load-bearing: `display` is set here, and an author display
+     beats the UA's [hidden] - without it a line with nothing to say would still take its row. */
+  .win-upg { display:block; color:#fff; font-weight:800; font-size:18px; line-height:1.25; text-align:center; }
+  .win-upg[hidden] { display:none; }
+  .win-in .win-upg { animation:winRise .35s ease-out .97s both; }
   .win-in .wt-row { animation:winRowIn .42s cubic-bezier(.34,1.56,.64,1) both; }
   /* ===== THE MOBILE COMPLETION SCREEN — mock-up 783:711 =====
      ⛔⛔ BOTH DIFFERENCES THIS BLOCK WAS BUILT FOR ARE GONE, AND THE BLOCK IS STILL NEEDED.
@@ -2756,7 +2778,7 @@
     .win-in .win-level, .win-in .win-cleaned, .win-in .win-time, .win-in .win-score,
     .win-rw-n.bump { animation:none; }
     .win-in .win-reward, .win-in .win-next, .win-in .win-top-label, .win-in .wt-row,
-    .win-in .win-top-list::before,
+    .win-in .win-top-list::before, .win-in .win-upg,
     .win-in .win-lbslot { animation:none; }
     /* ⚠️ HERE THEY RESTORE THE STATIC ROTATION, WHICH OTHERWISE WOULD BE REMOVED BY
        the switched-off entry animation (`animation:none` returns the element to the
@@ -5418,6 +5440,9 @@
       </section>
     </div>
     <div class="win-top">
+      <!-- THE TIER LINE (the owner's decision 7, 2026-09-13): a line of its own ABOVE the list, never a score pop or
+           a toast. Hidden until renderWinScreen has a non-zero share to state. -->
+      <div class="win-upg" id="winUpg" hidden></div>
       <div class="win-top-list" id="winTopList"></div>
     </div>
     <!-- ⚠️⚠️ THE BUTTONS STAND UNDER TOP ITEMS (the owner's word 2026-08-11:

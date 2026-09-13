@@ -356,7 +356,7 @@ function tickIntro(dt){
     // THE MEASUREMENT THAT DEMANDED THIS: a tick only in 'drop' did not manage to hand out
     // the queue — the phase ends by `t > 0.8 && maxV < 3.5`, and with waves the pile at
     // the start is almost empty and the speeds are low, that is, the transition happens at the very
-    // EARLIEST threshold. The remainder (up to ~100 bodies out of 182) was dumped by `waveReleaseAll`
+    // EARLIEST threshold. The remainder (up to ~100 bodies out of 182, measured at the 180-item bowl) was dumped by `waveReleaseAll`
     // in finishIntro ALL AT ONCE — the work moved BEYOND the intro window, in front of the player:
     // time to calm 5.9-6.0 s against 5.5 without waves (lv.11, CPU ×4), while
     // the intro-window metric honestly showed −51% and did not see this.
@@ -569,7 +569,7 @@ let perfWin = [], perfWinStart = 0, perfDecided = false;
 // tupit, proveril na realnykh dannykh»). The one-shot window measured the FIRST 2.5 s of play —
 // a phone that was fast at level 1, or entered Low Power Mode mid-session, or thermally
 // throttled ten minutes in, passed as fast FOREVER: `perfDecided` latched on the green outcome
-// and the tier could never fire again, exactly when 180 items at level 11+ met a throttled GPU.
+// and the tier could never fire again, exactly when 180 items at level 11+ met a throttled GPU (the bowl then; 140 from level 7 since 2026-09-13).
 // Now the window RE-ARMS after a green verdict and keeps watching. Everything else is
 // unchanged and deliberate: one tier, ONLY DOWNWARDS (once low, we stop — there is nothing
 // further to do), the intro and outlier gating stays, the pause gating stays at the call site
@@ -1256,7 +1256,7 @@ window.__game = {
   // 2026-07-29): a flip of material.transparent on ALL live items. It returns
   // the ms of the flip itself + the first frame — and that is the price of recompilation (transparent
   // is part of the three program key through `#define OPAQUE`).
-  // MEASURED: the 1st flip of 183 materials — 34 ms (compiling the second variant),
+  // MEASURED (2026-07-29, at the 180-item bowl): the 1st flip of 183 materials — 34 ms (compiling the second variant),
   // each next one 1.2-1.6 ms (both programs are already in the three cache). That is why
   // «the complexity is applied from the next level» is a removable limitation.
   // The price of transparency is measured by it too, with a paired alternating measurement (see WORKSTREAMS).
@@ -1428,6 +1428,22 @@ window.__game = {
                                  tieFrom: MISS_TIE_FROM, tieMerges: MISS_TIE_MERGES }; },
   distinctCap(lv){ return levelDistinctCap(lv); },
   dealtTypes(){ return (level && level.dealtTypes) ? level.dealtTypes.slice() : null; },
+  // «YOUR ITEM RETURNS» (decision 9, 2026-09-13). returnInfo() answers whenever a level exists: `name` null means no return
+  // on this deal; `window` is the level's own {dbl, lower, upper}; `live` the returned kind's live copies; `reserved` whether
+  // the level's one tier-up notice is being held for it. returnLatchClear() is a TEST DOOR that forgets the session latch
+  // so the next regen picks again - production never calls it.
+  returnInfo(){
+    if (!level) return null;
+    const rk = level.returnKind || null;
+    let live = 0;
+    if (rk) for (const it of items) if (it && it.alive && !it.surprise && !it.bomb && !it.rival && it.type && it.type.name === rk.name) live++;
+    return Object.assign({ name: null, idx: -1, dbl: 0, copies: 0, gap: 0, tier0: 0, tiered: false, released: false }, rk || {}, {
+      live, reserved: !!(rk && !rk.tiered && !rk.released && returnReachable(rk)),
+      window: level.returnWin || null, fromLevel: RETURN_FROM_LEVEL, maxPairs: RETURN_MAX_PAIRS, share: RETURN_MERGE_SHARE,
+      latchLevel: returnLevelNo, latchName: returnLatchName, topN: winTopN(),
+      distinct: level.dealtTypes ? level.dealtTypes.length : 0, typesCount: level.typesCount, pairs: pairsForLevel(levelNum) });
+  },
+  returnLatchClear(){ returnLevelNo = -1; returnLatchName = ''; return true; },
   levelNum(){ return levelNum; },
   // debug/suite: the last telemetry events (the buffer accumulates even when
   // sending is off — otherwise the metrics could not be checked before production)
@@ -1448,6 +1464,10 @@ window.__game = {
   // ⛔ The winLbStub/winLbInfo hooks were cut out together with the inset cluster (85-hud).
   winScreen(on){ if (on){ show('winOverlay'); try { fitWinTopRow(); } catch (e) {} }
     else hide('winOverlay'); },
+  // the wordings of the owner's decision 7 (2026-09-13), read by the TIERSHARE and BOOSTPIN guards so a guard never
+  // keeps a second copy of a string that lives in 77-save
+  winUpgText(n){ return winUpgText(n); },
+  boostPinText(){ return BOOST_PIN_TEXT; },
   // ⚠️ A LOAD-BEARING HOOK, NOT A CONVENIENCE: the guard «the feature is off — there is no entry point to
   // the menu» stands on it. Without it the guard WOULD WAIT for somebody to open the menu with the module
   // removed — that is, it would inherit the situation instead of BRINGING IT ABOUT.
@@ -1737,6 +1757,20 @@ window.__game = {
                          windowMs: MATCH_R_MISS_MS }; },
   missRadiusNow(){ noteMissRadius(); return missRadiusCap(); },
   baseRadiusDefault(){ return BASE_RADIUS_DEFAULT; }, // to the guards — return the live value, not a literal
+  //  THE CONSTANTS BATCH OF 2026-09-13 (PAIRS 70, items ×cbrt(180/140), FROZEN_PAIRS_N 2): the guards read
+  // the rules LIVE instead of pinning copies of them. `pairsRule().at` is the production pairsForLevel.
+  meshScale(){ return MESH_SCALE; },
+  pairsRule(){ return { pairs: PAIRS, start: PAIRS_START, step: PAIRS_STEP, at: lv => pairsForLevel(lv) }; },
+  frozenRule(){ return { n: FROZEN_PAIRS_N, eligibleCopies: FROZEN_PAIRS_N * 2 + 2, breakMult: FROZEN_BREAK_MULT,
+                         fromLevel: FROZEN_FROM_LEVEL, matchScore: MATCH_SCORE }; },
+  spawnLayerStep(){ return SPAWN_LAYER_STEP; },
+  // THE SILENT SERVICE-WORKER RECHECK (decision 10, 2026-09-13), read by SWRECHECK. swRecheckWith drives
+  // the PRODUCTION chain (swRecheckFire) on a fake registration and returns nothing on purpose: a
+  // rejection the chain failed to catch must surface as the page's own unhandledrejection, not be
+  // swallowed by the caller's await.
+  swRecheckDue(now, last, hiddenMs, online, hidden){ return swRecheckDue(now, last, hiddenMs, online, hidden); },
+  swRecheckState(){ return { armed: swRecheckArmed, last: swLastCheckAt, gap: SW_RECHECK_GAP_MS, hidden: SW_RECHECK_HIDDEN_MS }; },
+  swRecheckWith(fakeReg){ swRecheckFire(fakeReg); },
   missRadiusClearTest(){ missRadiusClear(); updateMatchRadius(); }, // the transition guard: the same scene WITHOUT the penalty
 
   // ⚠️⚠️ A LOAD-BEARING HOOK: the fraction of the progress bar. It is shown by TWO screens (the showcase
@@ -3167,9 +3201,63 @@ function registerServiceWorker(){
     // soft-update throttle lasts (up to a day) — which is not the price he agreed to. He agreed to ONE
     // launch. The cost of the line is a conditional GET of an 8 KB script, after the game is already up.
     // ⚠️ ONLY WHEN THERE IS SOMETHING TO UPDATE: on a first-ever visit `register()` is itself the install.
+    // AND THE PROMISE IS CAUGHT (2026-09-13): update() RETURNS a promise and rejects when offline — a
+    // try/catch does not catch a rejected promise, so an offline boot used to raise an unhandled rejection
+    // (a 'promise' error for 79-telemetry the day its URL is switched on).
     navigator.serviceWorker.register('sw.js').then(function(r){
-      try { if (r && r.active) r.update(); } catch(e){}
+      swLastCheckAt = Date.now();
+      try { if (r && r.active) r.update().catch(function(){}); } catch(e){}
+      // THE RECHECK ON RETURN TO THE SCREEN (the owner's decision 10, 2026-09-13), ARMED ONCE AND ONLY
+      // HERE: inside this .then the four gates above already hold (https, not automated, not framed, not
+      // ?nosw=1), so the WKWebView wrapper, the portal iframe and the suite never get a listener.
+      // 90-input's own visibilitychange handler is attached unconditionally and must NOT carry this.
+      // The listeners never touch the pause (openMainScreen owns it). No controllerchange, no reload.
+      if (swRecheckArmed) return;
+      swRecheckArmed = true;
+      var hiddenAt = 0;
+      document.addEventListener('visibilitychange', function(){
+        if (document.hidden){ hiddenAt = Date.now(); return; }
+        var away = hiddenAt ? Date.now() - hiddenAt : 0;
+        hiddenAt = 0;
+        swRecheck(away);
+      });
+      // a plain pageshow fires on EVERY load and would repeat the boot check; only a back-forward
+      // cache restore counts (it also fires visibilitychange — the gap dedupes the pair)
+      window.addEventListener('pageshow', function(e){ if (e && e.persisted) swRecheck(Infinity); });
     }).catch(function(){});
+  } catch(e){}
+}
+
+// THE RECHECK'S STATE AND ITS TWO HALVES (decision 10, 2026-09-13). Top level, AFTER
+// registerServiceWorker's closing brace: PWA arm 3 reads that function by a lazy text slice that ends
+// at its first column-0 brace. The lets are read only from async callbacks, long after evaluation.
+let swLastCheckAt = 0, swRecheckArmed = false;
+// THE PURE DECISION, a table the suite reads from the live constants. `online !== false` and not
+// `online === true`: an engine that does not report navigator.onLine must not be read as offline.
+// NO PAYMENT TERM (the adversarial review of 2026-09-13): a first draft skipped the check while
+// `payPending()` held a mark, «so the prefetch could not switch the build under the paying tab». Both
+// halves were wrong — nothing reloads the running page (no controllerchange listener), the pay worker is
+// cross-origin and the service worker never touches it — and 83-pay deliberately keeps that mark through
+// a fruitless poll round (cleared only by a grant or a cancel), so a player who once closed Stripe's page
+// without paying would never have got a recheck again: decision 10 switched off for good, silently.
+function swRecheckDue(now, last, hiddenMs, online, hidden){
+  return !hidden && online !== false &&
+    hiddenMs >= SW_RECHECK_HIDDEN_MS && (now - last) >= SW_RECHECK_GAP_MS;
+}
+// THE EFFECT, one chain for production and for the test door alike — a door carrying its own copy
+// would stay green while the live chain lost its .catch. The registration is asked at CHECK time and
+// never captured at boot: iOS may clear service-worker state after long inactivity, and a stale
+// registration's update() rejects. EVERY rejection of the chain is caught here.
+function swRecheckFire(regPromise){
+  return Promise.resolve(regPromise).then(function(r){
+    if (r && r.active) return r.update();
+  }).catch(function(){});
+}
+function swRecheck(hiddenMs){
+  try {
+    if (!swRecheckDue(Date.now(), swLastCheckAt, hiddenMs, navigator.onLine, document.hidden)) return;
+    swLastCheckAt = Date.now();
+    swRecheckFire(navigator.serviceWorker.getRegistration());
   } catch(e){}
 }
 

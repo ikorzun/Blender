@@ -25,7 +25,18 @@ const SLOPE = (FUNNEL.R1 - FUNNEL.R0) / FUNNEL.H;
 // ⛔ DO NOT CONFUSE WITH FOREIGN ONES: `SURPRISE_BONUS`, `SURPRISE_LEVEL_BONUS`,
 // `STAR_LEVEL_BONUS`, `FIRE_BONUS_MULT` — different mechanics, they stay.
 const FLOOR_REST = 1.15; // items lie above the blade zone (the blades are right at the bottom, visible through the glass)
-const PAIRS = 90;            // CEILING: the mass fills the glass ~85%
+// NB: 90 → 70 (the owner's word 2026-09-13: the bowl holds 140 items, for every player, no
+// migration). PAIRS_START 40 / PAIRS_STEP 5 are unchanged, so the ceiling now arrives at level 7
+// (40 + 5·6) instead of 11, and levels 8/9/10 lose 10/20/30 items. The pile keeps its height
+// because the items grew by ITEM_SIZE_K (below): (MESH_SCALE/0.62)^3 · 2·PAIRS = 180, the volume
+// the red line was tuned for. NOTE: EDIT ONE OF THE PAIR WITHOUT THE OTHER AND THE PILE DROPS OR
+// OVERFILLS — the BOWL140 section states the product.
+const PAIRS = 70;            // CEILING: 140 items of the enlarged size fill the glass as 180 did
+//  THE SINGLE SIZE FACTOR OF 2026-09-13 (the owner: «items 9% bigger», «the reach grows by the
+// same 9%»). cbrt(180/140) = 1.0874: 140 items of this size take the volume 180 took. It lives
+// HERE, not in 30-shapes, because the match radii below are defined in this module and a const of
+// a later module is in the temporal dead zone for this one. MESH_SCALE (30-shapes) reads it too.
+const ITEM_SIZE_K = Math.cbrt(180 / 140);
 // LEVEL SIZE PROGRESSION (testers' feedback via the owner 2026-08-05:
 // "for an easy level the number of objects has to be reduced, make a
 // progression across levels"). A measurement BEFORE the fix showed there was no
@@ -34,6 +45,7 @@ const PAIRS = 90;            // CEILING: the mass fills the glass ~85%
 // plateau up to level 40.
 // Now: start at 40 pairs (80 items), +5 pairs per level, ceiling 90 pairs
 // (180) at level 11. The first level is 38% easier than before.
+// NB: THE CEILING IS 70 PAIRS (140) AT LEVEL 7 SINCE 2026-09-13 — see PAIRS above.
 const PAIRS_START = 40, PAIRS_STEP = 5;
 function pairsForLevel(lv){
   const n = (typeof lv === 'number' && lv > 0) ? lv : 1;
@@ -68,6 +80,8 @@ const MATCH_SCORE = 1 * PT;  // a group of N pays MATCH_SCORE·N·(N−1) → a 
 // items while the dealt types keep growing (the `levelDistinctCap` ramp), so the expected group
 // shrinks — and the merge is QUADRATIC in the group. The base total of a level falls 302 → 269 →
 // 246 → 225 across levels 11 / 17 / 30 / 100, while the price of a mistake stays 10-15.
+// NB: THOSE TOTALS ARE FROM THE 180-ITEM BOWL — HISTORY SINCE 2026-09-13 (140 items from level 7);
+// the step 0.05 stays by the owner's word, the numbers are not to be quoted as live.
 // ⚠️ THE CURVE IS A MULTIPLIER OF A MERGE'S BASE PRICE: ×1 through `MERGE_CURVE_FROM`, and
 // `1 + step·(lv − FROM)` above it. Every reward priced in merges reads it — a match, the ice break,
 // the bowl collect-all, the type charge, the level goal, and the typical merge a mistake is tied to
@@ -241,7 +255,8 @@ const SURPRISE_LEVEL_BONUS = 0.5 * PT;
 // "if you combined [many] objects, then their multiplier by default
 // increases... with respect to each object"). The thresholds are approved as the series
 // ×2+100: 100/300/700/1500/3100/6300... = 100·(2^n−1) — the first tier
-// happens in the first session (~level 7). The score multiplier of a type = 1 + 0.25×tier.
+// happens in the first session (~level 7). The score multiplier of a type = 1 + ACC_MULT_STEP×tier
+// (0.25 until 2026-09-13, 0.5 since — the owner's word, earned and bought tiers alike).
 // The counters live in the save (77-save, Save.ac), the application — doMatch and the pair-score.
 // ===== SINGLE BALANCE (the owner's finalization 2026-07-24: "score=stars=balance=
 // leaderboard"; CANCELS the "rating delta" model of 2026-07-23). The reward for a win
@@ -304,8 +319,14 @@ const BOOST_TIER_CAP = 5;
 const TYPE_UNLOCK_BASE = 800;
 const TYPE_UNLOCK_PER_LEVEL = 200;
 
-const ACC_MULT_STEP = 0.25;  // +25% to a type's score per tier (approved)
-const ACC_TIER_CAP = 9;      // ceiling of tiers (×3.25; the 9th threshold = 51 100 — practically unreachable, the cap keeps the formula under control)
+// NB: 0.25 → 0.5 (the owner's word 2026-09-13: «the step of a type's multiplier doubles, earned and
+// bought alike»; no migration — existing tiers are worth more on the next level). The cap stays 9,
+// so the ceiling is ×5.5 (was ×3.25) and five bought tiers alone give ×3.5 (was ×2.25). The merge
+// curve (0.05) is unchanged, and PENALTIES AND THE GRINDER NEVER READ A TIER MULTIPLIER
+// (scorePenalty reads none; the grinder charges pairScoreAt, the base value). The ACCSTEP section
+// derives the step from a tier-1 reading instead of pinning a literal beside every consumer.
+const ACC_MULT_STEP = 0.5;   // +50% to a type's score per tier (the owner 2026-09-13; was +25% approved 2026-07-22)
+const ACC_TIER_CAP = 9;      // ceiling of tiers (×5.5 since 2026-09-13, ×3.25 before; the 9th threshold = 51 100 — practically unreachable, the cap keeps the formula under control)
 
 // Difficulty progression across levels. Empirical: deadlocks depend on the NUMBER OF TYPES
 // (fewer types = more copies = more matches on the surface), the radius
@@ -315,7 +336,8 @@ const ACC_TIER_CAP = 9;      // ceiling of tiers (×3.25; the 9th threshold = 51
 // `LEVEL_TYPES_MIN + (level − 1)`, only the start changed.
 // ⛔ THIS IS A DIFFICULTY LEVER, NOT COSMETICS: the number of types is the MAIN regulator
 // (bot measurement: deadlocks depend on it, the radius affects it weakly). The first levels
-// will become noticeably easier, the whole pool opens 6 levels later (117 instead of 111).
+// will become noticeably easier, the whole pool opens 6 levels later (117 instead of 111, then, at a pool
+// of 120; today it is TYPES.length - LEVEL_TYPES_MIN + 1 = 103).
 // ⚠️ The showcase panel requires at least VIT_MAX=3 slots — exactly that many exist on level 1,
 // with nothing to spare. If it drops lower, the panel's height will shift, and the toast anchor
 // reads its rect.
@@ -433,7 +455,10 @@ const TURBO_SHAKE = true;
 // untouched: the chain still runs into the same value instead of getting its own.
 // ⛔ And the endgame ∞ (<=8 alive) is still NOT limited by the ceiling — it stands
 // before all the branches in updateMatchRadius, it is anti-frustration, not a boost.
-const COMBO_RADIUS = 0.8, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // GAP CEILING 0.8 EVERYWHERE, including the Power chain
+//  ×ITEM_SIZE_K SINCE 2026-09-13 (the owner: «the reach grows by the same 9% as the items»): the
+// radii are ABSOLUTE surface gaps, so with bigger items an unchanged 0.8 would have been a silent
+// ~8% nerf relative to the item. The pre-batch number stays written as the literal it multiplies.
+const COMBO_RADIUS = 0.8 * ITEM_SIZE_K, COMBO_MS = 4000, COMBO_CHAIN_MS = 1500, COMBO_SCORE_MULT = 2; // GAP CEILING 0.8 EVERYWHERE, including the Power chain
 // ===== THE TEMPO PACKAGE (the owner's spec 2026-07-31: "there is not enough drive, especially
 // if items are easy to combine and are close" -> "let's try tempo, but
 // show it not through a bar, but through the mixer's eyes"). Three parts:
@@ -679,12 +704,16 @@ const CURTAIN_MAX_MS   = 12000;
 // button), and clicking it blows up all objects of that type in the bowl".
 // THE OWNER'S DECISIONS on my two questions: this is a RESCUE (accAdd accumulates, the museum
 // grows, the mixer gets angry) and the FREQUENCY is 1/level. The drop happens when the Power
-// chain ignites; the type is random among the alive ones with >= CHARGE_MIN_COPIES copies (measurement: the median
+// chain ignites; the type is chosen among the alive ones with >= CHARGE_MIN_COPIES copies - CANCELLED 2026-09-13:
+// «random»; the owner's decision 7 makes it the MOST UPGRADED of them (the highest accTier), random only among ties,
+// on both sources (tryGiveCharge in 40-items) (measurement: the median
 // number of copies is 14 on early levels, 6 on level 25 — below the threshold it would be "an explosion of a single item").
 // ⚠️ THE SCORE USES THE GROUP CAP AND NO ×2 OF THE SERIES: the formula 10·N·(N−1) at N=16 would give
 // +25% of a level's income in one click — the stars and the rank would drift. N is capped by
 // MATCH_MAX_N (at most 560 raw ≈ +7-9%), the combo multiplier is NOT applied:
 // the charge is itself a reward for a series, and a reward must not be multiplied by a reward.
+// NOTE: THE «+7-9%» AND THE COPY MEDIANS ABOVE ARE FROM THE 180-ITEM BOWL AT A TIER STEP OF 0.25 — HISTORY SINCE
+// 2026-09-13 (140 items, step 0.5: a tier-9 charge pays up to 560·5.5 raw, and copies per type fell ~22%).
 // ⚠️ DO NOT CALL IT A "bomb" either in code or in the UI — it clashes with the black ball.
 const CHARGE_MIN_COPIES = 6;
 // ⛔⛔ THE CHARGE ALSO ARRIVES ON A SCHEDULE, NOT ONLY FROM TURBO (the owner 2026-09-01-i: «after
@@ -697,6 +726,8 @@ const CHARGE_MIN_COPIES = 6;
 // was igniting turbo, which needs 16 clean matches - and the post-30 measurement is precisely that
 // 16 clean matches stop happening. The one mechanic that still produces a BIG group had become
 // unreachable exactly where it was needed most.
+// «sometimes» in his word is the TIMING (chargeAtFor stays random, 2026-09-13); WHICH type arrives follows the
+// most-upgraded rule of decision 7, the same as a turbo grant.
 const CHARGE_SCHED_FROM = 21, CHARGE_SCHED_EVERY = 2, CHARGE_SCHED_CHANCE = 0.5;
 
 // ⚡ THE OWNER'S AMENDMENT (the same date, on top of the first spec): "the object must live
@@ -776,6 +807,7 @@ const LEADERBOARD_ID = 'Blendo';
 // compressed 417→125 ms. The arithmetic of the quantity: it was 10000/417≈24 ticks × 2.6,
 // it became 3000/125=24 ticks × 2.6 — THE SUM IS THE SAME, it pours out three times faster and
 // manages to land within 3 s (a fall from the spawn at MAX_FALL takes <1 s).
+// (NOTE: 2026-09-13: «141 alive» is literally PAIRS*2+1 again with PAIRS 70; the air cap is 10, not 8.)
 // The fullness limits (141 alive / top>H-1 / <=8 in the air) are untouched — they cut ticks
 // before as well, now they cut them more densely, and the number will never exceed the old one.
 // ⛔ CHAIN_DROP_MS 125 → 80 (the owner's word 2026-08-23-a: «by the way, speed up their
@@ -824,7 +856,7 @@ const BOLT_TICK_MS = 130, BOLT_TICK_JIT = 110, BOLT_PER_TICK = 2, BOLT_MAX_D = 4
 // 0.75 would stand ABOVE the base, the formula would degenerate into `r = base`, and the dynamic
 // compression would quietly disappear entirely. The owner did not name a floor — so we preserve
 // the FORM of the existing mechanic instead of keeping a number that has lost its meaning.
-const MATCH_R_MIN = 0.375; // the floor of the radius compression: the same 5/6 fraction of the base as before (0.75 at a base of 0.9)
+const MATCH_R_MIN = 0.375 * ITEM_SIZE_K; // ×K since 2026-09-13 (the reach follows the item size); the floor of the radius compression: the same 5/6 fraction of the base as before (0.75 at a base of 0.9)
 
 // ⚠️⚠️⚠️ THE RADIUS PENALTY FOR A MISS — THE OWNER'S SPEC 2026-08-11, VERBATIM:
 // "right now it is too easy to poke at all objects and they will combine, it needs to be
@@ -848,7 +880,10 @@ const MATCH_R_MIN = 0.375; // the floor of the radius compression: the same 5/6 
 // PRODUCTION value. Previously they restored a LITERAL — and there are four of them in the file
 // with the number 0.9 plus two with 0.35, that is, copies lagging two editing epochs behind.
 // Now they restore it from here, and on the next edit of the base they will move by themselves.
-const BASE_RADIUS_DEFAULT = 0.45;
+// NOTE: ×ITEM_SIZE_K SINCE 2026-09-13 (0.4893): the reach grows with the items. The dev panel's slider
+// (#radiusRange, step 0.05) does NOT persist and its markup value 0.9 has been stale since 2026-08-11;
+// touching it writes a grid value over this one for the session only.
+const BASE_RADIUS_DEFAULT = 0.45 * ITEM_SIZE_K;
 // ⚠️⚠️ THE SECOND, SOFT ENDGAME STEP (the owner's word 2026-08-11: "at the end of a
 // level increase the radius so the player can combine items, if there are fewer than
 // 10 of them and there are few or no shakes left. Otherwise it is too hard").
@@ -884,8 +919,8 @@ const ENDGAME_SOFT_SHAKES = 1;   // "there are few or no shakes left"
 // mistakes, and it CANNOT push past `COMBO_RADIUS` — the ceiling that holds everywhere else in the
 // game, including turbo. So a player who keeps missing gets steadily more reach up to a fixed
 // stop, and never more than a player in a perfect streak.
-const MISS_ASSIST_STEP = 0.05;  // added to the radius per consecutive mistake
-const MISS_ASSIST_MAX  = 0.20;  // the stop: four mistakes and the help grows no further
+const MISS_ASSIST_STEP = 0.05 * ITEM_SIZE_K;  // added to the radius per consecutive mistake (×K since 2026-09-13)
+const MISS_ASSIST_MAX  = 0.20 * ITEM_SIZE_K;  // (×K since 2026-09-13) the stop: four mistakes and the help grows no further
 const MATCH_R_MISS_MS = 3000;   // how long a mistake keeps counting as recent (the state's window)
 
 // WEIGHT DURING A SHAKE (the owner's spec 2026-07-21, "option 1"): a discrete
@@ -1160,7 +1195,7 @@ const BOWL_FLY_G = 9.5;       // gravity for the shards (cosmetics, not the worl
 const BOWL_SHARD_TINT_LO = 0.72, BOWL_SHARD_TINT_HI = 1.26;
 // THE GROUP SIZE CAP (the owner's spec 2026-07-27: "put a cap at 8").
 // Before this there was NO cap at all: a tap carried away ALL accessible items of the same type within the
-// radius. A measurement of the ceiling by accessibility: lv.1 (9 types) up to 16 items,
+// radius. A measurement of the ceiling by accessibility (2026-07-27, at LEVEL_TYPES_MIN 9 and 180 items): lv.1 (9 types) up to 16 items,
 // lv.10 (18 types) 10, lv.40 (48 types) 3-4 — that is, the cap really works
 // only on EARLY levels, on late ones it changes nothing.
 // ⚠️ THE WHOLE match is counted, INCLUDING the tapped item (a group of <= 8 items).
@@ -1236,10 +1271,14 @@ const BOMB_FROM_LEVEL = 5;
 // lv.40 → 2, lv.60 → 1): the type for a block is CHOSEN among those with
 // ≥ 2N+2 copies (N free pairs + the block's partner). If there are none — there is no block, the queue
 // shifts to the next level.
+// NB: N 3 → 2 (the owner's word 2026-09-13). With the bowl at 140 items no type reached 8 copies
+// from level 22 and the ice silently left the game (types with 8 copies: lv19 7, lv20 4, lv21 1,
+// lv22+ 0). At N=2 a type needs 6 copies, which keeps the ice reachable to about level 129. The
+// measurement table above is from the 180-item bowl and N=3 — history.
 const FROZEN_FROM_LEVEL = 11;
 const FROZEN_GAP_MIN = 1, FROZEN_GAP_MAX = 3;
 const FROZEN_MAX_PER_LEVEL = 2;
-const FROZEN_PAIRS_N = 3;
+const FROZEN_PAIRS_N = 2;
 const FROZEN_BREAK_MULT = 3;        // earlier — there is no bomb at all
 const BOMB_GAP_MIN = 1, BOMB_GAP_MAX = 3;   // "every 1-3 levels"
 // ⛔⛔ 3 → 2 (the owner's word 2026-08-23-a) — the same counterweight as at
@@ -1259,6 +1298,27 @@ const BOMB_RADIUS = 5.72, BOMB_MAX = 7, BOMB_WAVE_V = 15.0; // the zone ×2 (2.8
 // scale, the enclosing radius `r` used by the blast metric, and `scl` used to build the collider.
 const BOMB_SCALE = 1.425;   // 0.95 x 1.5, in units of MESH_SCALE
 const FROZEN_BOMB_RADIUS = 2.86;
+// «YOUR ITEM RETURNS» (the owner's decision 9, 2026-09-13). From RETURN_FROM_LEVEL genLevel may deal ONE old unlocked kind
+// a double share, so a kind close to its next EARNED tier actually gets there on that level (pickReturnKind, 40-items).
+// RETURN_MAX_PAIRS caps the share: 10 pairs = 20 copies, 14% of the 140-item bowl; under PAIRS 70 it binds at level 11
+// only (round(140/13) = 11; at level 12 the round gives exactly the cap, 10).
+// RETURN_MERGE_SHARE 0.75 IS UNMEASURED - a named default, not a measurement: the share of a kind's copies a player is
+// assumed to actually merge (the owner's simulation assumed 0.85 and 0.70). The window below is gap-safe under it.
+const RETURN_FROM_LEVEL = 11;
+const RETURN_MAX_PAIRS = 10;
+const RETURN_MERGE_SHARE = 0.75;
+// The window of a return, PURE: no levelNum read (a `let` of a later module is in the temporal dead zone here), the
+// level's numbers are arguments. The gap to the next earned threshold must lie in (lower, upper]:
+//   dbl   = the double share in pairs, min(RETURN_MAX_PAIRS, round(2·pairs/distinct));
+//   upper = floor(2·dbl·share) - the double share closes the gap even if only `share` of its copies are merged;
+//   lower = floor(2·round(pairs/distinct)·share) - the «worth it» bound: a gap the PLAIN share already closes needs no return.
+// Under PAIRS 70: lv11-12 (7,15] with dbl 10 (at lv11 the round gives 11, capped); lv15 (6,12]; lv20, lv23 and lv30 (4,9];
+// lv50 (4,7]; lv100 (3,6]. Recompute the table whenever PAIRS, DISTINCT_BASE/STEP or the share move.
+function returnWindow(pairsCnt, distinct){
+  const d = Math.max(1, distinct | 0);
+  const dbl = Math.min(RETURN_MAX_PAIRS, Math.round(2 * pairsCnt / d));
+  return { dbl, upper: Math.floor(2 * dbl * RETURN_MERGE_SHARE), lower: Math.floor(2 * Math.round(pairsCnt / d) * RETURN_MERGE_SHARE) };
+}
 // ⚡ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10, three answers in a row to the
 // dispatcher: «1. Множитель всех очков на 5 секунд / 2. Пара не нужна / 3. Следующего»).
 // One item per level wears the face of the NEXT player in the table — the same neighbour the
@@ -1998,6 +2058,22 @@ const LB_URL = 'https://lb.blendo.monster';
 // native provider first.
 const PAY_URL = 'https://pay.blendo.monster';
 const PAY_SITE = 'https://blendo.monster';
+
+// ===== THE SILENT SERVICE-WORKER RECHECK (the owner's decision 10, 2026-09-13) =====
+// The boot `registration.update()` (99-main) runs once per launch, so a tab left open or an
+// installed app resumed from the background kept its build until a real relaunch. The same check
+// now also runs when the game RETURNS TO THE SCREEN: no prompt, no reload, no UI — a release found
+// this way installs in the background and opens on the next launch (the cache-first price of
+// 2026-09-10-i stands). Browsers put no throttle on a page-initiated update() (every call is a
+// network round trip to the site Worker), so the throttle is ours, and both numbers are read at
+// call time only:
+//   SW_RECHECK_GAP_MS    — the least time between two checks, the boot check included;
+//   SW_RECHECK_HIDDEN_MS — the least time the page must have been hidden: a genuine background
+//                          stint, not a tab flick (a bfcache restore counts as long enough).
+// WHY Date.now AND NOT performance.now: iOS freezes a hidden page, and the hidden duration must be
+// the wall-clock one.
+const SW_RECHECK_GAP_MS = 5 * 60 * 1000;
+const SW_RECHECK_HIDDEN_MS = 30 * 1000;
 
 // ===== GOOGLE SIGN-IN (84-auth; the endpoint lives in the pay worker, docs/GOOGLE-AUTH.md) =====
 // ⚠️ THE CLIENT ID IS NOT HERE, AND THAT IS DELIBERATE: it is needed by GIS on the client and as
