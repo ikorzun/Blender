@@ -3093,7 +3093,8 @@
   /* ⚡ `flex:0 1 auto` + `min-width:0` since 2026-09-12: the caption carries a NAME now, and a
      column that cannot shrink would push the neighbour's face off the row instead of ellipsising
      the word. The score inside it stays `nowrap` and is shortened by its own fit, not by a clip. */
-  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; flex:0 1 auto; min-width:0; }
+  /* gap 2 — his inspector edit of 2026-09-15 («fix the gaps», the rule's own line selected with 4 → 2) */
+  .ms-lbe-txt { display:flex; flex-direction:column; gap:2px; flex:0 1 auto; min-width:0; }
   /* ⚠️ ONE STYLE WITH THE NAME IN THE HEADER (the owner's word 2026-08-12: «of the same
      style as the name in the header»). We take the same type size/face/colour as at
      `.ms-uname`, and AT BOTH widths: on desktop the name is 22/900, and the place is
@@ -3142,13 +3143,16 @@
   .ms-lbe-score { font-size:18px; font-weight:700; color:#000; line-height:1.1;
     white-space:nowrap; overflow:hidden; }
   /* Bold 14 in Carbon 600, the same grey as the line under the place.
-     ⚡ IT CARRIES THE NEIGHBOUR'S NAME SINCE 2026-09-12 («Next Mercury», his word) — the node's
-     «next players» is gone, and `lbEntryRefresh` writes this one too now.
-     ⛔⛔ AND IT IS NO LONGER A FIXED STRING, WHICH IS WHY IT MAY CLIP. The server accepts names up
-     to 40 characters, this line is `nowrap`, and the column it sits in used to be `flex:none` —
-     a long name would have pushed the face off a narrow screen. The cap (16) bounds it and the
-     ellipsis catches whatever the cap still lets through; the column may shrink now. */
-  .ms-lbe-cap { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
+     ⛔ «Next player» AGAIN SINCE 2026-09-15 (his «rename it to Next player»): the neighbour's name of
+     2026-09-12 is gone, the caption is the markup's static text. The clip stays — it is what the entry
+     fit measures, and the ellipsis is the safety net at 320.
+     ⚠️⚠️ THE 2px AT THE BOTTOM HOLDS THE DESCENDERS, AND IT IS PADDING ON PURPOSE (his «the Next line is cut
+     at the bottom»). `line-height:1` + `overflow:hidden` clip at the line box, and «player» has a p and a
+     y: measured with the glyph's own descent, the ink stood 0.71px below the box in Chromium and 0.98px in
+     WebKit at 14px (0.33 / 0.84 at the 12px of 320). Padding extends the clip without moving the glyph,
+     so his 2px gap above reads exactly as he set it — a taller line-height would have pushed the text down
+     and eaten that gap. The column's total height does not change: gap −2, padding +2. */
+  .ms-lbe-cap { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1; padding-bottom:2px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   /* an empty slot — a neutral circle: there may be fewer than three rows in the table */
   .ms-lbe-slot { background:rgba(42,41,53,.10); }
@@ -3969,7 +3973,7 @@
        there was only the avatar. In the new mock-up 840:4680 on the left there is the avatar+name, on the right
        the star+score+button, that is, the same order as on mobile. */
     .ms-head { background:none; padding:0; border-radius:0; }
-    .ms-prof { gap:6px; }
+    .ms-prof { gap:8px; }   /* 6 → 8 on the desktop: his inspector edit of 2026-09-15 («fix the gaps») */
     .ms-uname { display:block; font-size:22px; font-weight:900; }
     .ms-stars svg { width:25px; height:24px; }
     /* ⛔ the desktop `#ffc800` is removed — the colour is one for both layouts (see the base) */
@@ -5248,7 +5252,7 @@
   <!-- THE BUILD LABEL IS WRITTEN BY build.py (2026-09-12): the same stamp as sw.js's BUILD and the date that
        stamp first appeared. It used to be a hand-typed literal frozen since August, so the perf report and
        telemetry (both read this node) named a build that no longer existed. -->
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build 065112db06ec · 2026-09-13</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build a71b6e5e5c33 · 2026-09-15</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -18654,16 +18658,31 @@ const Ads = (function(){
         // payments but without rewarded the player would otherwise never get back what
         // he had paid for.
         try { restorePurchases(); } catch(e){}
+        // ⛔⛔ WITHOUT A PLATFORM THE BRIDGE'S PAUSE AND SOUND STATES ARE NOT OBEYED (2026-09-15, his «the game
+        // sometimes freezes after the intro, I cannot tell yet whether it is a click»). On our own pages
+        // (blendo.monster, GitHub Pages, a local host) the bridge runs as `mock`, and its base platform wires
+        // `window` blur → hidden and focus → visible into BOTH aggregators: ANY focus leaving the top document
+        // paused the game SILENTLY (no menu) and muted it, and only a window `focus` gave both back.
+        // MEASURED on the real bridge after the real intro (Chromium): one click into a cross-origin card in the
+        // top-right — the shape of Google's One Tap, which `finishIntro` asks for — paused and muted the game;
+        // the card removed, the game stayed frozen until the next click on the page.
+        // ⚠️ NOTHING IS LOST: without a platform nobody else asks for a pause — a hidden tab is our own
+        // `visibilitychange` → `openMainScreen` (a pause WITH the menu), an ad pauses through our own adBlockOn.
+        // On a portal (any id but `mock`) both subscriptions stand exactly as before: there the pause is the
+        // platform's overlay, menu or ad, and obeying it is mandatory.
+        const noPlatform = (()=>{ try { return String(br.platform.id) === 'mock'; } catch(e){ return false; } })();
         // THE PLATFORM'S SOUND (also outside the rewarded gate — it has nothing to do
         // with ads): the player could have turned the sound off in the portal's player.
         // Bridge gives an event with the value "sound is ALLOWED", hence the inversion.
         // We read the initial state right away — an event about something that was
         // already off will not arrive.
         try {
-          mutedByPlatform = !br.platform.isAudioEnabled;
-          br.platform.on(br.EVENT_NAME.AUDIO_STATE_CHANGED, (enabled)=>{
-            mutedByPlatform = !enabled; applyMute();
-          });
+          if (!noPlatform){
+            mutedByPlatform = !br.platform.isAudioEnabled;
+            br.platform.on(br.EVENT_NAME.AUDIO_STATE_CHANGED, (enabled)=>{
+              mutedByPlatform = !enabled; applyMute();
+            });
+          }
           applyMute();
         } catch(e){}
         // THE PLATFORM'S PAUSE (a mandatory step of the docs — subscribe to BOTH events).
@@ -18680,8 +18699,10 @@ const Ads = (function(){
             }
             applyMute();
           };
-          if (br.platform.isPaused) setPlatPause(true); // the initial state: an event about an already-set pause will not arrive
-          br.platform.on(br.EVENT_NAME.PAUSE_STATE_CHANGED, setPlatPause);
+          if (!noPlatform){
+            if (br.platform.isPaused) setPlatPause(true); // the initial state: an event about an already-set pause will not arrive
+            br.platform.on(br.EVENT_NAME.PAUSE_STATE_CHANGED, setPlatPause);
+          }
         } catch(e){}
         // THE PLAYER'S LANGUAGE (a mandatory step of the docs). There is no localization
         // yet — the interface is hard EN by the owner's spec; we read it and expose it
@@ -22748,14 +22769,13 @@ function lbGapNext(m, live){
   }
   return best;
 }
-// ⚠️⚠️ THE NAME IS CAPPED, AND IT IS A LAYOUT GUARD AGAIN. It stopped being one for a day: the gap
-// line that used to show it was retired on 2026-09-11-p, and this note said so. His word of
-// 2026-09-12 («Next players → Next + name, Next Mercury») puts a name back on the row — under the
-// face this time — so the cap is load-bearing once more, and it is now SHARED by the two writers
-// rather than copied into the second. Our own guest names top out at «Oystercatcher» (13
-// characters); the server accepts up to 40 (`server/leaderboard/src/index.js`: `n.length > 40` is
-// the only bar), and the caption is `nowrap` in a row whose right side is the avatar. 16 changes
-// nothing for a real player and bounds the crafted case; the caption's ellipsis catches the rest.
+// ⚠️ THE NAME IS CAPPED, AND SINCE 2026-09-15 IT IS NOT ON SCREEN THROUGH THE CAPTION: his «rename it to
+// Next player» took the name off the row a second time (it had come back under the face on 2026-09-12).
+// `lbGapLine` is the one reader left, and its non-empty answer is the neighbour condition for the face,
+// the score and the bowl rival — the cap bounds a crafted 40-character name wherever that line is used.
+// Our own guest names top out at «Oystercatcher» (13 characters); the server accepts up to 40
+// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar). 16 changes nothing for a real
+// player and bounds the crafted case.
 const LB_GAP_NAME_MAX = 16;
 function lbNameCap(raw){
   let name = String(raw == null ? '' : raw).trim();
@@ -22970,14 +22990,12 @@ function lbEntryRefresh(){
       sc.dataset.score = hasNext ? String(next.score | 0) : '';
       if (!hasNext) sc.textContent = '';
     });
-    // ⚡ THE CAPTION NAMES HIM (his word 2026-09-12: «Next players → Next + name, Next Mercury»).
-    // ⛔ THIS REVERSES ONE HALF OF HIS OWN WORD OF THE DAY BEFORE — «the next player is on the right
-    // and his name does not matter» — and it reverses it exactly where it belongs: the name left the
-    // line UNDER THE PLACE and came back UNDER HIS FACE, beside his score. One derivation still, and
-    // the same `lbNameCap` the gap line uses, so the two can never name him differently.
-    lbEntryAll('.ms-lbe-cap').forEach(c => {
-      c.textContent = hasNext ? ('Next ' + lbNameCap(next.name)) : 'Next player';
-    });
+    // ⛔⛔ THE CAPTION IS «Next player» AGAIN, AND NOTHING WRITES IT ANY MORE (his word 2026-09-15: «the
+    // Next line is cut at the bottom, and better rename it to Next player»). This cancels his «Next players
+    // → Next + name, Next Mercury» of 2026-09-12: the name left the row a second time, and the caption is
+    // the static text of the markup in both instances (the menu row and the win row).
+    // ⚠️ NO WRITE AT ALL, not a write of the constant: a writer that carries no data is a second copy of
+    // the markup's string, the drift this file keeps paying for.
     lbEntryAll('.ms-lbe-avs').forEach(h => {
       h.innerHTML = '';
       h.appendChild(lbEntryAvatar(hasNext ? (next.av | 0) : 0));

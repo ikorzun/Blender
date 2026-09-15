@@ -3093,7 +3093,8 @@
   /* ⚡ `flex:0 1 auto` + `min-width:0` since 2026-09-12: the caption carries a NAME now, and a
      column that cannot shrink would push the neighbour's face off the row instead of ellipsising
      the word. The score inside it stays `nowrap` and is shortened by its own fit, not by a clip. */
-  .ms-lbe-txt { display:flex; flex-direction:column; gap:4px; flex:0 1 auto; min-width:0; }
+  /* gap 2 — his inspector edit of 2026-09-15 («fix the gaps», the rule's own line selected with 4 → 2) */
+  .ms-lbe-txt { display:flex; flex-direction:column; gap:2px; flex:0 1 auto; min-width:0; }
   /* ⚠️ ONE STYLE WITH THE NAME IN THE HEADER (the owner's word 2026-08-12: «of the same
      style as the name in the header»). We take the same type size/face/colour as at
      `.ms-uname`, and AT BOTH widths: on desktop the name is 22/900, and the place is
@@ -3142,13 +3143,16 @@
   .ms-lbe-score { font-size:18px; font-weight:700; color:#000; line-height:1.1;
     white-space:nowrap; overflow:hidden; }
   /* Bold 14 in Carbon 600, the same grey as the line under the place.
-     ⚡ IT CARRIES THE NEIGHBOUR'S NAME SINCE 2026-09-12 («Next Mercury», his word) — the node's
-     «next players» is gone, and `lbEntryRefresh` writes this one too now.
-     ⛔⛔ AND IT IS NO LONGER A FIXED STRING, WHICH IS WHY IT MAY CLIP. The server accepts names up
-     to 40 characters, this line is `nowrap`, and the column it sits in used to be `flex:none` —
-     a long name would have pushed the face off a narrow screen. The cap (16) bounds it and the
-     ellipsis catches whatever the cap still lets through; the column may shrink now. */
-  .ms-lbe-cap { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1;
+     ⛔ «Next player» AGAIN SINCE 2026-09-15 (his «rename it to Next player»): the neighbour's name of
+     2026-09-12 is gone, the caption is the markup's static text. The clip stays — it is what the entry
+     fit measures, and the ellipsis is the safety net at 320.
+     ⚠️⚠️ THE 2px AT THE BOTTOM HOLDS THE DESCENDERS, AND IT IS PADDING ON PURPOSE (his «the Next line is cut
+     at the bottom»). `line-height:1` + `overflow:hidden` clip at the line box, and «player» has a p and a
+     y: measured with the glyph's own descent, the ink stood 0.71px below the box in Chromium and 0.98px in
+     WebKit at 14px (0.33 / 0.84 at the 12px of 320). Padding extends the clip without moving the glyph,
+     so his 2px gap above reads exactly as he set it — a taller line-height would have pushed the text down
+     and eaten that gap. The column's total height does not change: gap −2, padding +2. */
+  .ms-lbe-cap { font-size:14px; font-weight:700; color:#a2a2a8; line-height:1; padding-bottom:2px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   /* an empty slot — a neutral circle: there may be fewer than three rows in the table */
   .ms-lbe-slot { background:rgba(42,41,53,.10); }
@@ -3969,7 +3973,7 @@
        there was only the avatar. In the new mock-up 840:4680 on the left there is the avatar+name, on the right
        the star+score+button, that is, the same order as on mobile. */
     .ms-head { background:none; padding:0; border-radius:0; }
-    .ms-prof { gap:6px; }
+    .ms-prof { gap:8px; }   /* 6 → 8 on the desktop: his inspector edit of 2026-09-15 («fix the gaps») */
     .ms-uname { display:block; font-size:22px; font-weight:900; }
     .ms-stars svg { width:25px; height:24px; }
     /* ⛔ the desktop `#ffc800` is removed — the colour is one for both layouts (see the base) */

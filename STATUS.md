@@ -6,7 +6,31 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-13 (upgrades ×0.5 per tier, 140 bigger items, «your item returns», the upgraded-items line, the silent update check) on top of 2026-09-12-b, v2 = main** · **the full suite, run 57: 1288 green, 0 red** · **31 sabotages, each red on its own check** · **sign-in is live** · **on GitHub; blendo.monster updates when you run the deploy command** · **the level pacing (a new model every second level): not built — you are still thinking**
+**Build: batch 2026-09-15 (the freeze after the intro, «Next player», your two gaps) on top of 2026-09-14, v2 = main** · **the touched sections dry-run green: PLATPAUSE 3, POINTS 10, AUTH 42; five sabotages, each red on its own check** · **no full suite, by your word** · **sign-in is live** · **on GitHub and blendo.monster** · **the level pacing (a new model every second level): not built — you are still thinking**
+
+**15 SEPTEMBER — YOUR THREE ITEMS: THE FREEZE AFTER THE INTRO, «NEXT PLAYER», THE GAPS.**
+
+**The freeze is found, reproduced and fixed.** On your own pages (blendo.monster, GitHub Pages) the Playgama
+bridge treats «the window lost focus» as «pause the game», and the game obeyed it silently: no menu, no sound,
+until the window got focus back. Any click that takes focus out of the page did it: the developer tools, the
+address bar, another window, or Google's sign-in card, which the game asks for right at the end of the intro.
+When focus does not come back by itself, the game stands frozen until the next click on the page. That is why it
+looks click-related: a click out of the page freezes it, a click on the game frees it. I reproduced exactly this
+in a real browser with the real bridge and the real intro: one click into a card shaped like Google's, the card
+closes, and the game stays frozen. Which of these hit you I cannot see from here; the same change cures all of
+them. Now, where there is no portal, the game ignores the bridge's focus pause. A hidden tab still pauses with
+the menu, as before. Inside the Playgama portal nothing changed: the portal's own pause is still obeyed.
+
+**«Next player».** The caption under the face is «Next player» again, on the menu and on the win screen. The
+bottom cut was real, and I measured it: with «player» the letters p and y stood 0.7–1 px below the clip. The
+caption now has 2 px of room at the bottom, so nothing is cut in Chrome or Safari, and the text itself did not move.
+
+**Your two gaps, as you typed them in the inspector.** Between the number and «Next player» (and between the place
+and «on leaderboard»): 2 px instead of 4. Between the avatar and the name on the desktop: 8 px instead of 6. The
+phone's avatar gap stays 6, because your edit was in the desktop rule.
+
+**Checked:** the three sections this batch touches, each run alone on the final build: PLATPAUSE 3 green, POINTS 10 green, AUTH 42 green. Five deliberately broken builds: each went red exactly on its own check, and a comment-only edit stayed green. No full suite, by your standing word.
+
 
 **13 SEPTEMBER — YOUR SEVEN ITEMS: UPGRADES WORTH MORE, 140 BIGGER ITEMS, «YOUR ITEM RETURNS», THE UPGRADED-ITEMS LINE, THE SILENT UPDATE CHECK.**
 

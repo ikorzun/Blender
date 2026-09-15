@@ -647,14 +647,13 @@ function lbGapNext(m, live){
   }
   return best;
 }
-// ⚠️⚠️ THE NAME IS CAPPED, AND IT IS A LAYOUT GUARD AGAIN. It stopped being one for a day: the gap
-// line that used to show it was retired on 2026-09-11-p, and this note said so. His word of
-// 2026-09-12 («Next players → Next + name, Next Mercury») puts a name back on the row — under the
-// face this time — so the cap is load-bearing once more, and it is now SHARED by the two writers
-// rather than copied into the second. Our own guest names top out at «Oystercatcher» (13
-// characters); the server accepts up to 40 (`server/leaderboard/src/index.js`: `n.length > 40` is
-// the only bar), and the caption is `nowrap` in a row whose right side is the avatar. 16 changes
-// nothing for a real player and bounds the crafted case; the caption's ellipsis catches the rest.
+// ⚠️ THE NAME IS CAPPED, AND SINCE 2026-09-15 IT IS NOT ON SCREEN THROUGH THE CAPTION: his «rename it to
+// Next player» took the name off the row a second time (it had come back under the face on 2026-09-12).
+// `lbGapLine` is the one reader left, and its non-empty answer is the neighbour condition for the face,
+// the score and the bowl rival — the cap bounds a crafted 40-character name wherever that line is used.
+// Our own guest names top out at «Oystercatcher» (13 characters); the server accepts up to 40
+// (`server/leaderboard/src/index.js`: `n.length > 40` is the only bar). 16 changes nothing for a real
+// player and bounds the crafted case.
 const LB_GAP_NAME_MAX = 16;
 function lbNameCap(raw){
   let name = String(raw == null ? '' : raw).trim();
@@ -869,14 +868,12 @@ function lbEntryRefresh(){
       sc.dataset.score = hasNext ? String(next.score | 0) : '';
       if (!hasNext) sc.textContent = '';
     });
-    // ⚡ THE CAPTION NAMES HIM (his word 2026-09-12: «Next players → Next + name, Next Mercury»).
-    // ⛔ THIS REVERSES ONE HALF OF HIS OWN WORD OF THE DAY BEFORE — «the next player is on the right
-    // and his name does not matter» — and it reverses it exactly where it belongs: the name left the
-    // line UNDER THE PLACE and came back UNDER HIS FACE, beside his score. One derivation still, and
-    // the same `lbNameCap` the gap line uses, so the two can never name him differently.
-    lbEntryAll('.ms-lbe-cap').forEach(c => {
-      c.textContent = hasNext ? ('Next ' + lbNameCap(next.name)) : 'Next player';
-    });
+    // ⛔⛔ THE CAPTION IS «Next player» AGAIN, AND NOTHING WRITES IT ANY MORE (his word 2026-09-15: «the
+    // Next line is cut at the bottom, and better rename it to Next player»). This cancels his «Next players
+    // → Next + name, Next Mercury» of 2026-09-12: the name left the row a second time, and the caption is
+    // the static text of the markup in both instances (the menu row and the win row).
+    // ⚠️ NO WRITE AT ALL, not a write of the constant: a writer that carries no data is a second copy of
+    // the markup's string, the drift this file keeps paying for.
     lbEntryAll('.ms-lbe-avs').forEach(h => {
       h.innerHTML = '';
       h.appendChild(lbEntryAvatar(hasNext ? (next.av | 0) : 0));

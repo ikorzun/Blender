@@ -322,16 +322,31 @@ const Ads = (function(){
         // payments but without rewarded the player would otherwise never get back what
         // he had paid for.
         try { restorePurchases(); } catch(e){}
+        // ⛔⛔ WITHOUT A PLATFORM THE BRIDGE'S PAUSE AND SOUND STATES ARE NOT OBEYED (2026-09-15, his «the game
+        // sometimes freezes after the intro, I cannot tell yet whether it is a click»). On our own pages
+        // (blendo.monster, GitHub Pages, a local host) the bridge runs as `mock`, and its base platform wires
+        // `window` blur → hidden and focus → visible into BOTH aggregators: ANY focus leaving the top document
+        // paused the game SILENTLY (no menu) and muted it, and only a window `focus` gave both back.
+        // MEASURED on the real bridge after the real intro (Chromium): one click into a cross-origin card in the
+        // top-right — the shape of Google's One Tap, which `finishIntro` asks for — paused and muted the game;
+        // the card removed, the game stayed frozen until the next click on the page.
+        // ⚠️ NOTHING IS LOST: without a platform nobody else asks for a pause — a hidden tab is our own
+        // `visibilitychange` → `openMainScreen` (a pause WITH the menu), an ad pauses through our own adBlockOn.
+        // On a portal (any id but `mock`) both subscriptions stand exactly as before: there the pause is the
+        // platform's overlay, menu or ad, and obeying it is mandatory.
+        const noPlatform = (()=>{ try { return String(br.platform.id) === 'mock'; } catch(e){ return false; } })();
         // THE PLATFORM'S SOUND (also outside the rewarded gate — it has nothing to do
         // with ads): the player could have turned the sound off in the portal's player.
         // Bridge gives an event with the value "sound is ALLOWED", hence the inversion.
         // We read the initial state right away — an event about something that was
         // already off will not arrive.
         try {
-          mutedByPlatform = !br.platform.isAudioEnabled;
-          br.platform.on(br.EVENT_NAME.AUDIO_STATE_CHANGED, (enabled)=>{
-            mutedByPlatform = !enabled; applyMute();
-          });
+          if (!noPlatform){
+            mutedByPlatform = !br.platform.isAudioEnabled;
+            br.platform.on(br.EVENT_NAME.AUDIO_STATE_CHANGED, (enabled)=>{
+              mutedByPlatform = !enabled; applyMute();
+            });
+          }
           applyMute();
         } catch(e){}
         // THE PLATFORM'S PAUSE (a mandatory step of the docs — subscribe to BOTH events).
@@ -348,8 +363,10 @@ const Ads = (function(){
             }
             applyMute();
           };
-          if (br.platform.isPaused) setPlatPause(true); // the initial state: an event about an already-set pause will not arrive
-          br.platform.on(br.EVENT_NAME.PAUSE_STATE_CHANGED, setPlatPause);
+          if (!noPlatform){
+            if (br.platform.isPaused) setPlatPause(true); // the initial state: an event about an already-set pause will not arrive
+            br.platform.on(br.EVENT_NAME.PAUSE_STATE_CHANGED, setPlatPause);
+          }
         } catch(e){}
         // THE PLAYER'S LANGUAGE (a mandatory step of the docs). There is no localization
         // yet — the interface is hard EN by the owner's spec; we read it and expose it

@@ -20733,3 +20733,60 @@ put back → the absence arm alone red; the same text inserted above the list fr
 absence arm alone red; a comment edit → 8 green. The tree's index.html md5 be2f5dcef7d32ae1c4e87c4355b1ce31 before and
 after the variants (build 065112db06ec).
 **No full suite, by his word.** The site deploy is mine again (his «update»).
+
+## BATCH 2026-09-15: THE FREEZE AFTER THE INTRO (THE BRIDGE'S BLUR PAUSE IS NOT OBEYED WITHOUT A PLATFORM), «Next player» UNDER THE FACE WITH ITS DESCENDERS WHOLE, AND HIS TWO INSPECTOR GAPS (his three items over two DevTools screenshots: «1. I sometimes catch a bug: the game freezes after the intro, I cannot tell yet whether it is a click · 2. the line with Next is cut at the bottom, and better rename it to next player · 3. fix the gaps»)
+
+**1. THE FREEZE — FOUND BY READING THE VENDORED BRIDGE, REPRODUCED, CURED.** The bridge's base platform class (the one
+`mock` keeps — i.e. our own pages: blendo.monster, GitHub Pages, any local host) wires `window` blur → hidden and
+`window` focus → visible into BOTH of its aggregators, pause and sound, and emits PAUSE_STATE_CHANGED /
+AUDIO_STATE_CHANGED from them. 78-ads obeyed both (the portal rule «subscribe to BOTH events»), so ANY focus leaving
+the top document paused the game SILENTLY — no menu — and muted it, and only a window `focus` gave both back.
+MEASURED on the real bridge after the real intro (Chromium): a synthetic blur → paused + muted, no menu; one real
+click into a cross-origin card in the top-right (the shape of Google's One Tap, which `finishIntro` asks for exactly
+when the intro ends) → paused + muted; the card removed → still paused, `document.hasFocus()` false; the next real
+click on the page → a window focus → live again. His «freezes after the intro» and his «maybe a click» are one
+mechanism: a click INTO the prompt freezes the game, a click ON the game frees it. The same silent freeze followed any
+focus leaving a visible page (the address bar, DevTools, another window).
+**The cure (78-ads):** `noPlatform = String(br.platform.id) === 'mock'`; on it neither subscription is made, nor the
+initial `isPaused` / `isAudioEnabled` reads. ⚠️ NOTHING IS LOST THERE: a hidden tab is our own `visibilitychange` →
+`openMainScreen` (a pause WITH the menu), and an ad pauses through our own `adBlockOn`. On any other id both
+subscriptions stand exactly as before. ⛔ DO NOT KEY THIS ON A HOST LIST OR ON `authOn()`: `mock` IS the bridge's own
+answer to «no platform recognised», and a portal the bridge does not recognise sends no pause through it anyway.
+⚠️ NOT CLAIMED: that One Tap was the trigger on his machine. It is the only focus-taking thing that appears at the
+end of the intro, and this is the only silent pause without its own resume on our pages. The WebKit run of the
+probe hung in the headless intro and was stopped; the rule is engine-independent listener code.
+**The guard — PLATPAUSE, a new dry-runnable section, 3 arms:** the REAL bridge on a static stand next to the page —
+a blur flips the bridge's own `platform.isPaused` (the positive control: without it a build whose bridge never
+initialised passes) while the game stays live, audible and menu-less; a hidden page still pauses WITH the menu; a
+PORTAL (a fake with id `portaltest`) — its pause freezes quietly and mutes, lifting gives both back, its sound mutes
+without a pause. One half without the other is vacuous: dropping the subscriptions wholesale passes the first,
+dropping the gate passes the second.
+⚠️ THE SUITE'S BRIDGE FAKES MUST NEVER CARRY THE ID `mock` — that string is the gate's own answer for «no platform».
+Checked before the commit: the fakes are `mocktest` (four) and `portaltest` (PLATPAUSE's portal), none is `mock`. A fake
+renamed to `mock` would silently switch its pause and sound arms onto the own-page branch and redden them on a sound build.
+
+**2. «Next player» — THE NAME LEAVES THE CAPTION AGAIN.** The caption is the static text of the markup in both
+instances (the menu row and the win row); `lbEntryRefresh` writes nothing into `.ms-lbe-cap` — a writer that carries
+no data is a second copy of the markup's string. This cancels 2026-09-12's «Next + name, Next Mercury». `lbNameCap`
+stays: `lbGapLine` still reads it, and its non-empty answer is the neighbour condition.
+**The cut at the bottom, measured with the glyph's own ink:** `line-height:1` + `overflow:hidden` clip at the line
+box. «Next Otter» has no descenders and was whole (1.84px of room); «Next player» carries a p and a y, and its ink
+stood 0.71px (Chromium) / 0.98px (WebKit) below the box at 14px, 0.33 / 0.84 at the 12px of 320.
+**The cure:** `padding-bottom:2px` on `.ms-lbe-cap` — the clip grows, the glyph does not move. After: −1.29 / −1.02 at
+14px, −1.67 / −1.16 at 12px (negative = room). ⛔ NOT A TALLER LINE-HEIGHT: it moves the glyph down and eats the 2px
+gap he set above it. The column's height is unchanged (gap −2, padding +2), so no row-height arm moves.
+**The guard (POINTS):** `capInkCut` — the glyph's canvas descent laid under a zero-size inline-block baseline marker,
+against the bottom of the clip box — ≤ 0, and the text «Next player», on the phone, the desktop, the win row and at
+320. The 320 arm, the nine-digit arm and AUTH's caption arm are re-based to «Next player»; the 320 fixture keeps its
+40-character name, so a build that writes the name back is caught there too.
+
+**3. HIS TWO INSPECTOR EDITS, APPLIED LITERALLY.** Screenshot one: `.ms-lbe-txt` at (index):3096 with the gap typed
+from 4 to 2 — the base rule, so both text columns of the row on every layout. Screenshot two: `@media
+(min-width:1080px) .ms-prof` at (index):3972 reading 8 against the shipped 6 — the desktop profile only; the base 6
+below 1080 is untouched. ⚠️ The index line numbers equal shell.html's (the style block precedes every inlined
+script), which is how both rules were identified. Measured on the live row: score → caption 2px, the place → «on
+leaderboard» 2px, profile avatar → name 8px at 1280 and 6px at 390.
+
+**Proven:** PLATPAUSE 3 green, POINTS 10 green, AUTH 42 green on the final build, each section lifted and run alone. Variants built outside the tree: the `mock` gate dropped → PLATPAUSE's own-page arm alone red; the pause subscription dropped → the portal arm alone red; the caption's padding dropped → the ink arm alone red (0.71px cut on every layout); the name written back from lbEntryRefresh → the three caption-text arms red (the ink-and-text arm, the 320 arm, the nine-digit arm); a comment edit → PLATPAUSE 3 green. The tree's index.html md5
+309735b32731c54482f2b85381315a76 (build a71b6e5e5c33) before and after the variants.
+**No full suite, by his standing word.** Pushed to v2 and v2:main; the site deploy is mine after the green gate.

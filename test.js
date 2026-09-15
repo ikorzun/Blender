@@ -11034,6 +11034,20 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
         scoreCut: scoreEl ? scoreEl.scrollWidth - scoreEl.clientWidth : null,
         cap: capEl ? capEl.textContent : null,
         capCut: capEl ? capEl.scrollWidth - capEl.clientWidth : null,
+        // ⚠️⚠️ THE CAPTION'S DESCENDERS (his word 2026-09-15: «the Next line is cut at the bottom»). A clip at
+        // `line-height:1` cuts the p and the y of «player», and scrollHeight cannot see ink: the glyph's own
+        // descent (canvas) is laid under the baseline (a zero-size inline-block marker) and compared with the
+        // bottom of the clip box. > 0 = pixels of ink cut.
+        capInkCut: capEl ? (() => {
+          const cs = getComputedStyle(capEl), c = document.createElement('canvas').getContext('2d');
+          c.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+          const mk = document.createElement('span');
+          mk.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+          capEl.appendChild(mk); const base = mk.getBoundingClientRect().bottom; mk.remove();
+          const r = capEl.getBoundingClientRect();
+          return +((base + c.measureText(capEl.textContent).actualBoundingBoxDescent)
+            - (r.bottom - parseFloat(cs.borderBottomWidth))).toFixed(2);
+        })() : null,
         nextEmpty: document.getElementById(id + 'Next').classList.contains('empty'),
         horiz: (() => { const m = document.getElementById(win ? 'winWrap' : 'mainScreen');
           return m ? m.scrollWidth - m.clientWidth : -1; })(),
@@ -11094,6 +11108,19 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'the static «on leaderboard». ⛔ SABOTAGE: take `up[0]` — Avatar03 and «900» (' +
       JSON.stringify({ live: mob.live, rank: mob.rank, sub: mob.sub, score: mob.score, av: mob.avSrc, kids: mob.avKids }) + ')');
 
+    // ⛔⛔ THE CAPTION IS «Next player» AGAIN (his word 2026-09-15: «the Next line is cut at the bottom, and better
+    // rename it to Next player») — the neighbour's name of 2026-09-12 left the row — AND ITS INK IS WHOLE.
+    // ⚠️ `capInkCut <= 0` IS THE HALF NO TEXT CAN FAKE: «Next player» carries a p and a y, and at `line-height:1`
+    // inside a clip the descenders stood 0.71px below the box (Chromium; 0.98 in WebKit). Read on the phone, the
+    // desktop, the win row and at 320, where the type is 12.
+    // ⛔ SABOTAGE: drop the caption's `padding-bottom` — every ink term reads > 0; write the name back from
+    // lbEntryRefresh — the text terms go red.
+    expect(mob.cap === 'Next player' && desk.cap === 'Next player' && win.cap === 'Next player' && wide.cap === 'Next player' &&
+           mob.capInkCut <= 0 && desk.capInkCut <= 0 && win.capInkCut <= 0 && wide.capInkCut <= 0,
+      '⚡ «Next player» UNDER THE FACE ON EVERY LAYOUT, ITS DESCENDERS NOT CUT (' +
+      JSON.stringify({ mob: [mob.cap, mob.capInkCut], desk: [desk.cap, desk.capInkCut], win: [win.cap, win.capInkCut],
+        wide: [wide.cap, wide.capInkCut] }) + ')');
+
     // ⚠️⚠️ THE TWO LINES ARE DELIBERATELY OF DIFFERENT SIZES, AND THAT IS HIS SECOND WORD OF THE DAY
     // CANCELLING HIS FIRST. The first was «the same font size as the place»; he looked at the
     // rendered pair and answered «the style and text size that „on leaderboard" is written in
@@ -11127,22 +11154,22 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       JSON.stringify({ rank: none.rank, sub: none.sub, score: none.score, empty: none.nextEmpty, tag: none.avTag }) + ')');
 
     // ⚠️⚠️ THE WORST ROW AT THE NARROWEST WIDTH: a seven-digit neighbour AND a 40-character name,
-    // which since 2026-09-12 share one column («Next Mercury», his word). The property is not which
+    // (the name left the caption again on 2026-09-15, «rename it to Next player»; the fixture keeps the long
+    // name, so a build that writes it back is caught). The property is not which
     // FORM the number takes — that moved the day the column learned to shrink, and an arm that
     // pinned «1M» went red on a sound build — but that **everything on the row is whole or honestly
     // trimmed**: the NUMBER is never clipped (its own fit walks it down the rungs until it fits),
-    // the NAME is capped at 16 and the ellipsis catches the rest, the left group still ends BEFORE
+    // the caption is the static «Next player», the left group still ends BEFORE
     // the circle, and the screen gains no horizontal scroll.
     // ⛔ `clear` AND `horiz` STAND BESIDE THE STRINGS ON PURPOSE: a build that «coped» by letting the
     // row overflow satisfies every text assert and breaks the menu.
-    expect(wide.scoreCut <= 0 && /^Next /.test(wide.cap || '') && (wide.cap || '').length <= 21 &&
+    expect(wide.scoreCut <= 0 && wide.cap === 'Next player' &&
            wide.sub === 'on leaderboard' && wide.clear > 4 && wide.horiz === 0,
       '⚡ THE SEVEN-DIGIT NEIGHBOUR WITH A 40-CHARACTER NAME AT 320: the number is shown WHOLE, the ' +
-      'name is capped and ellipsised, the group clears the circle and the screen does not scroll (' +
+      'caption is the static «Next player», the group clears the circle and the screen does not scroll (' +
       JSON.stringify({ score: wide.score, cut: wide.scoreCut, cap: wide.cap, capCut: wide.capCut,
-        clearPx: wide.clear, horiz: wide.horiz }) + '). ⛔ SABOTAGE: drop the name cap — the column ' +
-      'grows and pushes the face; or make that column `flex:none` again — the number lies on it');
-    expect(huge.scoreCut <= 0 && huge.cap === 'Next Mercury' && huge.clear > 4 && huge.horiz === 0,
+        clearPx: wide.clear, horiz: wide.horiz }) + '). ⛔ SABOTAGE: make that column `flex:none` again — the number lies on it');
+    expect(huge.scoreCut <= 0 && huge.cap === 'Next player' && huge.clear > 4 && huge.horiz === 0,
       '⚡ AND A NINE-DIGIT NEIGHBOUR AT 320 IS WALKED DOWN UNTIL IT FITS — shown whole, clearing the ' +
       'circle, no scroll (' + JSON.stringify({ score: huge.score, cut: huge.scoreCut, cap: huge.cap,
         clearPx: huge.clear, horiz: huge.horiz }) + '). ⛔ SABOTAGE: drop the number\'s own overflow ' +
@@ -11207,6 +11234,122 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       '⚡ NOT ONE TEXT NODE OF THE MARKUP CARRIES THE WORD «star(s)» (' + JSON.stringify(census) + ')');
   }
   // ⟦POINTS-SECTION-END⟧
+
+  // ⟦PLATPAUSE-SECTION-BEGIN⟧ (`tools/section-dryrun.js` with SECTION=PLATPAUSE runs this block alone; keep the markers)
+  // ===== WITHOUT A PLATFORM A LOST FOCUS DOES NOT FREEZE THE GAME (the owner's report 2026-09-15: «the game sometimes
+  // freezes after the intro, I cannot tell yet whether it is a click») =====
+  // The real bridge runs as `mock` on our own pages and wires window blur/focus into its pause and sound states; 78-ads
+  // obeyed them, so one click into Google's One Tap card (asked for at the end of the intro) froze the game silently, and
+  // the card's disappearance never gave it back. ⚠️ TWO PAGES, TWO HALVES OF ONE RULE: the REAL bridge (a blur reaches the
+  // bridge — its own `platform.isPaused` flips — and the game ignores it) and a PORTAL (any other id: its pause and sound
+  // obeyed exactly as before). One without the other is vacuous: a build that dropped the subscriptions wholesale passes
+  // the first, a build without the gate passes the second.
+  {
+    // ⚠️ LOCAL requires: the section is lifted verbatim by the dry-run tool, and the suite's own module declarations
+    // stand lower in the file (the httpStand note).
+    const http = require('http'), fs = require('fs'), path = require('path');
+    const ROOTDIR = path.dirname(PAGE_FILE);
+    const TYPES = { '.html':'text/html', '.js':'text/javascript', '.json':'application/json', '.mp3':'audio/mpeg',
+      '.png':'image/png', '.jpg':'image/jpeg', '.webmanifest':'application/manifest+json', '.webm':'video/webm', '.mp4':'video/mp4' };
+    const PORTAL_BRIDGE = `
+window.__plat = { h:{}, emit(ev, v){ (this.h[ev] || []).forEach(f => { try { f(v); } catch (e) {} }); } };
+window.bridge = {
+  PLATFORM_MESSAGE: { GAME_READY:'game_ready', LEVEL_STARTED:'level_started', LEVEL_COMPLETED:'level_completed',
+    LEVEL_PAUSED:'level_paused', LEVEL_RESUMED:'level_resumed' },
+  EVENT_NAME: { AUDIO_STATE_CHANGED:'audio', PAUSE_STATE_CHANGED:'pause', REWARDED_STATE_CHANGED:'rw',
+    INTERSTITIAL_STATE_CHANGED:'inter' },
+  platform: { id:'portaltest', language:'en', isAudioEnabled:true, isPaused:false,
+    on(ev, cb){ (window.__plat.h[ev] = window.__plat.h[ev] || []).push(cb); },
+    sendMessage(){ return Promise.resolve(); } },
+  player: { id:'p1', isAuthorized:false },
+  advertisement: { isRewardedSupported:false, isInterstitialSupported:false, on(){} },
+  payments: { isPaymentsSupported:false },
+  initialize(){ return Promise.resolve(); },
+};`;
+    // A static host rooted next to the page (the build, or a variant with its symlinked side files): the REAL
+    // bridge pair is served from disk, the portal stand swaps only the bridge script.
+    const stand = async (portal) => {
+      const srv = http.createServer((req, res) => {
+        const u = decodeURIComponent(String(req.url).split('?')[0]);
+        if (portal && u === '/playgama-bridge.js'){ res.writeHead(200, { 'content-type':'text/javascript' }); return res.end(PORTAL_BRIDGE); }
+        const f = path.join(ROOTDIR, u === '/' ? 'index.html' : u);
+        if (!f.startsWith(ROOTDIR + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()){ res.writeHead(404); return res.end(); }
+        res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' });
+        res.end(fs.readFileSync(f));
+      });
+      await new Promise(r => srv.listen(0, '127.0.0.1', r));
+      return { url: 'http://127.0.0.1:' + srv.address().port + '/index.html', close(){ try { srv.close(); } catch (e) {} } };
+    };
+    // no traffic to the live leaderboard (the local host honours the override)
+    const quietLb = () => {
+      const of = window.fetch;
+      window.fetch = function (u, o) { const q = String(u);
+        if (q.indexOf('lb.stub') >= 0) return Promise.resolve(new Response(JSON.stringify(q.indexOf('/v1/top') >= 0
+          ? { r: [], t: 0, n: 0 } : { ok: 1, s: 0, rank: null, exact: 0 }), { status: 200, headers: { 'content-type':'application/json' } }));
+        return of.apply(this, arguments); };
+      try { localStorage.setItem('mixer_lb_url', 'http://lb.stub'); } catch (e) {}
+    };
+    const readPage = (pg) => pg.evaluate(() => { const ms = document.getElementById('mainScreen');
+      let id = null, brPaused = null; try { id = window.bridge.platform.id; brPaused = window.bridge.platform.isPaused; } catch (e) {}
+      return { id, brPaused, paused: window.__game.isPaused(), muted: window.__game.pauseState().muted,
+        menu: !!ms && ms.classList.contains('open') }; });
+
+    // (A) OUR OWN PAGE — the real bridge, `mock`
+    const sa = await stand(false);
+    const pa = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await pa.addInitScript(quietLb);
+    await pa.goto(sa.url);
+    await pa.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    let bridgeUp = true;
+    try { await pa.waitForFunction(() => window.bridge && window.bridge.isInitialized === true, null, { timeout: 20000 }); } catch (e) { bridgeUp = false; }
+    await pa.evaluate(() => window.__game.skipIntro());
+    await pa.waitForTimeout(300);
+    const a0 = await readPage(pa);
+    await pa.evaluate(() => dispatchEvent(new Event('blur'))); await pa.waitForTimeout(300);
+    const a1 = await readPage(pa);
+    await pa.evaluate(() => dispatchEvent(new Event('focus'))); await pa.waitForTimeout(300);
+    expect(bridgeUp && a0.id === 'mock' && a0.paused === false && a1.brPaused === true &&
+           a1.paused === false && a1.muted === false && a1.menu === false,
+      '⚡ OUR OWN PAGE: A LOST FOCUS REACHES THE BRIDGE AND DOES NOT FREEZE THE GAME — the real bridge runs as `mock`, its ' +
+      'own pause flag flips on the blur, and the game stays live, audible, with no menu (' + JSON.stringify({ bridgeUp, a0, a1 }) +
+      '). ⛔ SABOTAGE: drop the `mock` gate in 78-ads — paused and muted read true');
+    // ⚠️ AND NOTHING IS LOST: a hidden page is still OUR pause, with the menu (90-input's visibilitychange, untouched)
+    const hid = await pa.evaluate(async () => {
+      Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise(r => setTimeout(r, 300));
+      const ms = document.getElementById('mainScreen');
+      return { paused: window.__game.isPaused(), menu: !!ms && ms.classList.contains('open') };
+    });
+    expect(hid.paused === true && hid.menu === true,
+      '⚡ A HIDDEN PAGE STILL PAUSES THE GAME, AND WITH THE MENU (' + JSON.stringify(hid) + ')');
+    await pa.close(); sa.close();
+
+    // (B) A PORTAL — any id but `mock`: its pause and its sound are obeyed exactly as before
+    const sb = await stand(true);
+    const pb = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await pb.addInitScript(quietLb);
+    await pb.goto(sb.url);
+    await pb.waitForFunction(() => window.__game && window.__game.alive() > 0, null, { timeout: 60000 });
+    let subscribed = true;
+    try { await pb.waitForFunction(() => window.__plat && (window.__plat.h.pause || []).length > 0 && (window.__plat.h.audio || []).length > 0,
+      null, { timeout: 20000 }); } catch (e) { subscribed = false; }
+    await pb.evaluate(() => window.__game.skipIntro());
+    await pb.waitForTimeout(300);
+    await pb.evaluate(() => window.__plat.emit('pause', true)); await pb.waitForTimeout(250);
+    const b1 = await readPage(pb);
+    await pb.evaluate(() => window.__plat.emit('pause', false)); await pb.waitForTimeout(250);
+    const b2 = await readPage(pb);
+    await pb.evaluate(() => window.__plat.emit('audio', false)); await pb.waitForTimeout(250);
+    const b3 = await readPage(pb);
+    await pb.evaluate(() => window.__plat.emit('audio', true)); await pb.waitForTimeout(250);
+    expect(subscribed && b1.id === 'portaltest' && b1.paused && b1.muted && !b1.menu && !b2.paused && !b2.muted && b3.muted && !b3.paused,
+      '⚡ A PORTAL IS STILL OBEYED — its pause freezes the game quietly and mutes it, lifting it gives both back, its sound mutes ' +
+      'without a pause (' + JSON.stringify({ subscribed, b1, b2, b3 }) + '). ⛔ SABOTAGE: drop the pause subscription wholesale — ' +
+      'the game never pauses here');
+    await pb.close(); sb.close();
+  }
+  // ⟦PLATPAUSE-SECTION-END⟧
 
   // ===== THE FLOW MODE (2026-09-08-a): on the phone the pause menu, the leaderboard and the ×5 screen
   // scroll as the PAGE, so their rows pass under the iOS 26 status bar and address bar. Chromium never
@@ -21632,11 +21775,11 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       // also the old no-neighbour fallback — so it is asserted TOGETHER with the neighbour being
       // shown: his face, his exact score. A build that lost the neighbour reads the same line with
       // a neutral circle and an empty number, and fails here.
-      expect(d.score === '123 456' && d.sub === 'on leaderboard' && d.cap === 'Next Godwit'
+      expect(d.score === '123 456' && d.sub === 'on leaderboard' && d.cap === 'Next player'
         && d.capColour === 'rgb(162, 162, 168)' && d.ruleW === 1 && d.ruleH > 20
         && d.avTag === 'IMG' && d.avSrc.indexOf('Avatar07') >= 0 && d.order && d.inLeft,
         'AUTH: the entry point carries the next player — his face, his EXACT score «123 456», the ' +
-        'hairline rule, «Next Godwit» in Carbon 600; under the place the static «on leaderboard»',
+        'hairline rule, the static «Next player» in Carbon 600; under the place the static «on leaderboard»',
         JSON.stringify(d));
       // ⛔ AND THE CONTROL: no neighbour (the first place, a guest, no connection) collapses the
       // NUMBER and the caption — but never the circle, whose geometry this row guarantees in the
