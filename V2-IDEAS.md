@@ -155,9 +155,9 @@ The honest cure is one counter PER DEVICE under each key, summed for the balance
 across every counter and every reader, i.e. a project, and it does not stop deliberate double
 spending offline either (that needs a server ledger). Not planned before release.
 
-## A «PAYMENT WENT THROUGH» SCREEN IN THE GAME (his word 2026-09-10, «запиши на будущее»)
+## A «PAYMENT WENT THROUGH» SCREEN IN THE GAME (his word 2026-09-10, «write it down for the future»)
 
-Verbatim: «Внутри после покупки нужен экран, что платеж прошел и возвращать на него после оплаты».
+Verbatim: «In the game, after a purchase, there must be a screen saying the payment went through, and the player must be returned to it after paying».
 Recorded, deliberately NOT built in that batch — he asked for it to be written down.
 
 ⚠️⚠️ **«RETURN TO IT» MEANS SOMETHING DIFFERENT SINCE 2026-09-10-zh, AND THAT IS THE WHOLE DESIGN NOTE.**

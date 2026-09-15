@@ -1427,10 +1427,10 @@ function _boltFX_impl(a, b){
 // 2026-08-23-a: «a click on the bonus item destroys all similar items by way of a lightning
 // bolt that threads through them all, from centre to centre») ═══
 // ⚠️⚠️ ONE CONTINUOUS THREAD, NOT A STAR OF SEPARATE BOLTS, AND THE DIFFERENCE IS HIS
-// WORDING. «Пронизывает их все… от центра к центру» is a traversal — centre to centre to
+// WORDING. «Threads through them all… from centre to centre» is a traversal — centre to centre to
 // centre — not a radiation from one point. A fan already existed in this codebase (the
 // per-match star at the turbo line) and it is NOT what was asked for; a fan would have been
-// «от центра ко всем».
+// «from the centre out to all of them».
 // ⛔⛔ THIS DOES **NOT** GO THROUGH `boltFX`, AND MUST NOT BE «SIMPLIFIED» INTO IT. That one
 // begins with `if (!TURBO_BOLTS) return;`, and TURBO_BOLTS is false by the owner's own spec
 // of 2026-07-28 (entering turbo is marked by tossing the pile, not by discharges). Calling

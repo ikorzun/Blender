@@ -741,7 +741,7 @@ function lbEntryRefresh(){
   // «the icon on the right must be the avatar of whoever is next in the list — i.e. leave one
   // instead of 3». The top's rows are no longer read by this block at all.
   // ⛔⛔ AND THE WIN ROW NO LONGER SHOWS THE PLAYER'S OWN FACE EITHER: asked whether the next
-  // player belongs there too, he answered «нужен» (2026-09-10). That cancels his word of
+  // player belongs there too, he answered «needed» (2026-09-10). That cancels his word of
   // 2026-08-21-r («instead of three avatars we show only the avatar of the player»), and the two
   // instances of this component say ONE thing again — who is ahead of you.
   // ⚠️⚠️ THE PRICE, NAMED RATHER THAN HIDDEN: the win row's circle now WAITS for the network. The

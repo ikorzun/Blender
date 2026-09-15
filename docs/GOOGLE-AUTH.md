@@ -1,6 +1,6 @@
-# GOOGLE ACCOUNT SIGN-IN — THE AGREED PLAN (his word 2026-09-10: «мне нужен гугловый акк и его имя
-# с лидербордом на отдельном домене как сейчас», and his answer to the one fork: «покупки и место
-# в таблице»)
+# GOOGLE ACCOUNT SIGN-IN — THE AGREED PLAN (his word 2026-09-10: «I need the Google account and its name
+# with the leaderboard on a separate domain, as now», and his answer to the one fork: «purchases and the place
+# in the table»)
 
 ⚠️ THE ANALYSIS THIS FILE HELD BEFORE (a list of forks, nothing built) IS SUPERSEDED. What survives
 of it is recorded below as the checks that are still open; everything else is now decided.

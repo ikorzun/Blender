@@ -6,7 +6,19 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-15 (the freeze after the intro, «Next player», your two gaps) on top of 2026-09-14, v2 = main** · **the touched sections dry-run green: PLATPAUSE 3, POINTS 10, AUTH 42; five sabotages, each red on its own check** · **no full suite, by your word** · **sign-in is live** · **on GitHub and blendo.monster** · **the level pacing (a new model every second level): not built — you are still thinking**
+**Build: batch 2026-09-15-b (the last Russian quotes in the comments and notes translated into English) on top of 2026-09-15 (the freeze after the intro, «Next player», your two gaps), v2 = main** · **no Russian left in the project except bonus.html** · **the game's code is proven unchanged: with comments stripped, every edited file is byte-identical** · **dry runs green: PWA 14, LOADING 3, PAYWEB 14, STCLOSE 26; the payment server's tests 41** · **no full suite, by your word** · **sign-in is live** · **on GitHub and blendo.monster** · **the level pacing (a new model every second level): not built — you are still thinking**
+
+**15 SEPTEMBER, LATER — THE COMMENTS ARE IN ENGLISH.**
+
+You said yes, so the 114 Russian lines I reported after the fresh clone are translated. Every one was your own words,
+quoted in Russian inside the English comments and notes of the 10-12 September batches: 28 lines in the game's code,
+19 in the tests, 2 in a tool, 37 in the project notes, and the same 28 code lines once more inside the built game.
+Each quote is now a literal English translation, worded the same everywhere it appears. Nothing in the game changed:
+with comments stripped, the code of every edited file is byte-for-byte the same, and the new build differs from the
+previous one only in those comment lines and its build label. One line was not a comment — a name in the payment
+server's tests that is non-English on purpose; it became another non-English name (with accented letters), and I
+checked it still catches the bug it is there for. The only Russian left in the project is bonus.html, the frozen copy
+of the removed bonus level.
 
 **15 SEPTEMBER — YOUR THREE ITEMS: THE FREEZE AFTER THE INTRO, «NEXT PLAYER», THE GAPS.**
 
@@ -510,14 +522,14 @@ Next: the payment server itself, in test mode, and the third provider in the gam
 and the portal.
 
 **10 SEPTEMBER, EVENING — THE BALL IS PLASTERED ALL OVER, AND THE FIRE COMES OFTENER FROM LEVEL 5
-(batch 2026-09-10-v, your «полностью заклеена стикерами, даже внахлест» and «огонь да»).**
+(batch 2026-09-10-v, your «fully covered with stickers, even overlapping» and «fire, yes»).**
 **THE BALL** now wears ten faces overlapping, and «fully» is a NUMBER rather than an impression:
 600 directions of the ball, every one of them inside some sticker, the narrowest seam overlapped by
 0.095 rad. The sizes are not guesses — I measured at which count the spiral leaves bald patches:
 six of the old caps cover about half a ball, ten of the new ones cover it with margin. Ten and not
 fourteen because at fourteen the heads shrink into a pattern and the neighbour is no longer
 recognisable — both frames are with you.
-⚠️ **ABOUT «РАЗМЕРОМ С АРБУЗ» — IT ALREADY IS, AND I MEASURED IT.** Every model in the game is
+⚠️ **ABOUT «THE SIZE OF A WATERMELON» — IT ALREADY IS, AND I MEASURED IT.** Every model in the game is
 normalised to one radius, so on a live level: the rival 0.62, a watermelon 0.62, the whole pile
 0.62, the bomb 0.884 (it alone is bigger — the dynamite). The ball IS a watermelon. If you want it
 **bigger than the pile**, that is one number, in the bomb's class; I did not change it on my own —
@@ -529,7 +541,7 @@ behavioural: I let the scheduler ignite and measure the gap IT wrote — 19.1 s 
 The rest of the special-objects table is on hold, as you said.
 
 **10 SEPTEMBER — THE NEXT PLAYER OF THE TABLE NOW LIES IN THE BOWL (batch 2026-09-10-b, your
-«Делай» + «вернем сферу и наклеим аватарки как стикеры»).** One piece per level from the fifth,
+«Do it» + «bring the sphere back and stick the avatars on it like stickers»).** One piece per level from the fifth,
 every 1-3 levels, wearing the face of the neighbour your leaderboard row already names. No pair:
 one tap on a dug-out rival turns **×3 on ALL earnings for five seconds**, and the corner badge shows
 the combined multiplier and counts the seconds down.
@@ -607,7 +619,7 @@ Three real defects, each verified by me:
 3. **Telemetry is switched off** (`let URL = ''`), so the tester's «a solid 3» and «six minutes» are
    unanswerable and will stay so until a worker exists. You already run three.
 ⚠️ AND ONE QUESTION FOR THE TESTER, WHICH I GOT WRONG MYSELF: I told you he was on Easy. His wording
-«предметы заблочены другими» matches the HARD toast «Item is covered from above» almost verbatim. On
+«the items are blocked by other items» matches the meaning of the HARD toast «Item is covered from above» almost exactly. On
 Easy nothing is ever blocked. Which difficulty he played decides whether that complaint is in scope
 at all.
 

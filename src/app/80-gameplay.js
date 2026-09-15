@@ -968,7 +968,7 @@ function detectorHighlight(){
 }
 
 // THE RIVAL IS DUG OUT AND TAPPED: the multiplier window opens and the piece leaves. It pays NO
-// score of its own — the owner's spec is «множитель всех очков на 5 секунд», and points on top of
+// score of its own — the owner's spec is «a multiplier on all points for 5 seconds», and points on top of
 // it would be a second reward nobody asked for.
 // ⚠️ THE REMOVAL TAIL IS THE TREASURE'S, LINE FOR LINE: the same `animating` guard, the same
 // `afterPause` deferral and the same `checkEnd` — the rival is the second unpaired single item

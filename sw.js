@@ -20,10 +20,10 @@
    covers a Range on the DOCUMENT.
 
    THE STRATEGY, and why it is not the usual precache:
-   - ⚡ THE DOCUMENT IS CACHE-FIRST (2026-09-10-i, his word «делаем 1 пункт» — the first of the three
-     levers he was offered against «долго все грузится»). An installed launch answers from the
+   - ⚡ THE DOCUMENT IS CACHE-FIRST (2026-09-10-i, his word «we do item 1» — the first of the three
+     levers he was offered against «everything takes long to load»). An installed launch answers from the
      player's own copy and touches the network for the document NOT AT ALL. ⛔⛔ THE PRICE WAS NAMED
-     TO HIM IN THOSE WORDS AND HE TOOK IT: «после выпуска новой версии вы один раз увидите старую» —
+     TO HIM IN THOSE WORDS AND HE TOOK IT: «after a new version is released you will see the old one once» —
      a release reaches him on the NEXT launch, not this one. Whoever wants that back changes one
      line (`docFromCache` → `docFromNetwork` in the navigate branch) and gives up the instant start.
    - THE UPDATE RIDES sw.js, NOT THE DOCUMENT. `BUILD` carries the md5 of this build (label blank),
@@ -60,7 +60,7 @@
    page. Both halves are guarded, and the fetch handler's own catch searches EVERY `blendo-` cache
    for a document rather than only this build's.  */
 
-const BUILD = 'a71b6e5e5c33';
+const BUILD = '42b001670929';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
 

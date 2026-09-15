@@ -360,15 +360,15 @@ function makeBomb(){
 
 // ⚡ THE RIVAL: THE NEXT PLAYER OF THE TABLE, LYING IN THE BOWL (the owner's spec 2026-09-10).
 // A BALL IN THAT PLAYER'S OWN COLOUR, WEARING HIS FACE AS STICKERS — his third and final word on
-// the shape, after a sheet of six recipes and a sheet of four camera angles: «вернём сферу и на неё
-// наклеим аватарки как стикеры друг на друга, не растягивая аватарку».
-// ⛔⛔ «НЕ РАСТЯГИВАЯ» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
+// the shape, after a sheet of six recipes and a sheet of four camera angles: «bring the sphere back and stick
+// the avatars onto it like stickers over one another, without stretching the avatar».
+// ⛔⛔ «WITHOUT STRETCHING» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
 // WHOSE UVs ARE AN ORTHOGRAPHIC PROJECTION of the picture — the image is projected onto the ball
 // the way a slide is, so at the centre there is no distortion at all and towards the rim it is
 // pressed exactly as a paper sticker on a ball is pressed. TWO WAYS THAT LOOK EASIER AND ARE BOTH
 // WRONG, and both were measured on frames rather than reasoned about:
 //   • wrapping the picture over the sphere (a plain `map`) STRETCHES it at the poles — his own
-//     «сильно растягивает», and no parameter cures it: it is the wrap itself;
+//     «stretches a lot», and no parameter cures it: it is the wrap itself;
 //   • putting it on a cylinder cap CROPS it — three maps the cap onto the circle INSCRIBED in the
 //     texture, so a 192-square avatar loses its ears. That is what the coin before this did.
 // ⚠️ EACH STICKER SITS ON ITS OWN RADIUS so the stack has an order and the overlaps cannot z-fight;

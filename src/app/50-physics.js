@@ -640,7 +640,7 @@ function syncMeshes(){
     const t = it.body.translation();
     it.p.set(t.x, t.y, t.z);
     it.mesh.position.set(t.x, t.y, t.z);
-    // ⚡ THE RIVAL NEVER TIPS OVER, LIKE A DARUMA (the owner's own reference «как японский дорума»,
+    // ⚡ THE RIVAL NEVER TIPS OVER, LIKE A DARUMA (the owner's own reference «like a Japanese daruma»,
     // 2026-09-10). Its collider is a SPHERE, so the render rotation carries NO physics whatsoever:
     // nothing here touches the simulation, the tap still lands on the collider, and this is the one
     // object in the bowl whose orientation the player READS — a face on its side or upside down

@@ -1067,8 +1067,8 @@ const FIRE_FADE_MS = 450;     // the fade-out when extinguishing
 // a few seconds and goes out; collecting a group of the burning type is a bonus (the crediting
 // is up to the DISPATCHER, the joint is burningName in 70-fx).
 const FIRE_EVERY_MS = 30000;  // ⚠️ THE OWNER'S NUMBER, do not tune without his word
-// ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «огонь да» of 2026-09-10-v to the proposal
-// «пламя оставляем с первого, на 5 увеличиваем частоту его появления»). ⛔ THE FIRE STILL STARTS
+// ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «fire, yes» of 2026-09-10-v to the proposal
+// «we keep the flame from the first level, from the 5th we raise how often it appears»). ⛔ THE FIRE STILL STARTS
 // AT THE FIRST LEVEL — only the PERIOD shortens, and only from FIRE_FAST_FROM; the burn time,
 // the choice of victim and the bonus are untouched. The two numbers are his 30 s and my 20 s
 // (a third off, named to him); one line moves either.
@@ -1320,11 +1320,11 @@ function returnWindow(pairsCnt, distinct){
   return { dbl, upper: Math.floor(2 * dbl * RETURN_MERGE_SHARE), lower: Math.floor(2 * Math.round(pairsCnt / d) * RETURN_MERGE_SHARE) };
 }
 // ⚡ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10, three answers in a row to the
-// dispatcher: «1. Множитель всех очков на 5 секунд / 2. Пара не нужна / 3. Следующего»).
+// dispatcher: «1. A multiplier on all points for 5 seconds / 2. No pair needed / 3. The next one»).
 // One item per level wears the face of the NEXT player in the table — the same neighbour the
 // leaderboard row and the win screen already name. It does not match and needs no pair: a tap on
 // a DUG-OUT rival turns a multiplier on ALL EARNINGS on for RIVAL_MS.
-// ⚠️ THE VALUE IS THE DISPATCHER'S DEFAULT, NAMED TO HIM AND APPROVED WITH A «делай»: ×2 over
+// ⚠️ THE VALUE IS THE DISPATCHER'S DEFAULT, NAMED TO HIM AND APPROVED WITH A «do it»: ×2 over
 // five seconds is not felt, ×5 collides with the paid boost's own number. It MULTIPLIES with the
 // paid one (5 × 3 = 15) instead of replacing it — the window is short and rare, and the paid
 // boost is his own «the money has to be played off» model.
@@ -1337,11 +1337,11 @@ function returnWindow(pairsCnt, distinct){
 const RIVAL_FROM_LEVEL = 5;                  // the same start as the bomb and the ice (his word)
 const RIVAL_GAP_MIN = 1, RIVAL_GAP_MAX = 3;  // ... and the same rhythm: every 1-3 levels
 const RIVAL_MULT = 3;
-// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «давай вернём сферу и на неё наклеим аватарки
-// как стикеры друг на друга, не растягивая аватарку». A ball in the neighbour's own colour, wearing
+// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «let's bring the sphere back and stick the avatars onto it
+// like stickers over one another, without stretching the avatar». A ball in the neighbour's own colour, wearing
 // N copies of his face as stickers.
-// ⛔⛔ «ONLY KISSING AT THE EDGES» IS CANCELLED BY HIS NEXT WORD — «полностью заклеена стикерами,
-// даже внахлест» (2026-09-10-v). The pair is DERIVED and not chosen: for N points laid out by the
+// ⛔⛔ «ONLY KISSING AT THE EDGES» IS CANCELLED BY HIS NEXT WORD — «fully covered with stickers,
+// even overlapping» (2026-09-10-v). The pair is DERIVED and not chosen: for N points laid out by the
 // fibonacci spiral the COVERING RADIUS (the largest angle from any direction to its nearest centre)
 // is 1.09 / 0.95 / 0.86 / 0.78 / 0.72 rad at N = 6 / 8 / 10 / 12 / 14 — measured, not estimated. A
 // cap must exceed it or a bald patch is guaranteed: 10 at 0.95 rad clears 0.86 with 0.095 rad of
@@ -1356,7 +1356,7 @@ const RIVAL_MULT = 3;
 const RIVAL_STICKERS = 10;
 const RIVAL_STICKER_HALF = 0.95;
 const RIVAL_MS = 5000;
-// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «как японский дорума»): the render
+// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «like a Japanese daruma»): the render
 // rotation of a BALL carries no physics, so the ball keeps its faces up and only turns on its own
 // axis. `false` gives it the pile's tumble back — and with it the upside-down face of the first
 // live frame. The branch lives in `syncMeshes` (50-physics) and the whole reason is written there.

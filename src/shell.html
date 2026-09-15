@@ -4592,8 +4592,8 @@
     border-radius:50%; border:5px solid rgba(255,255,255,.35); border-top-color:#fff; z-index:3; pointer-events:none;
     animation:introSpin .9s linear infinite; }
   html.video:not(.video-on) #introLoader { display:block; }
-  /* ⚡ THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «хорошо бы сразу показывать голубой фон и
-     ловдер, а не ждать пока вкладка ответит сразу заставкой. лоадер помогает дождаться и это важно»).
+  /* ⚡ THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «it would be good to show the blue background and
+     the loader at once, instead of waiting until the tab answers straight away with the splash. The loader helps to wait, and that is important»).
      MEASURED on the built artefact before this rule: the head is 404 KB, i.e. the first paint — the blue body —
      is possible at 3.08% of the download; the loader ELEMENT is parsed at 3.1%; the poster's own bytes only
      complete at 11.6%. So between 3% and 12% the phone showed a flat blue field with NOTHING on it, and that
@@ -4794,7 +4794,7 @@
 </head>
 <body>
 <script id="payReturnGate">
-  // THE RETURN FROM STRIPE, CAUGHT BEFORE THE GAME LOADS (2026-09-10-zh, his «долго всё грузится»).
+  // THE RETURN FROM STRIPE, CAUGHT BEFORE THE GAME LOADS (2026-09-10-zh, his «everything takes long to load»).
   // ⚠️⚠️ THE PAYMENT NOW OPENS IN ITS OWN TAB, so the address Stripe returns to is loaded by a tab whose
   // whole job is to say «I am back» and go. Left to the app that costs the FULL 12.8 MB parse first — the
   // player watches a second copy of the game boot for several seconds before it closes itself. Standing
@@ -5543,8 +5543,8 @@
       <p class="st-desc">5× points in every match for 30 min of play. <br>Tips &amp; Shakes stay active anytime.</p>
       <button class="st-buy" data-tier="5">Buy $1.99</button>
     </div>
-    <!-- ⚠️ THE THREE LEGAL LINKS, HIS WORD 2026-09-10-g («ссылки на экран покупки 10 px шрифтом в самый
-         низ, серый цвет, в одну строку»). THE ADDRESSES ARE ABSOLUTE ON PURPOSE: the same build runs
+    <!-- ⚠️ THE THREE LEGAL LINKS, HIS WORD 2026-09-10-g («links on the purchase screen in a 10 px font at the very
+         bottom, grey, on one line»). THE ADDRESSES ARE ABSOLUTE ON PURPOSE: the same build runs
          from github.io, from inside the portal's iframe and from the app wrapper, where a relative
          `/terms` is somebody else's page or nothing at all. The addresses are EXTENSIONLESS because
          that is what the assets store serves: `/terms.html` answers 307 to `/terms` (measured on the

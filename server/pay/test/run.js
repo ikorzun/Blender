@@ -62,7 +62,7 @@ async function mint(over) {
     sub: 'sub-default',
     exp: now() + 3600,
     iat: now(),
-    name: 'Иван Игрок',
+    name: 'José Müller',
   }, o.claims || {});
   const h = b64u(JSON.stringify(head)), pl = b64u(JSON.stringify(body));
   const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', o.priv || GKEY.priv,
@@ -517,7 +517,7 @@ const rows = (e, gid) => e.DB._raw.prepare('SELECT * FROM ent WHERE gid = ? ORDE
     const accA = e.DB._raw.prepare('SELECT * FROM acc WHERE sub = ?').get(subA);
     const pkA = e.DB._raw.prepare('SELECT * FROM pk WHERE gid = ?').get(gidA);
     expect(r1.json && r1.json.ok === 1 && r1.json.fresh === 1 && r1.json.gid === gidA
-      && r1.json.k === KEY_A && r1.json.name === 'Иван Игрок'
+      && r1.json.k === KEY_A && r1.json.name === 'José Müller'
       && accA && accA.gid === gidA && accA.k === KEY_A
       // ⚠️ THE PAIR, NOT THE ID: `acc.k` must equal what the key table anchored, or the second
       // device generates a fresh key and both services answer 401 for ever.

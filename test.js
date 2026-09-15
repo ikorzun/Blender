@@ -1022,7 +1022,7 @@ page.on('response', (r) => {
              ownTag: (() => { const h = document.getElementById('winLbeAvs');
                return h && h.firstElementChild ? h.firstElementChild.tagName : null; })(),
              // ⚠️ THE SIZE, AND NOT THE TAG, SINCE 2026-09-10: the circle is the NEIGHBOUR's face
-             // now (his word «нужен» about the win screen too), and a neighbour arrives over the
+             // now (his word «needed» about the win screen too), and a neighbour arrives over the
              // network — on this page there is none, so the child is legitimately the neutral slot
              // `<i>`. What is invariant is that there is EXACTLY ONE circle and it is the win
              // instance's 56, whichever of the two it is; WHOSE face it is, is guarded in the
@@ -1058,7 +1058,7 @@ page.on('response', (r) => {
       // on the network would be a flake in this assert, and not a statement.
       // ⛔⛔ AND `ownTag === 'IMG'` MOVED TO A SIZE FOR THAT VERY REASON. It was load-bearing while
       // the face was the PLAYER'S OWN — derived from his key, so present in the first frame, so an
-      // `<i>` there meant a defect. Since his word of 2026-09-10 («нужен» — the next player on the
+      // `<i>` there meant a defect. Since his word of 2026-09-10 («needed» — the next player on the
       // win screen too) the face comes over the network, and on this page there is no neighbour:
       // the neutral slot is the CORRECT answer here. What stays invariant is one circle at the win
       // instance's 56 — the geometry that must not move when the picture arrives.
@@ -5667,8 +5667,8 @@ window.bridge = {
          Math.abs(phoneRow.d1280.gap - 20) <= 0.5 && phoneRow.d1280.sameRow,
     'DESKTOP ROW 1280: the labels are back, the pill keeps its 20 on the right (2026-09-04), the gap is 20 (' +
     JSON.stringify({ labs: phoneRow.d1280.labs, chips: phoneRow.d1280.chips, gap: phoneRow.d1280.gap }) + ')');
-  // ⚡ THE THREE LEGAL LINKS ON THE PURCHASE SCREEN (his word 2026-09-10-g: «ссылки на экран покупки
-  // 10 px шрифтом в самый низ, серый цвет, в одну строку все 3 ссылки»). Nothing read them before, so
+  // ⚡ THE THREE LEGAL LINKS ON THE PURCHASE SCREEN (his word 2026-09-10-g: «links on the purchase screen
+  // in a 10 px font at the very bottom, grey, all 3 links on one line»). Nothing read them before, so
   // both the links and their removal would have passed green. ⚠️ THE ADDRESSES ARE THE LOAD-BEARING
   // HALF: a relative `/terms.html` works only on the domain, and the same build runs from github.io,
   // from the portal's iframe and from the wrapper — the sabotage is a relative href, and it reddens
@@ -8393,7 +8393,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
   // ignition and the burn-out it SPENDS the schedule the two arms above measure — it lit a fire of
   // its own and the neighbour read 11.8 s left instead of the > 20 it asserts. The canon's own law
   // about a block appended into someone else's section, met on a five-line insert.
-  // ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «огонь да», 2026-09-10-v). ⚠️ THE ARM IS
+  // ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «fire, yes», 2026-09-10-v). ⚠️ THE ARM IS
   // BEHAVIOURAL, not a reading of the constant: it lets the scheduler ignite and measures the gap
   // IT wrote — a build that shortened the number and kept scheduling by the old one would satisfy
   // any assert on `fireRule().every` alone. The rule is printed beside it as the control (the two
@@ -11176,7 +11176,7 @@ const HUD_FLOOR = { day: 1.30, night: 12.5 };   // the white of the eye against 
       'term from the entry fit — every other test reads clean while it lies across the face');
 
     // ⚠️⚠️ THE WIN ROW SHOWS THE SAME NEIGHBOUR — asked whether the next player belongs there too,
-    // he answered «нужен» (2026-09-10), which cancels his own word of 2026-08-21-r («instead of
+    // he answered «needed» (2026-09-10), which cancels his own word of 2026-08-21-r («instead of
     // three avatars we show only the avatar of the player»). ⛔ The former arm asserted the
     // OPPOSITE and moved with the rule rather than being deleted: a silent return of the own face
     // is exactly what it now catches, and the pinned identity (36) is what makes that catchable —
@@ -11682,9 +11682,9 @@ window.bridge = {
   // visible, then faded over 300 ms while the fall starts underneath. The suite's pages are webdriver and
   // never see it unless `?splash=1`; the guard stretches the minimum to 4 s through a knob so the hold
   // is measurable on a bench whose load already takes ~2.5 s. =====
-  // ⟦LOADING-SECTION-BEGIN⟧ — THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «хорошо бы сразу
-  // показывать голубой фон и ловдер, а не ждать пока вкладка ответит сразу заставкой. лоадер помогает дождаться
-  // и это важно»). MEASURED on the artefact before the rule was written: the render-blocking head is 404 KB, so
+  // ⟦LOADING-SECTION-BEGIN⟧ — THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «it would be good to show
+  // the blue background and the loader at once, instead of waiting until the tab answers straight away with the splash. The loader helps to wait,
+  // and that is important»). MEASURED on the artefact before the rule was written: the render-blocking head is 404 KB, so
   // the first paint — the blue body — is possible at 3.08% of the download and the loader ELEMENT is parsed at
   // 3.1%, while the poster's own bytes only complete at 11.6%. Between those two the phone showed a flat blue
   // field with NOTHING on it. `html.loading` is written STATICALLY on the <html> tag (earlier than any script)
@@ -13303,8 +13303,8 @@ window.bridge = {
     // ⛔⛔ THIS ARM IS THE INVERSE OF WHAT IT SAID UNTIL 2026-09-10-i, AND ITS OLD SABOTAGE IS THE NEW HEALTHY
     // BUILD. It used to read «the DOCUMENT goes to the network first … serve it from the cache first and a
     // player keeps yesterday's game until the second launch» — and that sentence is the PRICE HE THEN BOUGHT
-    // ON PURPOSE: «делаем 1 пункт» against «долго все грузится», with the cost named to him in his own words
-    // beforehand, «после выпуска новой версии вы один раз увидите старую». A guard states a DECISION, not a
+    // ON PURPOSE: «we do item 1» against «everything takes long to load», with the cost named to him in his own words
+    // beforehand, «after a new version is released you will see the old one once». A guard states a DECISION, not a
     // truth: it moves with his word and is not «repaired».
     // ⚠️ SINCE 2026-09-12 THE STAMP IS THE MD5 OF THE BUILD WITH ITS LABEL BLANK (build.py): the dev panel's
     // `#buildVer` carries the stamp itself, and a document cannot contain the hash of itself — so the arm puts the
@@ -17453,7 +17453,7 @@ window.bridge = {
       // ⛔⛔ NO WHITESPACE BEFORE THE BRACKET, AND THIS IS THE THIRD EDITION OF THE
       // FILTER, PAID FOR BY A RED ON A SOUND BUILD (2026-08-22-g, the translation of
       // the project into English). The previous form allowed `\s*` before `(` — under
-      // Russian prose that was safe, because «бонусный (» does not look like a call.
+      // Russian prose that was safe, because a Cyrillic word followed by a bracket does not look like a call.
       // English prose does: the comments now say «a bonus (the crediting …», and the
       // guard counted FOUR such phrases as calls. A real call in this codebase is
       // always written `name(` without a gap, so the gap is exactly what separates
@@ -21012,8 +21012,8 @@ window.bridge = {
       '⛔ NO NEIGHBOUR IN THE TABLE — NO RIVAL, AND THE QUEUE KEEPS WAITING (' + JSON.stringify(rvSched) + ')');
 
     // (2) THE PIECE ITSELF. A ball in the neighbour's tone with his face STUCK ON as overlapping
-    // stickers («вернем сферу и на нее наклеим аватарки как стикеры друг на друга, не растягивая
-    // аватарку»): the owner rejected a wrapped sphere («сильно растягивает») and the cylinder cap
+    // stickers («bring the sphere back and stick the avatars onto it like stickers over one another, without stretching
+    // the avatar»): the owner rejected a wrapped sphere («stretches a lot») and the cylinder cap
     // before it, which crops a 192-square avatar into its inscribed circle.
     const rvItem = await rp.evaluate(async () => {
       const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
@@ -21035,7 +21035,7 @@ window.bridge = {
            rvItem.info.uvErr >= 0 && rvItem.info.uvErr < 1e-5 && rvItem.info.tint === rvItem.info.want,
       'THE PIECE: a ball in the neighbour\'s own tone wearing stickers of his face, each an ' +
       'orthographic projection — the picture is not stretched anywhere (' + JSON.stringify(rvItem.info) + ')');
-    // ⚠️⚠️ «ПОЛНОСТЬЮ ЗАКЛЕЕНА, ДАЖЕ ВНАХЛЕСТ» (his word 2026-09-10-v) IS ASSERTED AS A NUMBER: 600
+    // ⚠️⚠️ «FULLY COVERED, EVEN OVERLAPPING» (his word 2026-09-10-v) IS ASSERTED AS A NUMBER: 600
     // directions of the ball, every one of them inside some cap, and the WORST seam overlapping by
     // at least 0.05 rad. ⛔ THE OVERLAP HALF IS NOT DECORATION — «covered» alone is satisfied by
     // caps that merely touch, i.e. by the exact configuration he asked to leave behind, and a
@@ -21287,8 +21287,8 @@ window.bridge = {
     expect(iOpen > 0 && iNet > 0 && iOpen < iNet,
       'THE TAB IS OPENED INSIDE THE CLICK, BEFORE THE NETWORK CALL (open at ' + iOpen
       + ', the request at ' + iNet + ') — after an await the browser blocks it');
-    // ⚠️⚠️ AND THE RETURNING TAB MUST NOT PARSE 12.8 MB JUST TO CLOSE ITSELF (his «долго всё
-    // грузится»): the gate that catches `?paid=` with a live opener stands at the FIRST BYTE OF
+    // ⚠️⚠️ AND THE RETURNING TAB MUST NOT PARSE 12.8 MB JUST TO CLOSE ITSELF (his «everything takes
+    // long to load»): the gate that catches `?paid=` with a live opener stands at the FIRST BYTE OF
     // BODY, before the app script. This is a structural arm because what it guards is TIME, and a
     // bench that closes the tab in five seconds instead of a fraction of one is still «green».
     const iGate = shipped.indexOf('id="payReturnGate"');

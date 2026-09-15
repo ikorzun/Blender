@@ -4592,8 +4592,8 @@
     border-radius:50%; border:5px solid rgba(255,255,255,.35); border-top-color:#fff; z-index:3; pointer-events:none;
     animation:introSpin .9s linear infinite; }
   html.video:not(.video-on) #introLoader { display:block; }
-  /* ⚡ THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «хорошо бы сразу показывать голубой фон и
-     ловдер, а не ждать пока вкладка ответит сразу заставкой. лоадер помогает дождаться и это важно»).
+  /* ⚡ THE RING FROM THE FIRST PAINTED FRAME (2026-09-10-i, his word «it would be good to show the blue background and
+     the loader at once, instead of waiting until the tab answers straight away with the splash. The loader helps to wait, and that is important»).
      MEASURED on the built artefact before this rule: the head is 404 KB, i.e. the first paint — the blue body —
      is possible at 3.08% of the download; the loader ELEMENT is parsed at 3.1%; the poster's own bytes only
      complete at 11.6%. So between 3% and 12% the phone showed a flat blue field with NOTHING on it, and that
@@ -4794,7 +4794,7 @@
 </head>
 <body>
 <script id="payReturnGate">
-  // THE RETURN FROM STRIPE, CAUGHT BEFORE THE GAME LOADS (2026-09-10-zh, his «долго всё грузится»).
+  // THE RETURN FROM STRIPE, CAUGHT BEFORE THE GAME LOADS (2026-09-10-zh, his «everything takes long to load»).
   // ⚠️⚠️ THE PAYMENT NOW OPENS IN ITS OWN TAB, so the address Stripe returns to is loaded by a tab whose
   // whole job is to say «I am back» and go. Left to the app that costs the FULL 12.8 MB parse first — the
   // player watches a second copy of the game boot for several seconds before it closes itself. Standing
@@ -5252,7 +5252,7 @@
   <!-- THE BUILD LABEL IS WRITTEN BY build.py (2026-09-12): the same stamp as sw.js's BUILD and the date that
        stamp first appeared. It used to be a hand-typed literal frozen since August, so the perf report and
        telemetry (both read this node) named a build that no longer existed. -->
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build a71b6e5e5c33 · 2026-09-15</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build 42b001670929 · 2026-09-15</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -5543,8 +5543,8 @@
       <p class="st-desc">5× points in every match for 30 min of play. <br>Tips &amp; Shakes stay active anytime.</p>
       <button class="st-buy" data-tier="5">Buy $1.99</button>
     </div>
-    <!-- ⚠️ THE THREE LEGAL LINKS, HIS WORD 2026-09-10-g («ссылки на экран покупки 10 px шрифтом в самый
-         низ, серый цвет, в одну строку»). THE ADDRESSES ARE ABSOLUTE ON PURPOSE: the same build runs
+    <!-- ⚠️ THE THREE LEGAL LINKS, HIS WORD 2026-09-10-g («links on the purchase screen in a 10 px font at the very
+         bottom, grey, on one line»). THE ADDRESSES ARE ABSOLUTE ON PURPOSE: the same build runs
          from github.io, from inside the portal's iframe and from the app wrapper, where a relative
          `/terms` is somebody else's page or nothing at all. The addresses are EXTENSIONLESS because
          that is what the assets store serves: `/terms.html` answers 307 to `/terms` (measured on the
@@ -6964,8 +6964,8 @@ const FIRE_FADE_MS = 450;     // the fade-out when extinguishing
 // a few seconds and goes out; collecting a group of the burning type is a bonus (the crediting
 // is up to the DISPATCHER, the joint is burningName in 70-fx).
 const FIRE_EVERY_MS = 30000;  // ⚠️ THE OWNER'S NUMBER, do not tune without his word
-// ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «огонь да» of 2026-09-10-v to the proposal
-// «пламя оставляем с первого, на 5 увеличиваем частоту его появления»). ⛔ THE FIRE STILL STARTS
+// ⚡ AND FROM THE FIFTH LEVEL IT COMES OFTENER (his «fire, yes» of 2026-09-10-v to the proposal
+// «we keep the flame from the first level, from the 5th we raise how often it appears»). ⛔ THE FIRE STILL STARTS
 // AT THE FIRST LEVEL — only the PERIOD shortens, and only from FIRE_FAST_FROM; the burn time,
 // the choice of victim and the bonus are untouched. The two numbers are his 30 s and my 20 s
 // (a third off, named to him); one line moves either.
@@ -7217,11 +7217,11 @@ function returnWindow(pairsCnt, distinct){
   return { dbl, upper: Math.floor(2 * dbl * RETURN_MERGE_SHARE), lower: Math.floor(2 * Math.round(pairsCnt / d) * RETURN_MERGE_SHARE) };
 }
 // ⚡ THE RIVAL IN THE BOWL (the owner's spec 2026-09-10, three answers in a row to the
-// dispatcher: «1. Множитель всех очков на 5 секунд / 2. Пара не нужна / 3. Следующего»).
+// dispatcher: «1. A multiplier on all points for 5 seconds / 2. No pair needed / 3. The next one»).
 // One item per level wears the face of the NEXT player in the table — the same neighbour the
 // leaderboard row and the win screen already name. It does not match and needs no pair: a tap on
 // a DUG-OUT rival turns a multiplier on ALL EARNINGS on for RIVAL_MS.
-// ⚠️ THE VALUE IS THE DISPATCHER'S DEFAULT, NAMED TO HIM AND APPROVED WITH A «делай»: ×2 over
+// ⚠️ THE VALUE IS THE DISPATCHER'S DEFAULT, NAMED TO HIM AND APPROVED WITH A «do it»: ×2 over
 // five seconds is not felt, ×5 collides with the paid boost's own number. It MULTIPLIES with the
 // paid one (5 × 3 = 15) instead of replacing it — the window is short and rare, and the paid
 // boost is his own «the money has to be played off» model.
@@ -7234,11 +7234,11 @@ function returnWindow(pairsCnt, distinct){
 const RIVAL_FROM_LEVEL = 5;                  // the same start as the bomb and the ice (his word)
 const RIVAL_GAP_MIN = 1, RIVAL_GAP_MAX = 3;  // ... and the same rhythm: every 1-3 levels
 const RIVAL_MULT = 3;
-// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «давай вернём сферу и на неё наклеим аватарки
-// как стикеры друг на друга, не растягивая аватарку». A ball in the neighbour's own colour, wearing
+// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «let's bring the sphere back and stick the avatars onto it
+// like stickers over one another, without stretching the avatar». A ball in the neighbour's own colour, wearing
 // N copies of his face as stickers.
-// ⛔⛔ «ONLY KISSING AT THE EDGES» IS CANCELLED BY HIS NEXT WORD — «полностью заклеена стикерами,
-// даже внахлест» (2026-09-10-v). The pair is DERIVED and not chosen: for N points laid out by the
+// ⛔⛔ «ONLY KISSING AT THE EDGES» IS CANCELLED BY HIS NEXT WORD — «fully covered with stickers,
+// even overlapping» (2026-09-10-v). The pair is DERIVED and not chosen: for N points laid out by the
 // fibonacci spiral the COVERING RADIUS (the largest angle from any direction to its nearest centre)
 // is 1.09 / 0.95 / 0.86 / 0.78 / 0.72 rad at N = 6 / 8 / 10 / 12 / 14 — measured, not estimated. A
 // cap must exceed it or a bald patch is guaranteed: 10 at 0.95 rad clears 0.86 with 0.095 rad of
@@ -7253,7 +7253,7 @@ const RIVAL_MULT = 3;
 const RIVAL_STICKERS = 10;
 const RIVAL_STICKER_HALF = 0.95;
 const RIVAL_MS = 5000;
-// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «как японский дорума»): the render
+// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «like a Japanese daruma»): the render
 // rotation of a BALL carries no physics, so the ball keeps its faces up and only turns on its own
 // axis. `false` gives it the pile's tumble back — and with it the upside-down face of the first
 // live frame. The branch lives in `syncMeshes` (50-physics) and the whole reason is written there.
@@ -11769,15 +11769,15 @@ function makeBomb(){
 
 // ⚡ THE RIVAL: THE NEXT PLAYER OF THE TABLE, LYING IN THE BOWL (the owner's spec 2026-09-10).
 // A BALL IN THAT PLAYER'S OWN COLOUR, WEARING HIS FACE AS STICKERS — his third and final word on
-// the shape, after a sheet of six recipes and a sheet of four camera angles: «вернём сферу и на неё
-// наклеим аватарки как стикеры друг на друга, не растягивая аватарку».
-// ⛔⛔ «НЕ РАСТЯГИВАЯ» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
+// the shape, after a sheet of six recipes and a sheet of four camera angles: «bring the sphere back and stick
+// the avatars onto it like stickers over one another, without stretching the avatar».
+// ⛔⛔ «WITHOUT STRETCHING» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
 // WHOSE UVs ARE AN ORTHOGRAPHIC PROJECTION of the picture — the image is projected onto the ball
 // the way a slide is, so at the centre there is no distortion at all and towards the rim it is
 // pressed exactly as a paper sticker on a ball is pressed. TWO WAYS THAT LOOK EASIER AND ARE BOTH
 // WRONG, and both were measured on frames rather than reasoned about:
 //   • wrapping the picture over the sphere (a plain `map`) STRETCHES it at the poles — his own
-//     «сильно растягивает», and no parameter cures it: it is the wrap itself;
+//     «stretches a lot», and no parameter cures it: it is the wrap itself;
 //   • putting it on a cylinder cap CROPS it — three maps the cap onto the circle INSCRIBED in the
 //     texture, so a 192-square avatar loses its ears. That is what the coin before this did.
 // ⚠️ EACH STICKER SITS ON ITS OWN RADIUS so the stack has an order and the overlaps cannot z-fight;
@@ -13520,7 +13520,7 @@ function syncMeshes(){
     const t = it.body.translation();
     it.p.set(t.x, t.y, t.z);
     it.mesh.position.set(t.x, t.y, t.z);
-    // ⚡ THE RIVAL NEVER TIPS OVER, LIKE A DARUMA (the owner's own reference «как японский дорума»,
+    // ⚡ THE RIVAL NEVER TIPS OVER, LIKE A DARUMA (the owner's own reference «like a Japanese daruma»,
     // 2026-09-10). Its collider is a SPHERE, so the render rotation carries NO physics whatsoever:
     // nothing here touches the simulation, the tap still lands on the collider, and this is the one
     // object in the bowl whose orientation the player READS — a face on its side or upside down
@@ -16087,10 +16087,10 @@ function _boltFX_impl(a, b){
 // 2026-08-23-a: «a click on the bonus item destroys all similar items by way of a lightning
 // bolt that threads through them all, from centre to centre») ═══
 // ⚠️⚠️ ONE CONTINUOUS THREAD, NOT A STAR OF SEPARATE BOLTS, AND THE DIFFERENCE IS HIS
-// WORDING. «Пронизывает их все… от центра к центру» is a traversal — centre to centre to
+// WORDING. «Threads through them all… from centre to centre» is a traversal — centre to centre to
 // centre — not a radiation from one point. A fan already existed in this codebase (the
 // per-match star at the turbo line) and it is NOT what was asked for; a fan would have been
-// «от центра ко всем».
+// «from the centre out to all of them».
 // ⛔⛔ THIS DOES **NOT** GO THROUGH `boltFX`, AND MUST NOT BE «SIMPLIFIED» INTO IT. That one
 // begins with `if (!TURBO_BOLTS) return;`, and TURBO_BOLTS is false by the owner's own spec
 // of 2026-07-28 (entering turbo is marked by tossing the pile, not by discharges). Calling
@@ -20531,7 +20531,7 @@ function detectorHighlight(){
 }
 
 // THE RIVAL IS DUG OUT AND TAPPED: the multiplier window opens and the piece leaves. It pays NO
-// score of its own — the owner's spec is «множитель всех очков на 5 секунд», and points on top of
+// score of its own — the owner's spec is «a multiplier on all points for 5 seconds», and points on top of
 // it would be a second reward nobody asked for.
 // ⚠️ THE REMOVAL TAIL IS THE TREASURE'S, LINE FOR LINE: the same `animating` guard, the same
 // `afterPause` deferral and the same `checkEnd` — the rival is the second unpaired single item
@@ -22863,7 +22863,7 @@ function lbEntryRefresh(){
   // «the icon on the right must be the avatar of whoever is next in the list — i.e. leave one
   // instead of 3». The top's rows are no longer read by this block at all.
   // ⛔⛔ AND THE WIN ROW NO LONGER SHOWS THE PLAYER'S OWN FACE EITHER: asked whether the next
-  // player belongs there too, he answered «нужен» (2026-09-10). That cancels his word of
+  // player belongs there too, he answered «needed» (2026-09-10). That cancels his word of
   // 2026-08-21-r («instead of three avatars we show only the avatar of the player»), and the two
   // instances of this component say ONE thing again — who is ahead of you.
   // ⚠️⚠️ THE PRICE, NAMED RATHER THAN HIDDEN: the win row's circle now WAITS for the network. The
@@ -29154,7 +29154,7 @@ window.__game = {
                // EXISTS: at the two poles the meridian is undefined, so those stickers are
                // skipped and `upN` says how many were actually read — an empty measurement must
                // not pass for a green one.
-               // ⚠️⚠️ «ПОЛНОСТЬЮ ЗАКЛЕЕНА» IS A NUMBER AND IT IS READ OFF THE SHIPPED GEOMETRY:
+               // ⚠️⚠️ «FULLY COVERED» IS A NUMBER AND IT IS READ OFF THE SHIPPED GEOMETRY:
                // 600 directions of a fibonacci sample, each asked whether it lies inside SOME cap.
                // `cover` is the share that does (1 = no bald patch anywhere) and `coverGap` the
                // worst margin — negative means every seam overlaps, and by how much. A count of
@@ -30613,7 +30613,7 @@ if (!window.RAPIER){
     // script is no reason to kill the session (the owner's complaint 2026-07-29 from a screenshot:
     // «Failed to start 3D — Script error.» on a working game).
     window.__booted = true;
-    // ⚡ THE FIRST-FRAME RING STOPS HERE (2026-09-10-i, his «лоадер помогает дождаться»). `html.loading` is
+    // ⚡ THE FIRST-FRAME RING STOPS HERE (2026-09-10-i, his «the loader helps to wait»). `html.loading` is
     // written STATICALLY on the <html> tag in the markup — earlier than any script — and this is the moment
     // the wait is over: the level is built, the loop is running, and the intro hand-off (the poster or the
     // film) begins on the very next line. ⚠️ THE OTHER END IS `window.__fatal` (shell.html): a start that

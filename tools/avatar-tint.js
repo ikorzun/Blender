@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // THE AVATAR'S OWN COLOUR, BAKED AT BUILD TIME -> src/app/09-avatar-tint.js
 //
-// The rival item in the bowl (the owner's word 2026-09-10: «саму сферу стоит заливать цветом
-// аватарки») needs one tone per avatar. It is computed HERE and not in the game on purpose:
+// The rival item in the bowl (the owner's word 2026-09-10: «the sphere itself should be filled with the colour of
+// the avatar») needs one tone per avatar. It is computed HERE and not in the game on purpose:
 // reading a PNG back through a canvas taints it on file:// and needs the file to be there at
 // all — on the portal package the avatars are not shipped. A baked table costs 49 numbers and
 // cannot fail at runtime.

@@ -1689,7 +1689,7 @@ window.__game = {
                // EXISTS: at the two poles the meridian is undefined, so those stickers are
                // skipped and `upN` says how many were actually read — an empty measurement must
                // not pass for a green one.
-               // ⚠️⚠️ «ПОЛНОСТЬЮ ЗАКЛЕЕНА» IS A NUMBER AND IT IS READ OFF THE SHIPPED GEOMETRY:
+               // ⚠️⚠️ «FULLY COVERED» IS A NUMBER AND IT IS READ OFF THE SHIPPED GEOMETRY:
                // 600 directions of a fibonacci sample, each asked whether it lies inside SOME cap.
                // `cover` is the share that does (1 = no bald patch anywhere) and `coverGap` the
                // worst margin — negative means every seam overlaps, and by how much. A count of
@@ -3148,7 +3148,7 @@ if (!window.RAPIER){
     // script is no reason to kill the session (the owner's complaint 2026-07-29 from a screenshot:
     // «Failed to start 3D — Script error.» on a working game).
     window.__booted = true;
-    // ⚡ THE FIRST-FRAME RING STOPS HERE (2026-09-10-i, his «лоадер помогает дождаться»). `html.loading` is
+    // ⚡ THE FIRST-FRAME RING STOPS HERE (2026-09-10-i, his «the loader helps to wait»). `html.loading` is
     // written STATICALLY on the <html> tag in the markup — earlier than any script — and this is the moment
     // the wait is over: the level is built, the loop is running, and the intro hand-off (the poster or the
     // film) begins on the very next line. ⚠️ THE OTHER END IS `window.__fatal` (shell.html): a start that

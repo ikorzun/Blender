@@ -13289,7 +13289,7 @@ level 30». **He corrected the FRAME, not the arithmetic** — the measurement w
 was wrong. Saved to memory; everything about balance is stated in points from here.
 ✅ **AND THE CODE STILL CONTAINED A REAL 1-3 RATING**, which is what makes this more than a wording
 note: `#winStars` rendered three icons on the win screen, `setStars` wrote `Save.stars`, and
-`STAR2_K/STAR3_K` computed it. All removed on his «вычищай».
+`STAR2_K/STAR3_K` computed it. All removed on his «clean it out».
 ⚠️ **THE ★ GLYPH IS NOT A RATING AND STAYS** — it is the ICON for points in the HUD, the menu and
 `winCoins`. Two different things wore one symbol, which is most of why this drifted.
 ⚠️ **THE GOAL SURVIVED AND GOT A NAME.** «Score: X / goal Y» was always a points statement; it was
@@ -15322,7 +15322,7 @@ Tabs → «Allow Website Tinting» switched on?** With it off no fill is drawn a
 ### ⛔⛔ AND THE TOP ZONE IS A PLATFORM LIMIT, TO BE STATED PLAINLY AND NOT ATTEMPTED A FOURTH TIME
 Page y=0 sits at screen y≈61; a document has no rows above its own origin and fixed boxes are clipped to the
 layout viewport, so at rest there is nothing to put there — all five probe variants agree. The only route
-that could change that is a scrolling root with the game shifted down (his instruction's «взлётная полоса»),
+that could change that is a scrolling root with the game shifted down (his instruction's «runway»),
 and it is refuted on gesture safety: this game has ZERO `touchmove` listeners and no `preventDefault` on any
 touch path, so `overflow:hidden` is what has been governing its gestures, and even on success the payoff is
 the sky seen through iPhone's soft scroll pocket (progressive blur plus scrim), not content. There is also
@@ -15515,7 +15515,7 @@ there unless every fixed box leaves that edge — and those fixed boxes ARE the 
 and takes a FULL-PAGE screenshot, so whatever the document paints below 654 — exactly the strip Safari
 composites under its floating bar — is visible, with a rule drawn at the viewport's edge and a hatched band
 standing in for the bar. `flagshoot.js` renders the same screens with the flag off and on and PIXEL-DIFFS
-the viewport half, which is «дизайн менять нельзя» expressed as a number.
+the viewport half, which is «the design must not change» expressed as a number.
 ⚠️ IT PINS THE GUEST IDENTITY FIRST (`mixer_save_v1` with a fixed `gn`/`gid`): the name and avatar are
 generated per session, so the first diff read 46 % on two builds that were identical in layout.
 ✅ CONTROL: two runs of the SAME build diff to **0 pixels of 1 051 632, max delta 0**. The bench has no
@@ -18227,7 +18227,7 @@ routine — his word turns it into one line in `docs/` and the packer.
 
 ### ⛔⛔ THE LEVER I RECOMMENDED FIRST WAS A NO-OP, AND THE MEASUREMENT IS WHAT SAID SO
 I proposed lowering `MISS_TIE_FROM` 30 → 1 («tie the price of a mistake to the price of a merge from
-level one»), he answered «давай», and the number refuted it before a line was written. The tie is
+level one»), he answered «go ahead», and the number refuted it before a line was written. The tie is
 `Math.min(ladder, MISS_TIE_MERGES × a typical merge)`, and at LOW levels there are FEW types,
 therefore many copies per type, therefore FAT groups. Measured on the file's own
 `expectedGroup`/`typicalMergeScore`, extracted from the source rather than retyped:
@@ -18292,13 +18292,13 @@ it and nine moved guards are provable only in their real context. **Run 45: 1125
 `ERRORS: none`, SUITE: PASS** (run 44 was 1123; the +2 are exactly the two new boundary arms).
 `index.html` 12 773 127 → 12 775 700 B.
 
-## ⛔ THE SITE DEPLOY IS MINE NOW, NOT HIS (his word 2026-09-10: «делай деплой сам каждый раз, если все зеленое»)
+## ⛔ THE SITE DEPLOY IS MINE NOW, NOT HIS (his word 2026-09-10: «do the deploy yourself every time, if everything is green»)
 
 `blendo.monster` does NOT follow GitHub: the domain is a Cloudflare Worker serving a packed copy of
 the build (`server/site/`), so a push to `main` updates GitHub Pages and leaves the domain on the
 PREVIOUS build. It stood on his list of manual steps from 2026-09-09-c and drifted behind more than
 once. **From this date: after a green suite and a push, run `npm run site:deploy` without asking.**
-⛔ NOT on a red suite and NOT on an unrun one — «если всё зелёное» is the whole condition.
+⛔ NOT on a red suite and NOT on an unrun one — «if everything is green» is the whole condition.
 ⚠️ VERIFY THREE THINGS AFTER EVERY DEPLOY, and by BYTES rather than by the wrangler output: the md5
 of `curl https://blendo.monster/` against the local `index.html` (a size match alone would also
 match a different file of the same length); the Telegram card (1162 B to a `TelegramBot` UA — the
@@ -18313,7 +18313,7 @@ An edge node had not caught up. **Read it again before believing a mismatch**, a
 `content-length` against the local file at the same time — a stale node gives the OLD length, a
 genuinely bad pack gives a new length with a wrong hash.
 
-## BATCH 2026-09-10-b: THE RIVAL IN THE BOWL — THE NEXT PLAYER OF THE TABLE, A TAP ON HIM IS ×3 ON EVERYTHING FOR FIVE SECONDS (his spec over five messages: «покажи как выглядит» → the sheets → «аватарка… сильно растягивает… можем попробовать несколько лиц, как японский дорума» → «1. Множитель всех очков на 5 секунд 2. Пара не нужна 3. Следущего» → «Делай» → «давай вернем сферу и на нее наклеим аватарки как стикеры друг на друга, не растягивая аватарку»)
+## BATCH 2026-09-10-b: THE RIVAL IN THE BOWL — THE NEXT PLAYER OF THE TABLE, A TAP ON HIM IS ×3 ON EVERYTHING FOR FIVE SECONDS (his spec over five messages: «show what it looks like» → the sheets → «the avatar… stretches a lot… we could try several faces, like a Japanese daruma» → «1. A multiplier on all points for 5 seconds 2. No pair needed 3. The next one» → «Do it» → «let's bring the sphere back and stick the avatars onto it like stickers over one another, without stretching the avatar»)
 
 ### THE SHAPE WAS PICKED OFF RENDERED SHEETS, AND THREE OF ITS RULES ARE MEASUREMENTS RATHER THAN TASTE
 Six recipes were built on ONE item of ONE seeded layout (a mulberry32 `Math.random` in an init script — every
@@ -18323,13 +18323,13 @@ bowl. He rejected the coin, then the sphere, then asked for a two-sided sandwich
 THE SPHERE BACK with the avatar STUCK ON as overlapping stickers. That is what shipped. ⚠️ Each time the FRAME
 decided and not the argument — the fourth time in this project; a sheet costs twenty minutes, a wrong shape
 costs a round trip.
-- ⛔⛔ **A PICTURE WRAPPED ON A SPHERE STRETCHES AT THE POLES** («сильно растягивает») and no parameter cures
+- ⛔⛔ **A PICTURE WRAPPED ON A SPHERE STRETCHES AT THE POLES** («stretches a lot») and no parameter cures
   it: it is the wrap itself. A STICKER cannot stretch anything — it is a cap of the sphere whose UV is a
   parallel projection of the square, `u = x/(2s) + 0.5` with `s = radius·sin(half)`: at the centre it is
   exactly 1:1 and toward the rim it COMPRESSES, which is what a sticker glued to a ball does in life.
 - ⛔⛔ **AND A CYLINDER CAP CROPS: three maps the cap onto the circle INSCRIBED in the texture**, so a
   192-square avatar loses its ears — which is what the coin of the previous round actually did, and what he was
-  looking at when he wrote «растягивает». Neither defect is visible in a diff; both are visible in a frame.
+  looking at when he wrote «stretches». Neither defect is visible in a diff; both are visible in a frame.
 - ⚠️ **A THIRD DEFECT WAS FOUND ONLY BECAUSE THE SHEETS WERE MEASURED, NOT ADMIRED: every mockup shape was
   0.62× TOO SMALL.** The item mesh carries `sz.s * MESH_SCALE`, so a geometry built in WORLD units and assigned
   to it comes out that much smaller. The rule for anything that replaces an item's geometry: build it in the
@@ -18466,7 +18466,7 @@ the second is printing both positions and the gap at detonation time instead of 
 
 **THE PRICE:** `index.html` 12 775 700 → 12 808 939 B, 28 → 29 modules (the baked tint table is the new one).
 
-## BATCH 2026-09-10-v: THE BALL IS PLASTERED, NOT DOTTED; THE FIRE COMES OFTENER FROM THE FIFTH (his three lines: «сфера размером с арбуз и она полностью заклеена стикерами, даже внахлест» / «огонь да» / «остальная таблица по объектам пока на стопе»)
+## BATCH 2026-09-10-v: THE BALL IS PLASTERED, NOT DOTTED; THE FIRE COMES OFTENER FROM THE FIFTH (his three lines: «a sphere the size of a watermelon, fully covered with stickers, even overlapping» / «fire, yes» / «the rest of the objects table is on hold for now»)
 
 ### ⛔⛔ «ONLY KISSING AT THE EDGES» LIVED ONE BATCH — THE PAIR IS DERIVED NOW, NOT CHOSEN
 The previous edition wrote «the stickers only kiss at the edges … which is what makes it read as a
@@ -18500,7 +18500,7 @@ at the first change of the count. The sabotage (the cap 0.95 → 0.45, the count
 ⛔ A COUNT OF STICKERS CANNOT STATE THIS, which is why the piece arm now says `stickers >= 10` and
 the coverage arm carries the statement.
 
-### ⚠️ «РАЗМЕРОМ С АРБУЗ» IS ALREADY TRUE, AND IT WAS MEASURED BEFORE ANYTHING WAS TOUCHED
+### ⚠️ «THE SIZE OF A WATERMELON» IS ALREADY TRUE, AND IT WAS MEASURED BEFORE ANYTHING WAS TOUCHED
 Every model is normalised to `rc = 1.00` by the generator, so at a uniform level EVERY item has the
 same enclosing radius. Measured live on level 6: **the rival 0.62, a watermelon 0.62, the whole pile
 0.62, the bomb 0.884** (the dynamite's own 1.425×). So the ball IS a watermelon, and the sentence
@@ -18511,7 +18511,7 @@ the three figures.
 
 ### THE FIRE: THE PERIOD IS A FUNCTION FROM THE FIFTH LEVEL
 `FIRE_FAST_FROM = 5`, `FIRE_EVERY_FAST_MS = 20000`. ⛔ THE FIRE STILL STARTS AT THE FIRST LEVEL —
-only the PERIOD shortens (his own «пламя оставляем с первого, на 5 увеличиваем частоту»), and the
+only the PERIOD shortens (his own «we keep the flame from the first level, from the 5th we raise its frequency»), and the
 burn time, the choice of victim, the pair condition and the ×2 bonus are untouched. `fireEveryMs()`
 is read by BOTH call sites — the first countdown of a session and the rescheduling after an
 ignition — so a level change is honoured on the very next flare-up.
@@ -18533,7 +18533,7 @@ arm is lifted out and run alone first» exists.
 
 **THE PRICE:** `index.html` 12 808 939 → 12 813 257 B, 29 modules unchanged.
 
-## BATCH 2026-09-10-g: THE THREE LEGAL PAGES AND THE LINKS ON THE PURCHASE SCREEN — THE FIRST HALF OF THE STRIPE WORK (his answers: «1. один товар и продаем, расчет устраивает / 2. разберусь сам / 3. такой же как домашний / 4. собери сам, добавь ссылки на экран покупки 10 px шрифтом в самый низ, серый цвет, в одну строку все 3 ссылки / 5. давай команду и куда вставлять / 6. давай»)
+## BATCH 2026-09-10-g: THE THREE LEGAL PAGES AND THE LINKS ON THE PURCHASE SCREEN — THE FIRST HALF OF THE STRIPE WORK (his answers: «1. one item and we sell it, the calculation suits me / 2. I will sort it out myself / 3. the same as my home one / 4. put it together yourself, add links to the purchase screen in a 10 px font at the very bottom, grey, all 3 links on one line / 5. give me the command and where to paste it / 6. go ahead»)
 
 ### THE ACCOUNT, READ BEFORE ANY ADVICE (read-only, the standing rule on this connector)
 `acct_1TybgqFm93w5zgdt`, **live**, Portugal, EUR, individual. **`charges_enabled: true`,
@@ -18542,8 +18542,8 @@ descriptor `BLENDO X5 BOOST`. Card, Link, MB WAY, Klarna, Revolut Pay and more a
 Bancaires pending. **Zero products.** Payouts are on a **manual** schedule (money waits for a
 button). `individual.verification.status: unverified` with `failed_keyed_identity` — nothing is due,
 so it blocks nothing today; if Stripe asks again it will appear in `requirements`.
-⛔⛔ **STRIPE TAX IS `pending`, MISSING EXACTLY ONE FIELD — `head_office`.** He answered «такой же как
-домашний», and **the write was BLOCKED FROM HERE** by the environment's classifier
+⛔⛔ **STRIPE TAX IS `pending`, MISSING EXACTLY ONE FIELD — `head_office`.** He answered «the same as
+my home one», and **the write was BLOCKED FROM HERE** by the environment's classifier
 (`PostTaxSettings`), so it is his 30 seconds in the dashboard. The address is the one already on the
 account: Rua Do Marechal Saldanha 8, 4150-650 Porto, PT.
 
@@ -18551,7 +18551,7 @@ account: Rua Do Marechal Saldanha 8, 4150-650 Porto, PT.
 The payment page will be **Stripe's own** (`checkout.stripe.com`), not a form embedded in ours.
 Consequences, and the middle one is the reason: no card field ever touches our page (the PCI surface
 is Stripe's); **Apple Pay and Google Pay work there with NO domain-verification file** — his item 6
-(«давай») turns out not to be needed, and `.well-known` never has to enter `tools/site-pack.py`; and
+(«go ahead») turns out not to be needed, and `.well-known` never has to enter `tools/site-pack.py`; and
 the redirect back is a URL we control. ⚠️ IT IS THE DIRECT-LINK PATH ONLY: the portal pays through
 Playgama and the wrapper through StoreKit — that is Apple's rule, not a preference.
 ⛔ IF THE FORM IS EVER EMBEDDED (Payment Element), the domain file comes back and with it the
@@ -18604,7 +18604,7 @@ arm», met again.
 
 **THE PRICE:** `index.html` 12 813 257 → 12 815 316 B; three new files of ~3 KB on the domain.
 
-## BATCH 2026-09-10-d: THE PAYMENT WORKER IS WRITTEN AND GUARDED — 30 ARMS, 24 SABOTAGES, AND ONE MEASUREMENT THAT CORRECTED ITS OWN COMMENT (the second half of his Stripe order, after the three legal pages of -g; his standing answers: «один товар и продаем», «такой же как домашний», «давай команду и куда вставлять»)
+## BATCH 2026-09-10-d: THE PAYMENT WORKER IS WRITTEN AND GUARDED — 30 ARMS, 24 SABOTAGES, AND ONE MEASUREMENT THAT CORRECTED ITS OWN COMMENT (the second half of his Stripe order, after the three legal pages of -g; his standing answers: «one item and we sell it», «the same as my home one», «give me the command and where to paste it»)
 
 ### WHAT SHIPPED — FOUR ENDPOINTS, AND THE THIRD IS WHY THE WORKER EXISTS
 `server/pay/` — `blendo-pay` on `pay.blendo.monster`, a D1 ledger (`ent` keyed by the Checkout
@@ -18702,7 +18702,7 @@ double-grant guard, the origin gate so a purchase made on github.io cannot land 
 grant will never see, and the redirect that beats the webhook — poll `/v1/mine`, do not read once);
 the price label's currency; and the support address / street questions of -g.
 
-## BATCH 2026-09-10-e: THE THIRD PAYMENT PROVIDER — THE GAME BUYS THROUGH OUR OWN SERVER ON OUR OWN DOMAIN (his «делай же скорее», after the live proof of -d: a real €1.99 paid, the webhook verified, one row written)
+## BATCH 2026-09-10-e: THE THIRD PAYMENT PROVIDER — THE GAME BUYS THROUGH OUR OWN SERVER ON OUR OWN DOMAIN (his «hurry up and do it», after the live proof of -d: a real €1.99 paid, the webhook verified, one row written)
 
 ### THE LIVE PROOF THAT CAME FIRST, AND WHAT IT SETTLED
 Before a line of client code: the owner deployed the worker, created the event destination in LIVE mode
@@ -18796,13 +18796,13 @@ the live path reads `€1.99` from `/v1/price` now, which is what closes the cur
 purchase already paid belongs to a made-up player (`probetest0910`) — the end-to-end test THROUGH THE
 BUTTON is one more real purchase, his call when he wants it.
 
-## BATCH 2026-09-10-zh: THE PAYMENT OPENS IN A NEW TAB, AND THE RETURN NO LONGER PARSES THE WHOLE GAME (his two lines: «давай оплату открывать в новой вкладке» and «долго все грузится»)
+## BATCH 2026-09-10-zh: THE PAYMENT OPENS IN A NEW TAB, AND THE RETURN NO LONGER PARSES THE WHOLE GAME (his two lines: «let's open the payment in a new tab» and «everything takes long to load»)
 
 ### ⚡ HIS TWO ITEMS TURNED OUT TO BE ONE PROBLEM, AND HIS INSTINCT WAS RIGHT
 Paying in the SAME tab means the return reloads the entire game — 4.47 MB over the wire and a 12.8 MB
 parse — at the one moment the player is waiting to see what he paid for. A new tab keeps the game
 alive: the tab that goes to Stripe is the only one that reloads, and it now closes itself in a
-fraction of a second. That is most of «долго» in the flow he had just walked through.
+fraction of a second. That is most of «takes long» in the flow he had just walked through.
 
 ### WHAT THE LOAD ACTUALLY COSTS, MEASURED RATHER THAN GUESSED (curl, his line, the live domain)
 | | |
@@ -18858,9 +18858,9 @@ lines before `html.splash` exists», so the form moved to «nothing PAINTABLE st
 only scripts may», and the message moved with the predicate. Re-proved: a `<div>` inserted before the
 gate still reddens it, so nothing was weakened to make it green.
 
-## BATCH 2026-09-10-i: THE RING FROM THE FIRST FRAME, AND THE INSTALLED GAME STARTS FROM ITS OWN COPY (his three items: «1. Делаем 1 пункт и по загрузке: хорошо бы сразу показывать голубой фон и ловдер, а не ждать пока вкладка ответит сразу заставкой. лоадер помогает дождаться и это важно 2. Внутри после покупки нужен экран, что платеж прошел и возвращать на него после оплаты, запиши на будущее 3. стоит прикрутить авторизацию через гугл аккаунт»)
+## BATCH 2026-09-10-i: THE RING FROM THE FIRST FRAME, AND THE INSTALLED GAME STARTS FROM ITS OWN COPY (his three items: «1. We do item 1, and about the loading: it would be good to show the blue background and the loader at once, instead of waiting until the tab answers straight away with the splash. The loader helps to wait, and that is important 2. In the game, after a purchase, there must be a screen saying the payment went through, and the player must be returned to it after paying, write it down for the future 3. it is worth adding sign-in through a Google account»)
 
-Item 1 and its «по загрузке» half are built and guarded; item 2 is recorded in `V2-IDEAS.md` with its seam
+Item 1 and its «about the loading» half are built and guarded; item 2 is recorded in `V2-IDEAS.md` with its seam
 named; item 3 is `docs/GOOGLE-AUTH.md` — an analysis of checks, not a plan, because it reverses a decision
 of his own and two of its questions belong to Apple and to Google rather than to us.
 
@@ -18887,8 +18887,8 @@ left — a mark that says «not empty», with no motion at all.
 ⚠️ `window.__fatal` removes the class too: a spinner over «Failed to start 3D» promises a wait that will never end.
 
 ### THE DOCUMENT IS CACHE-FIRST — AND THE PRICE WAS NAMED TO HIM IN HIS OWN WORDS BEFORE HE CHOSE
-«Делаем 1 пункт» is the first of three levers he was offered against «долго все грузится», and it was offered
-with its cost written out: «Цена: после выпуска новой версии вы один раз увидите старую». So an installed
+«We do item 1» is the first of three levers he was offered against «everything takes long to load», and it was offered
+with its cost written out: «The price: after a new version is released you will see the old one once». So an installed
 launch answers the document from the player's own copy and asks the network for it **not at all**, and a
 release reaches him on the NEXT launch. ⛔ Whoever wants that back changes one line (`docFromCache` →
 `docFromNetwork` in the navigate branch) and gives up the instant start.
@@ -18975,7 +18975,7 @@ deleted (the registration arm alone); `class="loading"` dropped (all three LOADI
 `html.loading body` of its own (A and B — the reason the rule was not written); and a comment edit, which the
 tool called empty. Plus the real-browser end-to-end above, which no node fake can replace.
 
-## BATCH 2026-09-11: GOOGLE SIGN-IN, THE CLIENT HALF — THE NAME, THE PURCHASES AND THE ROW FOLLOW THE ACCOUNT (his word 2026-09-10 «мне нужен гугловый акк и его имя с лидербордом на отдельном домене как сейчас», and his answer to the one fork: «покупки и место в таблице»)
+## BATCH 2026-09-11: GOOGLE SIGN-IN, THE CLIENT HALF — THE NAME, THE PURCHASES AND THE ROW FOLLOW THE ACCOUNT (his word 2026-09-10 «I need the Google account and its name with the leaderboard on a separate domain, as now», and his answer to the one fork: «purchases and the place in the table»)
 
 The server half shipped the day before (`7998b7a`: one endpoint in the pay worker, 40 green, 34 sabotages).
 This is the half that runs in the browser. The whole design and the six measured traps live in
@@ -19608,7 +19608,7 @@ build is what turns a suspicion into an answer. Both cost minutes; a wrong push 
 ## BATCH 2026-09-12: «Boost», ONE WORD IN THE NAME, THE ACCOUNT'S PHOTO, AND «Next Mercury» (his five items over a screenshot of his own iPhone: «1. leave only 1 word in the name, remove the animation · 2. rename ×5 Boost to Boost · 3. instead of the picture pull the photo from the account into the circle, if there is none (just a symbol on a background) keep the picture · 4. reduce the gap between the name and Logout by 2 pixels · 5. rename Next players to Next + name (Next Mercury)»)
 
 ### THE SCREENSHOT IS 1206 WIDE AT 3x — 402 CSS PIXELS, AND THAT WIDTH WAS ABOVE EVERY BREAKPOINT TUNED THE NIGHT BEFORE
-«Для такого размера экрана» heads the list but scopes only ITEM 1 — it is the one item that is
+«For a screen of this size» heads the list but scopes only ITEM 1 — it is the one item that is
 inherently about width. A rename, a data source, a 2px gap and a caption are not. **402 is now one of
 the frame widths**, because every breakpoint of the previous batch was measured at 320/360/390/1280
 and his phone sits between the last two.
@@ -19625,7 +19625,7 @@ but the guard that found it (the 94-measurement sweep) stays, and it is what pro
 
 ### ITEM 1 — TWO MECHANISMS, AND NEITHER OF THEM TOUCHES WHAT IS STORED
 The motion is CSS: the keyframe rule moved under `@media (min-width:768px)`, which is the same shape
-`prefers-reduced-motion` already had. **The fade stays on phones** — «убери анимацию» is the motion,
+`prefers-reduced-motion` already had. **The fade stays on phones** — «remove the animation» is the motion,
 and a name cut dead at the edge with nothing to say so is what the fade exists to prevent.
 The word is JS: `unameWrite()` puts `unameShown(name)` — the first word on a phone, the whole name
 above 768 — into `#msUser`. ⛔ **`Save.gn` IS NOT TOUCHED:** the account's full name is what the
@@ -19766,7 +19766,7 @@ reads −50»), 80-gameplay's doMatch («IT MULTIPLIES THE PENALTIES TOO»), tes
 («Symmetry: the booster multiplies both»), test.js's rescue-measurement header («−100 per turn instead of
 −20»), and the canon (the Tuning map, the rules section, the eyes section, batch -v). All tombstoned
 where they stood; 00-config's fire-reward note («the paid booster multiplies») is about a REWARD and is
-correct, so it was left alone. His «важно» re-affirms 09-03-h; nothing in the code had to change.
+correct, so it was left alone. His «important» re-affirms 09-03-h; nothing in the code had to change.
 ⚡ **AND «NEVER» IS STRUCTURAL NOW (SCOREMATH S1):** exactly one CODE line of the build lowers the score,
 it sits inside `scorePenalty`, and `scorePenalty`'s code reads no reward multiplier. Before, the rule could
 be walked around by a penalty charged with a `-=` of its own anywhere else; that is what the arm stops.
@@ -20790,3 +20790,41 @@ leaderboard» 2px, profile avatar → name 8px at 1280 and 6px at 390.
 **Proven:** PLATPAUSE 3 green, POINTS 10 green, AUTH 42 green on the final build, each section lifted and run alone. Variants built outside the tree: the `mock` gate dropped → PLATPAUSE's own-page arm alone red; the pause subscription dropped → the portal arm alone red; the caption's padding dropped → the ink arm alone red (0.71px cut on every layout); the name written back from lbEntryRefresh → the three caption-text arms red (the ink-and-text arm, the 320 arm, the nine-digit arm); a comment edit → PLATPAUSE 3 green. The tree's index.html md5
 309735b32731c54482f2b85381315a76 (build a71b6e5e5c33) before and after the variants.
 **No full suite, by his standing word.** Pushed to v2 and v2:main; the site deploy is mine after the green gate.
+
+## BATCH 2026-09-15-b: THE LAST 114 CYRILLIC LINES TRANSLATED — HIS OWN QUOTES, NOW IN ENGLISH (his word, answering the question named after the fresh clone of 2026-09-13: «yes, translate the comments into English»)
+
+**WHAT THEY WERE.** The English-only rule of 2026-08-22-g had quietly reopened: the batches of 2026-09-10..12 quoted
+him in RUSSIAN inside English comments and notes. The byte-true census (the U+0400..U+04FF range in python — not perl
+without `-CSD`, 2026-09-03-i) found 114 lines outside `bonus.html`: 86 in the sources (28 in the game's code — 20 in
+`src/app`, 5 in `src/shell.html`, 3 in `src/sw.js`; 17 in `test.js`; 2 in the pay worker's test; 2 in
+`tools/avatar-tint.js`; 37 in CLAUDE.md, STATUS.md, V2-IDEAS.md and docs/GOOGLE-AUTH.md) and 28 more that were the same
+code lines inside the built `index.html` and `sw.js`. Every one was his own words; each is now a literal English
+translation in «», worded the same everywhere the same quote appears.
+⛔ `bonus.html` IS STILL THE ONLY EXCEPTION (11 081 lines, the frozen build of the removed bonus level — his call, as
+recorded on 2026-08-22-g). After this batch the census reads 0 everywhere else, the build included.
+
+**THE PROOF THAT NOTHING BUT PROSE MOVED.** 88 exact-match replacements, each asserted to occur the expected number of
+times before its file was written. Then:
+- the ten edited JS files through `esbuild --minify-whitespace --legal-comments=none`, the committed version against the
+  working one (the `src/app` modules wrapped in a function, as the build's IIFE wraps them): byte-identical code;
+- `src/shell.html` with its HTML, CSS and JS comments stripped: identical, and the counts of `<!--`, `-->`, `/*`, `*/`,
+  `<script`, `</script>`, `<style`, `</style>` unchanged;
+- ⚠️ THE SECTION MARKERS OF `test.js` ARE COMMENTS, SO THE ESBUILD PROOF CANNOT SEE THEM — they were compared on their
+  own: 58 markers, identical and in the same order;
+- the build changed in exactly 26 lines (25 comments and the dev label's stamp), `sw.js` in 4 (3 comments and `BUILD`).
+
+**THE ONE LINE THAT WAS NOT A COMMENT.** The pay worker's test mints a Google token whose `name` was a Cyrillic name,
+and the fresh-account arm asserts the name comes back unchanged. The worker decodes the token body with `TextDecoder`,
+and a non-ASCII name is exactly what lets that arm catch a byte-wise decode. It became `'José Müller'` — non-ASCII
+still — and that was PROVEN rather than assumed: an untouched copy of the worker (through `PAY_SRC`) gives 41 green; a
+copy decoding the body as latin1 (`String.fromCharCode` instead of `TextDecoder`) reddens exactly that arm, 40/1.
+⚠️ The general form: a fixture in another script is DATA, not prose — replace it with an equivalent that keeps the
+property it tests, and show the arm still discriminates.
+
+**THE RULE THAT LETS IT HAPPEN AGAIN, NAMED.** Nothing in the suite counts Cyrillic (said on 2026-09-03-i, still true),
+so the only guard is the habit: HIS WORDS ARE QUOTED AS LITERAL ENGLISH TRANSLATIONS the moment they are written. A
+node-side census arm would be one small section; offered to him, not built.
+
+**Proven:** PWA 14, LOADING 3, PAYWEB 14, STCLOSE 26 green (the sections next to the edited comments); the pay suite 41;
+`index.html` 12 960 055 B, md5 09fab199ec3e90c6b35c7796788a43b6, build 42b001670929. No full suite, by his standing word.
+Pushed to v2 and v2:main; the site deploy is mine after the green gate.
