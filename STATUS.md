@@ -6,7 +6,14 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-15-b (the last Russian quotes in the comments and notes translated into English) on top of 2026-09-15 (the freeze after the intro, «Next player», your two gaps), v2 = main** · **no Russian left in the project except bonus.html** · **the game's code is proven unchanged: with comments stripped, every edited file is byte-identical** · **dry runs green: PWA 14, LOADING 3, PAYWEB 14, STCLOSE 26; the payment server's tests 41** · **no full suite, by your word** · **sign-in is live** · **on GitHub and blendo.monster** · **the level pacing (a new model every second level): not built — you are still thinking**
+**Build: batch 2026-09-15-b (the last Russian quotes in the comments and notes translated into English) on top of 2026-09-15 (the freeze after the intro, «Next player», your two gaps), v2 = main** · **no Russian left in the project except bonus.html** · **the game's code is proven unchanged: with comments stripped, every edited file is byte-identical** · **dry runs green: PWA 14, LOADING 3, PAYWEB 14, STCLOSE 26; the payment server's tests 41** · **no full suite, by your word** · **sign-in is live** · **on GitHub and blendo.monster** · **the level pacing (a new model every second level): not built — you are still thinking** · **your new icon is in (21 September)**
+
+**21 SEPTEMBER — THE NEW ICON.**
+
+Your `icon-eye.jpg` is in the game, copied exactly as you exported it, and the four icon files are rebuilt from it.
+The one Android crops is scaled to 0.8261 of the square — measured from your own drawing — so neither the flames nor
+the eyes lose anything under a round or a squircle mask. The sheet with all four cuts and the small sizes went to
+you. The game itself did not change: the icons are separate files, so the build is the same one you already have.
 
 **15 SEPTEMBER, LATER — THE COMMENTS ARE IN ENGLISH.**
 

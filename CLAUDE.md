@@ -20828,3 +20828,20 @@ node-side census arm would be one small section; offered to him, not built.
 **Proven:** PWA 14, LOADING 3, PAYWEB 14, STCLOSE 26 green (the sections next to the edited comments); the pay suite 41;
 `index.html` 12 960 055 B, md5 09fab199ec3e90c6b35c7796788a43b6, build 42b001670929. No full suite, by his standing word.
 Pushed to v2 and v2:main; the site deploy is mine after the green gate.
+
+## BATCH 2026-09-21: HIS NEW ICON — THE ANGRY EYES (his word: «update the icon», with the file named on the disk)
+
+⚠️ THE SILENT DELIVERY CHANNEL, AND THIS TIME IN THE OLD FOLDER: he named
+`/Users/ikorzyn/Desktop/Claude/Blendo v2/icon-eye.jpg` — the PRE-MOVE clone of 2026-09-13, not the working tree.
+Read the file from where he put it, copy it in, and never edit his own file in place.
+**WHAT SHIPPED:** `icon.jpg` is his new 1024×1024 JPEG (76 478 B, md5 835bf7dc…), copied BYTE FOR BYTE — no
+re-encode, his standing rule — and `tools/icon-gen.py` rebuilt the four files of `icons/` from it. The maskable
+variant's scale is MEASURED from his art rather than written down (the tool's own rule of 2026-09-09-j): bbox
+x82..942 y105..879, the farthest point 483.4 of 512 (94.4%) → **scale 0.8261**, so the whole drawing sits inside
+Android's 80% safe circle. The previous icon (470 132 B, md5 944e8fb5…) stays in the history.
+**Proven:** PWA 14 green — the four PNGs are square and the size they claim, the packer lists them, and every art
+pixel of the maskable copy lies inside the safe circle with the plain 512 as the control (that one MUST have art
+outside it, or the arm is satisfied by a copy of the plain icon). A sheet of the four masks and the small sizes
+went to him before the push, as his own rule demands.
+⚠️ `index.html` IS UNTOUCHED: the icons are separate files behind `<link>` and the manifest, so the build's md5
+(09fab199…) does not move — only `site/` is repacked for the deploy.
