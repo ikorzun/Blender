@@ -20845,3 +20845,28 @@ outside it, or the arm is satisfied by a copy of the plain icon). A sheet of the
 went to him before the push, as his own rule demands.
 ⚠️ `index.html` IS UNTOUCHED: the icons are separate files behind `<link>` and the manifest, so the build's md5
 (09fab199…) does not move — only `site/` is repacked for the deploy.
+
+## 2026-09-21-b: THE OLD CLONE «Blendo v2» IS DELETED (his word: «sync everything with GitHub, it has the latest version», then «delete the old one»)
+
+⚠️ WHAT «SYNC» ACTUALLY MEANT: the WORKING folder was already level with GitHub (`c40f00d`, clean, 0/0), and so were
+both live copies; the thing that was behind was the OLD clone he keeps opening — 94 commits, at `8cc2ae1` of
+2026-09-04. It was fast-forwarded first, so nothing could be lost by being behind, and only then deleted.
+**WHAT WAS CHECKED BEFORE THE DELETE, because a clone can hold work that exists nowhere else:** every local branch
+tip — the 8 worktrees under `.claude/worktrees` included — is contained in a `blender/` remote ref; no stashes; the
+only uncommitted file in any worktree was a rebuilt `index.html`, a build product of committed sources; its
+`.claude` held nothing but the worktrees (no local config); `node_modules` there was a SYMLINK into
+`Backups/Blender`, so the backup is untouched; and the gitignored assets (`3d assets` — 198 files —,
+`Hits2 Animations`, `Audio`, `video`, `site`) were verified PRESENT in `Blender` afterwards.
+⚠️ IT WENT TO THE TRASH, NOT THROUGH `rm -rf` (`~/.Trash/Blendo v2`, 826 MB): until he empties it the step is
+reversible. His own `icon-eye.jpg` was kept at `Desktop/Claude/` — the same bytes are the tracked `icon.jpg`.
+⛔ THE STANDING NOTE «the main clone's node_modules is a symlink into Backups/Blender» IS STALE FOR THE WORKING
+FOLDER: `Blender` carries a real `node_modules` of its own. The backup clone itself is untouched.
+⛔⛔ TWO OTHER WORKING COPIES OF THIS REPOSITORY LIVE ON THE DISK AND BELONG TO OTHER CHATS — `Blendo iOS` (16
+commits of its own that are NOT on GitHub: the wrapper's probe work) and `Blendo v2 Codex` (5 files of uncommitted
+work). Both were deliberately NOT synced. THE GUARD THAT DECIDED IT, and it is the rule for any future «sync
+everything»: touch a clone only when it is on `v2`, has no modified tracked file, and its HEAD is an ancestor of
+`blender/v2` — otherwise print its state and leave it alone. A fast-forward can then lose nothing by construction.
+⚠️ And one careless step of mine, caught by checking rather than by luck: `git branch -f main blender/main` was run
+in all three clones before asking whether their `main` carried anything of its own. It did not — each old position
+was already contained in GitHub's `main`, verified through the reflog — but the order was wrong: check first, move
+after.
