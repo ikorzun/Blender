@@ -18,14 +18,16 @@ again on the build that shipped, on the slowed-down test machine (a stand-in for
   frames over 50 ms from 1 to 0. Before the fix 11 merges out of 12 had that hitch; after it, none. The few long
   frames left belong to the test machine itself, not to the game — the measurement tells the two apart.
 
-Which items are grey stays exactly the same. It is only worked out about a tenth of a second later, which you
-cannot see.
+Which items are grey stays exactly the same. It is only worked out a little later: about a tenth of a second, up to
+a quarter of a second in Low Power Mode. The grey already fades in over a quarter of a second, so the delay should
+not be noticeable.
 
 **Still done in one frame, not changed (tell me if you want these too):** the grinder while the mixer eats, the
 bomb, the lightning charge, the rival, the golden fish, the ice and the final top-up.
 
 **Checked:** the full test suite, 1313 checks, 0 red; a new guard of 7 checks that follows the
-check frame by frame; and ten deliberately broken copies of the fix, each one caught.
+check frame by frame; and nine deliberately broken copies of the fix, each one caught, plus a comment-only edit
+that stayed green.
 
 **Still waiting from you:** a screenshot with `?fps=1` during a pour on Hard; whether Low Power Mode is on when you
 see the drops; and the Cloudflare rate-limit check (Security → WAF → Rate limiting rules).
