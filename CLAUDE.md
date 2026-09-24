@@ -21504,17 +21504,20 @@ stays the game's. ⚠️ The limiter was −1 dBFS for the two delivered takes a
 ### THE BOT: A SKILLED PLAYER, AND WHY EACH HABIT IS THERE
 Input is SYNTHETIC POINTER EVENTS on `#c` — the canvas handlers are plain listeners with no `isTrusted` check, so a
 `pointerdown` + `pointerup` 3 ticks later is a tap (the canon's «a MouseEvent('click') from evaluate is not heard»
-is about CLICK, which the canvas does not listen to). Every tap first asks `elementFromPoint` whether the canvas is on
+is about CLICK, which the canvas does not listen to). ⛔ SINCE 2026-09-24-e BOTH IN THE TICK THE TARGET WAS CHOSEN:
+the delay let the settling pile move the item away — 7 mistakes in 333 taps, 0 in 325 without it (BATCH 2026-09-24-e). Every tap first asks `elementFromPoint` whether the canvas is on
 top there — a human could not tap through the Shake button or the showcase panel either.
 - **the biggest group** from `bestTapTarget()` (85% of taps; `'any'` for the rest), a tap every 0.38-0.70 s, a rare
-  1.0-1.8 s pause — fast enough to keep the series lit, so turbo pours come;
+  1.0-1.8 s pause — fast enough to keep the series lit, so turbo pours come (⛔ 0.33-0.62 s and 4% of 0.9-1.5 s since
+  2026-09-24-e: the turns take their share of the minute);
 - ⚠️⚠️ **THE HOOK ALWAYS OFFERS THE SAME BIGGEST GROUP, AND ITS PIXEL CAN LIE UNDER A PANEL.** The first 16:9 take
   stood still for most of its second half: the thinned pile lay under the desktop layout's showcase panel and zoom
   pair, the bot refused the covered pixel and asked again — and got the same one. It now asks up to five random
   orders for a pixel that is on the canvas, and after two failures TURNS THE BOWL (a drag) the way a player looks for
   a hidden pair; with no pair within reach at all it takes a FREE shake (never an ad, never a bought one);
 - the treasure, the rival and a ready ice block are tapped 2.5 s into the level (so the video shows them first), the
-  bomb once after 6 s, the type charge whenever it is armed; a turn of the bowl every 8-14 s;
+  bomb once after 6 s, the type charge whenever it is armed; a turn of the bowl every 8-14 s (⛔⛔ SINCE 2026-09-24-e,
+  HIS WORD «the video is from one angle, from above»: a turn AND a tilt every 2.6-4.4 s — BATCH 2026-09-24-e);
 - **THE ENDGAME CLOSE-UP:** when the pile has thinned to 30% the bot presses «+» once — the game is built for it (the
   bowl glass dissolves as the camera comes close, his own spec), and the last items and the blades fill the frame.
   `--no-end-zoom` switches it off; `--zoom=N` presses «+» at the start of every level (off by default: one step on
@@ -21536,6 +21539,7 @@ rule gives the HUD the phone's eyes). H.264 High, CRF 18, BT.709 limited range �
 scaler writes the range (a yuvj → yuv chain can convert it twice and wash the picture out); AAC 192k.
 
 ### THE DELIVERED TAKES (seed 2026, level 12, Easy — the best of two runs per format, picked by their contact sheets)
+⛔ SUPERSEDED BY THE TAKES OF 2026-09-24-e (the camera that turns and tilts) — this table is the first bot's.
 | | 9:16 | 16:9 |
 |---|---|---|
 | the file | 54.7 MB, 60.000 s, 3600 frames | 35.2 MB, 60.000 s, 3600 frames |
@@ -21556,3 +21560,66 @@ proof is the takes themselves — ffprobe (the sizes, 60 fps, exactly 60 s), con
 (the pour, the play, the rival's ×3 window, the bomb, turbo's «Power chain!», the endgame close-up, the finale's
 grind, the win screen's cascade, the New Object screen, the next level), the sync measurement above and the loudness.
 ⚠️ NEVER RUN IT BESIDE `node test.js` — a second browser job slows the suite into false reds (the canon's rule).
+
+## BATCH 2026-09-24-e: THE BOT TURNS AND TILTS THE BOWL LIKE A PLAYER, AND ITS TAP LANDS ON THE STATE IT WAS CHOSEN FROM (his word, translated: «the problem of the video is that it is from one angle, from above, while the bowl can be turned and people turn it»)
+
+### WHAT HE SAW, AND WHY THE FIRST BOT GAVE IT
+The -d bot turned the bowl every 8-14 s by 0.45-0.95 rad with a ±0.1 rad wobble of the tilt, i.e. the camera stayed at
+the game's top-down 0.45 for almost the whole take. The game's own drag can do far more: it tilts from 0.32 to 1.35,
+an almost side view of the mixer (90-input).
+
+### WHAT CHANGED (tools/play-record.js only — `index.html` untouched, no guard of the game moved)
+- **A DRAG TURNS AND TILTS** (`queueOrbit`): the azimuth by 0.5-2.4 rad, three turns in four the same way as the last
+  (a new random way each level), so the video goes round the bowl; the tilt to a target drawn each time (`pickTilt`) —
+  a quarter back to the top-down 0.42-0.6, 40% to the middle 0.7-1.0, the rest to an almost side view 1.05-1.3. The
+  pixel deltas come from 90-input's own gesture numbers (`camAz = az0 − dx·0.006`,
+  `camPhi = clamp(0.32, 1.35, phi0 − dy·0.004)`) and the live `cam().phi`; the drag lasts 0.65-1.6 s, eased in and out;
+  the grip is placed so the drag stays on screen.
+- **THE CADENCE:** the first turn 0.6-1.4 s into a level, then one every 2.6-4.4 s (the measured trade below).
+- **THE TAP** is `pointerdown` + `pointerup` in the tick its target was chosen: the actions a decision queues for «now»
+  are flushed in the same `botTick`, before the physics steps. ⛔ Cancels «a pointerdown + pointerup 3 ticks later is a
+  tap» of -d.
+- The tap cadence 0.38-0.70 → 0.33-0.62 s and the pause 5% of 1.0-1.8 s → 4% of 0.9-1.5 s: a drag is a second without
+  a tap, so the taps got quicker.
+- The progress line carries `misses` and the camera (az, tilt, r); `REC_CAMLOG=1` prints it every 0.5 s.
+
+### THE MEASUREMENTS
+A probe (scratchpad only, rebuilt in minutes): the tool's `pageRuntime` cut out of the file by its text, the same page
+and bot, stepped in chunks of 30 ticks with no screenshot and no sound — 45-80 s of game in 3-5 s of real time.
+- **THE TAP, A/B, 8 seeds × 45 s, 9:16:** the -d form (the down one tick after the decision, the up 3 ticks later —
+  four ticks between the choice and its resolution) made **7 mistakes in 333 taps**; the new form **0 in 325**. The pile
+  keeps settling for about a second after a merge, and 67 ms is enough for the chosen item to leave its pixel — in the
+  video each such mistake is a «−10», the angry eyes and a lit turbo killed.
+- **THE CADENCE, level 12:** a turn every 1.6-3.2 s cleared the level at 59-70 s (4 runs — the win screen falls out of a
+  60-s take); every 2.6-4.4 s at 41-62 s on 9:16 (7 runs, median 51.5) and 45.5-63.5 on 16:9 (5 runs, median 55.5); with
+  no scheduled turn at all, 43 and 46 s (2 runs). ⚠️ A turn is timed from the START of the previous one, so at 1.6-3.2 s
+  the bot was dragging more than half of the time.
+- **THE ENDGAME, traced:** with 9-11 items left the reach (0.41 there) finds no pair, the bot spends free shakes until one
+  own shake is left, and the soft ∞ (his rule: ≤15 counted alive, ≤1 own shake) then ends the level in 3-4 s. That is the
+  game's own rule and it costs 10-13 s of a take — named, not changed.
+
+### ⛔ THE ZSH TRAP, MET A THIRD TIME — AND IT NEARLY SENT ME AFTER A PHANTOM
+`for cfg in "2600 4400" "3200 5500"; do set -- $cfg; …` does NOT split in zsh: `$1` was «2600 4400», `+("2600 4400")` is
+NaN, the scheduled turns never fired (`vt >= NaN` is false), and the stuck path turned the bowl 28-42 times a run. That
+batch read «stuck in the endgame in 6 of 8» and pointed at the endgame; the same cadence passed as explicit env vars
+cleared 7 of 7. **Pass numbers to a probe as explicit `VAR=value` pairs — never through `set --` in zsh** (the canon's
+own «`for x in "a b c"` does NOT split `$x`», in a new shape).
+
+### THE DELIVERED TAKES (level 12, Easy — the best of three runs per format, seeds 2027-2029, picked by their sheets and logs)
+| | 9:16 (seed 2027) | 16:9 (seed 2029) |
+|---|---|---|
+| the file | 58.3 MB, 60.000 s, 3600 frames | 34.9 MB, 60.000 s, 3600 frames |
+| level 12 cleared at | ~46 s | ~47 s |
+| then | the win screen, the New Object screen, ~5 s of level 13 | the win screen, the New Object screen, level 13's pour |
+| taps / specials / shakes / turns / charges / mistakes | 58 / 2 / 1 / 13 / 1 / 0 | 51 / 2 / 1 / 13 / 1 / 0 |
+| the camera over level 12 (the 5-s readings) | the azimuth −2.2 → 10.7 rad, two turns round the bowl; the tilt 0.45-1.21 | the azimuth 4.1 → −5.1 rad, a turn and a half; the tilt 0.48-1.24 |
+| loudness / true peak | −14.5 LUFS / −1.0 dBTP | −14.4 LUFS / −1.1 dBTP |
+The rejected runs: 9:16 seeds 2028 (cleared ~48 s, only the pour of level 13 in the minute) and 2029 (~53 s); 16:9 seeds
+2027 (~52 s) and 2028 (~58 s — its endgame stood 12 s on the shake rule). Mistakes: 0 in every one of the six. They are
+kept outside the repo (the scratchpad), and only the two picked takes stay in `renders/`.
+
+### THE GATE
+As for -d: the tool is not the game, `index.html` did not change, no suite section. The proof is the measurements
+above, ffprobe (1080×1920 / 1920×1080, 60 fps, exactly 60 s, AAC 48 kHz stereo), the loudness, and the contact sheets
+of both picked takes (16 moments each: side views, top views, the endgame close-up, the rival's ×3 window, turbo's
+«Power chain!», «Final pairs», the win screen, the New Object screen, the next level's pour).

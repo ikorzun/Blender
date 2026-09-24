@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // THE RECORDING BOT (2026-09-24, the owner's word: «write a bot that plays the game and records
 // minute-long videos in 9:16 and 16:9»). It plays the real build like a player — taps the biggest
-// group, digs out the treasure, the rival and the ice, sets off the bomb, shakes when stuck, turns the
-// bowl now and then, walks through the win screen and the new-object screen into the next level — and
-// writes one MP4 per format with the game's own sound: its sound effects and its music.
+// group, digs out the treasure, the rival and the ice, sets off the bomb, shakes when stuck, turns and
+// tilts the bowl every few seconds, walks through the win screen and the new-object screen into the next
+// level — and writes one MP4 per format with the game's own sound: its sound effects and its music.
 //
 // Run (from the repo):   npm run record                      — both formats, 60 s, 60 fps, level 12
 //                        npm run record -- --format=9x16 --level=20 --seed=7 --seconds=30
@@ -265,7 +265,7 @@ function pageRuntime(cfg){
   const B = cfg.bot;
   const $ = id => document.getElementById(id);
   const rnd = (a, b) => a + (b - a) * Math.random();
-  const bot = { on: false, pending: [], nextAt: 0, nextOrbitAt: 0, levelStartAt: -1, screenSince: 0,
+  const bot = { on: false, pending: [], nextAt: 0, nextOrbitAt: 0, levelStartAt: -1, screenSince: 0, dir: 1,
     bombTried: false, lastShake: -1e9, lastOrbit: -1e9, stuck: 0, startAlive: 0, endZoomDone: false,
     errors: 0, lastErr: '', lastLevel: 0,
     stats: { taps: 0, specials: 0, shakes: 0, orbits: 0, charges: 0, nexts: 0, levels: [] }, tapLog: [] };
@@ -279,18 +279,43 @@ function pageRuntime(cfg){
     const el = document.elementFromPoint(x, y);
     return !!el && el.id === 'c';
   }
+  // ⚠️ THE TAP IS DOWN AND UP IN ONE TICK, ON THE STATE THE TARGET WAS CHOSEN FROM. The first form resolved it 4 ticks
+  // after the choice (the down on the next tick, the up 3 ticks later — a finger's 50 ms), and the pile, still settling
+  // after the previous merge, moved under the pixel. MEASURED (8 seeds × 45 s, 9:16, the same page runtime without the
+  // video): 7 mistakes in 333 taps that way — each a «−10», the angry eyes and a lit turbo killed — against 0 in 325
+  // with the tap in the decision's own tick. The game has no press-duration logic (90-input: a tap is a pointerup
+  // with no drag), so nothing is lost by a zero hold.
   function queueTap(x, y, at){
     const c = $('c');
-    bot.pending.push({ at, fn: () => firePtr(c, 'pointerdown', x, y) });
-    bot.pending.push({ at: at + 3 * (1000 / 60), fn: () => { firePtr(c, 'pointerup', x, y); if (bot.tapLog.length < 2000) bot.tapLog.push(cur()); } });
+    bot.pending.push({ at, fn: () => { firePtr(c, 'pointerdown', x, y); firePtr(c, 'pointerup', x, y);
+      if (bot.tapLog.length < 2000) bot.tapLog.push(cur()); } });
+  }
+  // ⚠️⚠️ THE CAMERA WORK IS THE OWNER'S WORD (2026-09-24, translated): «the problem of the video is that it is
+  // from one angle, from above, while the bowl can be turned and people turn it». So a drag both TURNS the bowl
+  // (0.5-2.4 rad, three turns in four the same way, so the video goes round it) and TILTS the view — back to the
+  // game's top-down 0.45, to the middle, or down to an almost side view (up to 1.3 of the drag's 1.35 ceiling) —
+  // every 2.6-4.4 s, the way a player looks around the pile between taps.
+  // ⚠️ THE CADENCE IS A MEASURED TRADE (the probe of 2026-09-24, level 12): every drag is a second without a tap,
+  // and at one every 1.6-3.2 s level 12 cleared only at 59-70 s — the win screen fell out of a 60-s take; at
+  // 2.6-4.4 s it cleared at 41-62 s on 9:16 (median 51.5) and 45.5-63.5 on 16:9 (median 55.5).
+  function pickTilt(){
+    const r = Math.random();
+    return r < B.tiltTopP ? rnd(0.42, 0.6) : r < B.tiltTopP + B.tiltMidP ? rnd(0.7, 1.0) : rnd(1.05, B.tiltSideMax);
   }
   function queueOrbit(at){
-    const W = innerWidth, H = innerHeight;
-    const x0 = W * rnd(0.32, 0.68), y0 = H * rnd(0.42, 0.58);
+    const W = innerWidth, H = innerHeight, g = window.__game;
+    const cam = g && g.cam ? g.cam() : { phi: 0.45 };
+    const phiTo = pickTilt();
+    if (Math.random() > B.sameDirP) bot.dir = -bot.dir;
+    const ang = rnd(B.orbitMin, B.orbitMax) * bot.dir;
+    // 90-input: camAz = az0 − dx·0.006, camPhi = clamp(0.32, 1.35, phi0 − dy·0.004) — the gesture's own numbers
+    const dx = ang / 0.006, dy = (cam.phi - phiTo) / 0.004;
+    // the grip: a point on the canvas, placed so the drag stays mostly on screen (a thumb does not start at the edge)
+    const x0 = dx > 0 ? W * rnd(0.18, 0.42) : W * rnd(0.58, 0.82);
+    const y0 = dy < 0 ? H * rnd(0.55, 0.72) : H * rnd(0.28, 0.45);
     if (!onCanvas(x0, y0)) return false;
-    const ang = rnd(B.orbitMin, B.orbitMax) * (Math.random() < 0.5 ? -1 : 1);
-    const dx = ang / 0.006, dy = rnd(-25, 25);          // 90-input: camAz = az0 − dx·0.006, camPhi = phi0 − dy·0.004
-    const dur = rnd(1100, 1700), steps = Math.max(2, Math.round(dur / (1000 / 60)));
+    const dur = Math.max(650, Math.min(1600, 420 + 380 * Math.abs(ang) + 700 * Math.abs(cam.phi - phiTo)));
+    const steps = Math.max(2, Math.round(dur / (1000 / 60)));
     const c = $('c');
     bot.pending.push({ at, fn: () => firePtr(c, 'pointerdown', x0, y0) });
     for (let k = 1; k <= steps; k++){
@@ -337,6 +362,7 @@ function pageRuntime(cfg){
     const lv = g.level(); if (!lv || lv.over) return;
     if (bot.levelStartAt < 0){
       bot.levelStartAt = vt; bot.bombTried = false; bot.stuck = 0; bot.endZoomDone = false;
+      bot.dir = Math.random() < 0.5 ? -1 : 1;
       bot.startAlive = g.alive();
       const n = g.levelNum(); if (n !== bot.lastLevel) { bot.lastLevel = n; bot.stats.levels.push(n); }
       bot.nextOrbitAt = vt + rnd(B.orbitFirstMin, B.orbitFirstMax);
@@ -411,6 +437,11 @@ function pageRuntime(cfg){
     }
     if (bot.pending.length || vtNow < bot.nextAt) return;
     try { decide(g, vtNow); } catch (e) { bot.errors++; bot.lastErr = String(e && e.stack || e).slice(0, 300); }
+    // what the decision queued for «now» (a tap) runs in this very tick, before the physics moves a thing
+    while (bot.pending.length && bot.pending[0].at <= vtNow){
+      const a = bot.pending.shift();
+      try { a.fn(); } catch (e) { bot.errors++; bot.lastErr = String(e); }
+    }
   }
 
   // --- THE RECORDER'S HANDLE
@@ -443,7 +474,9 @@ function pageRuntime(cfg){
       seekAnims();
       await new Promise(r => N.raf(() => N.raf(r)));     // two real frames: the compositor has the new picture
       const g = window.__game, lv = g && g.level();
-      return { t: cur(), level: g ? g.levelNum() : 0, phase: g ? g.introPhase() : null, over: !!(lv && lv.over),
+      let cam = null; try { cam = g && g.cam ? g.cam() : null; } catch (e) {}
+      let misses = 0; try { misses = g.stats().misses | 0; } catch (e) {}
+      return { t: cur(), cam, misses, level: g ? g.levelNum() : 0, phase: g ? g.introPhase() : null, over: !!(lv && lv.over),
         alive: g ? g.alive() : 0, stats: bot.stats, errors: bot.errors, lastErr: bot.lastErr };
     },
     audioInfo(){ return actx ? { t0: ctxT0, sr: SR, length: actx.length } : null; },
@@ -505,10 +538,10 @@ async function recordTake(browser, base, fmtKey, seed){
   const outFile = path.join(OUT, name + '.mp4');
   const tag = '[' + fmtKey + ' s' + seed + ']';
   const cfg = { seed, level: LEVEL, hard: !!A.hard, sfx: SFX, audioSeconds: SECONDS + 40,
-    // a skilled player: mostly the biggest group, a tap every 0.4-0.7 s (the series stays lit, turbo comes)
-    bot: { tapMin: 380, tapMax: 700, pauseP: 0.05, pauseMin: 1000, pauseMax: 1800, anyP: 0.15, endZoom: !A['no-end-zoom'],
-      orbitFirstMin: 3500, orbitFirstMax: 6000, orbitEveryMin: 8000, orbitEveryMax: 14000,
-      orbitMin: 0.45, orbitMax: 0.95, bomb: !A['no-bomb'], bombAfter: 6000, specialAfter: 2500, winHold: 3200, newObjHold: 2800,
+    // a skilled player: mostly the biggest group, a tap every 0.33-0.62 s (the series stays lit, turbo comes)
+    bot: { tapMin: 330, tapMax: 620, pauseP: 0.04, pauseMin: 900, pauseMax: 1500, anyP: 0.15, endZoom: !A['no-end-zoom'],
+      orbitFirstMin: 600, orbitFirstMax: 1400, orbitEveryMin: 2600, orbitEveryMax: 4400,
+      orbitMin: 0.5, orbitMax: 2.4, sameDirP: 0.75, tiltTopP: 0.25, tiltMidP: 0.4, tiltSideMax: 1.3, bomb: !A['no-bomb'], bombAfter: 6000, specialAfter: 2500, winHold: 3200, newObjHold: 2800,
       zoom: Math.max(0, Math.min(3, (+A.zoom || 0) | 0)) } };
   const ctx = await browser.newContext({ viewport: { width: F.w, height: F.h }, deviceScaleFactor: F.dpr });
   const pageErrors = [];
@@ -547,15 +580,17 @@ async function recordTake(browser, base, fmtKey, seed){
     const recStart = await page.evaluate(() => window.__rec.now());
     const clip = { x: 0, y: 0, width: F.w, height: F.h, scale: F.dpr };
     const t0 = Date.now(); let st = null;
+    const every = process.env.REC_CAMLOG ? Math.round(FPS / 2) : FPS * 5;   // REC_CAMLOG=1: a progress line every 0.5 s
     for (let f = 0; f < frames; f++){
       st = await page.evaluate(k => window.__rec.frame(k), f === 0 ? 0 : ticks);
       const shot = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: JPEG_Q, clip });
       if (!ff.stdin.write(Buffer.from(shot.data, 'base64'))) await new Promise(r => ff.stdin.once('drain', r));
-      if (f % (FPS * 5) === 0 || f === frames - 1){
+      if (f % every === 0 || f === frames - 1){
         const s = st.stats, el = (Date.now() - t0) / 1000;
         console.log(tag, (f / FPS).toFixed(0).padStart(3) + ' s', 'level', st.level, st.phase ? '(' + st.phase + ')' : '',
           'alive', st.alive, '| taps', s.taps, 'specials', s.specials, 'shakes', s.shakes, 'orbits', s.orbits,
-          'charges', s.charges, 'next', s.nexts, '| render', el.toFixed(0) + ' s', st.errors ? '| bot errors ' + st.errors + ' ' + st.lastErr : '');
+          'charges', s.charges, 'next', s.nexts, 'misses', st.misses, '| cam', st.cam ? 'az ' + st.cam.az + ' tilt ' + st.cam.phi + ' r ' + st.cam.r : '-',
+          '| render', el.toFixed(0) + ' s', st.errors ? '| bot errors ' + st.errors + ' ' + st.lastErr : '');
       }
     }
     ff.stdin.end();

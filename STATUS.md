@@ -6,7 +6,27 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-24-g (the rival is a glass bubble with his face inside), v2 = main** · **the full suite: 1322 green, 0 red (run 59, batch -v; this batch ran its own sections)** · **on GitHub and blendo.monster** · **new: a bot that records the game (batch -d, a tool — the game did not change)** · **the level pacing: not built — you are still thinking**
+**Build: batch 2026-09-24-g (the rival is a glass bubble with his face inside), v2 = main** · **the full suite: 1322 green, 0 red (run 59, batch -v; this batch ran its own sections)** · **on GitHub and blendo.monster** · **new: the recording bot turns and tilts the bowl (batch -e, a tool — the game did not change)** · **the level pacing: not built — you are still thinking**
+
+**24 SEPTEMBER, NIGHT — THE VIDEOS TURN AND TILT THE BOWL.**
+
+You said the videos look like one angle from above, while people turn the bowl. The bot now does what a player does
+with a finger: every 3-4 seconds it drags the bowl round (from a twelfth to more than a third of a turn, mostly the
+same way, so the video goes round the bowl) and tilts the view — back to the view from above, to the middle, or down
+to an almost side view of the mixer. The first turn comes a second after the pour.
+- **The price, measured:** every turn is a second without a tap, so the bot clears level 12 later — typically in
+  50-55 seconds instead of 40 (the two picked videos: 46-47). The win screen and the New Object screen still fit into
+  the minute; of the next level only its start does.
+- **The bot no longer taps by mistake.** Its tap used to land a fifteenth of a second after it chose the item, and the
+  settling pile sometimes moved the item away — about one tap in fifty was a mistake (a «−10», the angry eyes, the
+  turbo lost). Now the tap lands on the same frame: 0 mistakes in 325 taps, against 7 in 333 before.
+- **The two new videos** went to you in the chat: 1080×1920 and 1920×1080, exactly 60 seconds, 60 frames a second.
+  Both clear level 12 in about 46-47 seconds, go through the win screen and the New Object screen, and the bot turns
+  the bowl two turns round in the vertical one and a turn and a half in the wide one. They are the best of three
+  runs each; they lie in `renders/` on the Mac (not on GitHub — too big), and the first two videos were moved out.
+- **Your knobs** are a few numbers in the tool: how often it turns (`orbitEveryMin/Max`, now 2.6-4.4 s), how far
+  (`orbitMin/Max`), and how often it goes to the top, middle or side view (`tiltTopP`, `tiltMidP`). «Turn less» or
+  «more side views» is one line.
 
 **24 SEPTEMBER, EVENING — A BOT THAT PLAYS THE GAME AND RECORDS MINUTE-LONG VIDEOS.**
 
