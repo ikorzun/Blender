@@ -7,8 +7,9 @@
 //
 // Run (from the repo):   npm run record                      — both formats, 60 s, 60 fps, level 12
 //                        npm run record -- --format=9x16 --level=20 --seed=7 --seconds=30
-// Flags: --format=both|9x16|16x9  --seconds=60  --fps=60|30  --level=12  --seed=N (a take is reproduced
-//        by its seed)  --hard (the grey veil on the covered items)  --no-sfx  --no-music
+// Flags: --format=both|9x16|16x9  --seconds=60  --fps=60|30  --level=12  --seed=N (the deal and the bot's
+//        choices; ⚠️ NOT a replay — two runs of one seed diverge, see below)  --hard (the grey veil on the
+//        covered items)  --no-sfx  --no-music
 //        --no-rival  --no-bomb  --out=renders  --takes=N (N takes with seeds seed, seed+1, …)
 //        --loudness=-14 (LUFS of the final mix; «game» keeps the game's own level)  --keep-parts (debug)
 //        --no-end-zoom (by default the bot presses «+» once when the pile has thinned to 30%)
@@ -42,9 +43,11 @@
 // «now» would otherwise be 0 for all of them), and after the take the context renders the lot in one
 // pass. The music is the game's own track mixed at the game's own level (the slider's 0.7 × the music
 // bus 0.5 = 0.35, 85-hud); the sound effects keep their master (0.95, 75-audio).
-// ✅ SYNC, MEASURED: every merge sound's onset lands 50-65 ms after the tap that caused it — exactly the
-// silent lead-in of the samples themselves (35-55 ms to −40 dB, measured on the mp3s in Audio/3-objects),
-// i.e. what a player hears too; no drift across a take.
+// ✅ SYNC, MEASURED (a 10-s probe, 9 taps): for 7 of them the nearest sound onset lands 50-65 ms after the
+// tap — exactly the silent lead-in of the samples themselves (35-55 ms to −40 dB, measured on the mp3s in
+// Audio/3-objects), i.e. what a player hears too, and constant from 2.4 s to 9.6 s (no drift). Two read 0 and
+// 150 ms and were NOT attributed — most likely another sound nearest to those taps (a procedural one has no
+// lead-in; a special's pop comes with its animation).
 // ⚠️ A LIMIT OF THE SHIM, NAMED: an AudioParam's `.value = x` on an offline context lands at time 0 of the
 // render, not at the virtual now. Every envelope of 75-audio uses setValueAtTime/ramps at t0 and every
 // `.value` there is set on a node created for that one sound, so today nothing is affected; a future sound
@@ -64,6 +67,13 @@
 // on 9:16 the 3D is drawn at 810×1440 and scaled up, while the HUD is drawn at full resolution — still
 // sharper than a real iPhone, where the touch cap is 1.5. At 720 CSS tall the desktop layout uses the
 // short-window eyes (the phone's 120 px — shell.html, 2026-09-07-e); that is the game's own state.
+// ⚠️⚠️ A TAKE IS NOT REPRODUCED BY ITS SEED — MEASURED: the same tool and seed 2026 gave level 12 cleared at
+// ~42 s in one run and at ~60 s in the next (taps 60 against 59, the charge in one and not the other). The
+// seed fixes the deal and the bot's own choices, but the boot runs in REAL time before the freeze: the boot
+// level's physics history (Rapier's world outlives the regen) and the timers armed during it differ run to
+// run, and the game diverges after the first taps. So a good take is PICKED: `--takes=N` records N of them.
+// The endgame is where they differ most — the last pairs sit out of reach with free shakes in hand, and the
+// soft ∞ radius opens only at ≤1 own shake (his rule), so one take drags 15 s where another does not.
 // ⚠️ NOT while `node test.js` runs — a second browser job slows the suite into false reds.
 'use strict';
 const path = require('path'), fs = require('fs'), os = require('os'), http = require('http');

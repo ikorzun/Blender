@@ -21487,9 +21487,11 @@ flushes style, so a transition started by a class change is found in the same fr
 `window.AudioContext` becomes a subclass of `OfflineAudioContext` whose `currentTime` reads the virtual clock (the
 state always «running», resume/suspend/close resolved); `start()`/`stop()` without a time are pinned to the virtual
 now (in an offline context «now» is 0 for every source). The game builds its whole graph on it exactly as in play —
-75-audio is untouched — and the context renders once after the take. MEASURED: every merge sound's onset lands 50-65
-ms after its tap, which is the samples' own silent lead-in (35-55 ms to −40 dB, measured on the mp3s of
-`Audio/3-objects`) — no scheduling offset and no drift over a take.
+75-audio is untouched — and the context renders once after the take. MEASURED (a 10-s probe, 9 taps): for 7 the
+nearest onset lands 50-65 ms after the tap, which is the samples' own silent lead-in (35-55 ms to −40 dB, measured on
+the mp3s of `Audio/3-objects`), constant across the take — no scheduling offset and no drift. ⚠️ Two read 0 and 150
+ms and were NOT attributed (most likely another sound nearest to those taps: a procedural one has no lead-in, a
+special's pop comes with its animation) — «every sound lands in 50-65 ms» is not the claim.
 ⚠️ THE ONE LIMIT OF THE SHIM: `param.value = x` on an offline context lands at time 0 of the render. Every envelope
 of 75-audio uses `setValueAtTime`/ramps at `t0`, and every `.value` there is set on a node made for one sound — so
 nothing is affected today; a future sound that re-sets `.value` on a long-lived node mid-take would not be.
@@ -21497,7 +21499,7 @@ The music is `music.mp3` mixed in post at the game's own level (the slider's 0.7
 Playwright mutes the `<audio>` element anyway. THE GAME'S OWN MIX MEASURES −22…−26 LUFS; the final file is lifted
 to −14 LUFS (where Shorts/Reels/TikTok/YouTube sit) with a limiter at −1.5 dBFS — the balance of music and effects
 stays the game's. ⚠️ The limiter was −1 dBFS for the two delivered takes and the AAC encoder overshot it (−0.7 and
-−0.1 dBTP measured); −1.5 gives −1.3 dBTP. `--loudness=game` keeps the game's own level.
+−0.1 dBTP measured); −1.5 gives −1.0 to −1.3 dBTP. `--loudness=game` keeps the game's own level.
 
 ### THE BOT: A SKILLED PLAYER, AND WHY EACH HABIT IS THERE
 Input is SYNTHETIC POINTER EVENTS on `#c` — the canvas handlers are plain listeners with no `isTrusted` check, so a
@@ -21519,8 +21521,12 @@ top there — a human could not tap through the Shake button or the showcase pan
   16:9 dissolves the glass and puts the top of the pile under the eyes — the game's own framing is the default);
 - the win screen's Next after 3.2 s and the New Object screen's button after 2.8 s, so a take walks into the next level.
 The rival needs a neighbour and the leaderboard is aborted, so `setup()` forces one (`rivalSetNext` + `rivalNextAt`)
-and the bomb (`bombNextAt`); `Math.random` is a seeded mulberry32, reseeded before the regen — a take is reproduced by
-its seed (printed in the file name). The automation gates hold: no poster, no film (webdriver), no service worker.
+and the bomb (`bombNextAt`); `Math.random` is a seeded mulberry32, reseeded before the regen. ⛔⛔ A TAKE IS NOT
+REPRODUCED BY ITS SEED — measured: the same tool and seed 2026 cleared level 12 at ~42 s in one run and at ~60 s in
+the next. The boot runs in REAL time before the freeze, and the boot level's physics history (Rapier's world outlives
+the regen) and the timers armed during it differ run to run; the game diverges after the first taps. A good take is
+PICKED (`--takes=N`); a frozen boot (the clock manual from the first script, the boot level never stepped) is the
+named way to make seeds replay, not built. The automation gates hold: no poster, no film (webdriver), no service worker.
 
 ### THE SIZES
 9:16 = 405×720 CSS at DPR 8/3 → 1080×1920 (a 402-wide iPhone's proportions; the canvas's own DPR cap of 2 draws the
@@ -21529,14 +21535,18 @@ the touch cap is 1.5). 16:9 = 1280×720 at DPR 1.5 → 1920×1080 (a laptop wind
 rule gives the HUD the phone's eyes). H.264 High, CRF 18, BT.709 limited range — the JPEG frames go through RGB so ONE
 scaler writes the range (a yuvj → yuv chain can convert it twice and wash the picture out); AAC 192k.
 
-### THE DELIVERED TAKES (seed 2026, level 12, Easy)
+### THE DELIVERED TAKES (seed 2026, level 12, Easy — the best of two runs per format, picked by their contact sheets)
 | | 9:16 | 16:9 |
 |---|---|---|
-| the file | 54.7 MB, 60.000 s, 3600 frames | 33.1 MB, 60.000 s, 3600 frames |
-| level 12 cleared at | ~42 s | ~47 s |
-| then | the win screen, the New Object screen, level 13's pour and play | the same |
-| taps / specials / shakes / turns / charges | 60 / 2 / 4 / 5 / 1 | 56 / 2 / 4 / 4 / 1 |
-| loudness / true peak | −14.5 LUFS / −0.7 dBTP | −14.5 LUFS / −0.1 dBTP |
+| the file | 54.7 MB, 60.000 s, 3600 frames | 35.2 MB, 60.000 s, 3600 frames |
+| level 12 cleared at | ~42 s | ~40 s |
+| then | the win screen, the New Object screen, level 13's pour and play | the same, ~10 s of level 13 |
+| taps / specials / shakes / turns / charges | 60 / 2 / 4 / 5 / 1 | 69 / 2 / 1 / 4 / 1 |
+| loudness / true peak | −14.5 LUFS / −0.7 dBTP | −14.5 LUFS / −1.0 dBTP |
+⚠️ The 9:16 take was made with the limiter at −1 dBFS (the tool now says −1.5): its −0.7 dBTP is safe, and a
+re-render is a different game (above), so the better take was kept. The rejected runs: the first bot (a 16:9 that
+stood still under the showcase panel for 30 s), a 16:9 whose endgame dragged 10 s, and a 9:16 that cleared level 12
+only at ~60 s.
 ⚠️ The two formats are DIFFERENT GAMES from one seed: the viewport changes the tap pixels and the accessible sets,
 so the deals diverge after the first tap.
 

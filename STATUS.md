@@ -17,7 +17,7 @@ second, with the game's own sound effects and its music.
 - **What the bot does:** starts on the pour into the empty bowl, taps the biggest groups like a good player (so the
   series and the turbo pours come), taps the rival bubble, the bomb and the lightning charge, turns the bowl, shakes
   only with free shakes, leans in with «+» when few items are left, goes through the win screen and the New Object
-  screen and starts the next level. In both videos it clears level 12 in about 45 seconds and plays into level 13.
+  screen and starts the next level. In both videos it clears level 12 in about 40 seconds and plays into level 13.
 - **Perfectly smooth:** the game's clock is driven by the bot, one exact game frame per video frame, so the video has
   no jerks whatever the computer is doing (a live screen recording here dropped a frame every few frames).
 - **The sound is in sync** (measured: every merge sound starts on its tap) and **as loud as other short videos**
@@ -25,6 +25,9 @@ second, with the game's own sound effects and its music.
 - **Your choices, all one flag away:** another level or seed (`--level=20 --seed=7`), Hard mode with its grey veil
   (`--hard`), 30 fps, 30 seconds, no music, a closer camera from the start (`--zoom=1`). A minute of video takes about
   4 minutes to record.
+- **Every run is a new game, even with the same seed** (the physics does not repeat exactly), and the end of a level
+  sometimes drags when the last pairs are far apart. So a good take is picked: `--takes=3` records three, and you
+  keep the one you like. The two I sent are the best of two runs each.
 
 **24 SEPTEMBER, LATE — THE RIVAL IS A GLASS BUBBLE NOW.**
 
