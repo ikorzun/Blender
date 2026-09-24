@@ -21443,3 +21443,19 @@ popped frames each time and the geometry count flat at 24; the neighbours that r
 `file://`, so no neighbour is dealt), and the changed shared code (`syncMeshes`, `isAccessible`) is gated on the rival.
 The build: `index.html` 12 960 572 → **12 963 126 B**, md5 96002e8298e87ef990d7507ffa85c56f, build 82a77558bc5f, 31
 modules. The Cyrillic census of the tracked files: 0 (bonus.html excepted).
+
+### THREE THINGS THE REVIEW ASKED FOR, MEASURED (after the commit, before the push)
+- **THE ANCHORS WARM EXACTLY THE PRODUCTION PROGRAMS — MEASURED, NOT ONLY READ.** A probe build outside the tree
+  added a `programs` field to `perfStats` (`renderer.info.programs.length` — the shipped build carries no such field);
+  level 6 was dealt twice with no neighbour (every program of the level compiled), then once WITH the rival: **16 →
+  16 with the anchors, 14 → 16 on a copy with the two anchors removed**. So the first rival of a session compiles
+  nothing, and the anchors are not warming a program nobody uses (the 1×1 sRGB map keys the face's program right).
+- **THE FACE IS NOT HIDDEN BEHIND THE BOWL GLASS.** The face is drawn at `renderOrder 1`, i.e. after EVERY order-0
+  transparent, so any nearer order-0 transparent that WRITES DEPTH would hide it. The bowl glass, its shards and the ice
+  crust all carry `depthWrite: false`; a side view (phi 1.35, camR 16, the glass at full density) with the rival above
+  the pile behind the near wall shows the bubble and its face whole. ⚠️ Transient FX that do write depth (the saw's
+  halves, a few flash materials) can hide the face for their own few frames; accepted, named. ⚠️ AND A STAGING TRAP
+  THAT LOOKED LIKE A DEFECT: `place()` into a SLEEPING pile lets items share the bubble's volume, and they hide the face
+  — in play the collider keeps them out. Stage a rival above the pile surface, never inside it.
+- **THE RIVAL CANNOT BURN.** The fire picker groups candidates by `key` and drops a loner; the rival's key is unique, so
+  it is never a candidate. No change was needed.
