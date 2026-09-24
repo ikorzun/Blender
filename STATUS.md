@@ -6,7 +6,29 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-24 (the full review: the frame cap fixed, five payment holes closed, the service worker, the site worker, the ice leak, bridge 2.2.0, Rapier made reproducible), v2 = main** · **the main cause of the frame drops on Hard is found and a fix is ready — it waits for your «yes» and a full run** · **dry runs of every section green** · **no full suite, by your word** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+**Build: batch 2026-09-24-b (the Hard fix is on: the check that decides which items are grey no longer freezes a frame at the end of a pour or after a merge), v2 = main** · **the full suite: 1313 green, 0 red** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+
+**24 SEPTEMBER, EVENING — THE HARD FIX IS ON.**
+
+You said yes, so it is switched on. On Hard the game used to check the whole pile in ONE frame at the end of every
+pour and every time the pile came to rest after a merge. Now the same check is spread over 8 frames. I measured it
+again on the build that shipped, on the slowed-down test machine (a stand-in for a phone), level 20, Hard:
+- **the end of a pour:** the worst frame went from 83 ms to 42 ms, and the frames over 50 ms from 3 to 0;
+- **the pile coming to rest after a merge:** the worst frame of a typical merge went from 60 ms to 43 ms, and the
+  frames over 50 ms from 1 to 0. Before the fix 11 merges out of 12 had that hitch; after it, none. The few long
+  frames left belong to the test machine itself, not to the game — the measurement tells the two apart.
+
+Which items are grey stays exactly the same. It is only worked out about a tenth of a second later, which you
+cannot see.
+
+**Still done in one frame, not changed (tell me if you want these too):** the grinder while the mixer eats, the
+bomb, the lightning charge, the rival, the golden fish, the ice and the final top-up.
+
+**Checked:** the full test suite, 1313 checks, 0 red; a new guard of 7 checks that follows the
+check frame by frame; and ten deliberately broken copies of the fix, each one caught.
+
+**Still waiting from you:** a screenshot with `?fps=1` during a pour on Hard; whether Low Power Mode is on when you
+see the drops; and the Cloudflare rate-limit check (Security → WAF → Rate limiting rules).
 
 **24 SEPTEMBER — THE FULL REVIEW: WHY THE FRAME RATE DROPS, AND WHAT I FIXED.**
 
@@ -17,7 +39,7 @@ a merge. With 140 items that one frame takes 55-87 ms on a slowed-down test mach
 is a visible hitch after almost every merge. On Easy none of this happens. My earlier measurements never saw it,
 because they were all run on Easy — that was my mistake, and it is corrected now.
 
-**The fix is built and tested, but not switched on.** It spreads the same check over 8 frames instead of one. On
+**The fix is built and tested, but not switched on.** ✅ Switched on the same evening — see the entry above. It spreads the same check over 8 frames instead of one. On
 the test machine: the worst frame after a pour went from 87 ms to 43 ms, after a merge from 67 ms to 41 ms, and the
 frames over 50 ms went to zero. Nothing about what is grey changes, only when it is computed. It changes something
 every test page relies on, so it needs the full test run, which is yours to allow. Say «yes» and I switch it on
@@ -50,7 +72,7 @@ and run the full suite the same day.
   button now always shows the currency next to the number.
 
 **Waiting for your word (measured, not switched on):**
-- **The Hard fix above.** Needs your «yes» and a full test run.
+- **The Hard fix above.** ✅ Switched on the same evening, with a full test run — see the top entry.
 - **A lighter collision check (CCD).** It makes the physics step 26-39% cheaper on the test machine. It is part of
   what stops items from flying through the walls, so it needs a 12-minute test on Hard before I would trust it.
 - **Simpler collision shapes.** 11-22% cheaper physics, but items would settle slightly differently.

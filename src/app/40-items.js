@@ -1307,6 +1307,7 @@ function genLevel(){
   // fresh colliders until world.step (the project's own canonical trap at place()) — on Hard
   // every first skyCast hit nothing and the whole result was garbage that happened to be
   // neutral. The honest recomputes stand: finishIntro, finalizeFill and sleepPhysics each run
-  // their own full refresh.
+  // their own full refresh — ⛔ since 2026-09-24 as a burst of slices over the following frames, not
+  // in one frame (see 60-access at accSweepBurst); skipIntro's is still synchronous.
   updateHUD();
 }

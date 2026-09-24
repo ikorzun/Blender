@@ -248,7 +248,11 @@ function finishIntro(){
   // be falling (on weak machines — a lot); a trim over a flying column quietly removed
   // up to 16 items, and topY0 over it broke the dynamic radius. We wait for calm.
   pendingTrim = true;
-  refreshAccessibility(); updateHUD();
+  // ⚠️⚠️ NOT THE FULL SKY-RAY FAN IN ONE FRAME (2026-09-24, the owner's «yes»): on Hard it cost
+  // 55-61 ms of this frame's work (lv20, CPU x4). The same sweep is ARMED as a burst of slices and
+  // drains over the next ACC_SLICES frames (see accSweepBurst, 60-access). skipIntro keeps its own
+  // synchronous full sweep — the suite reads the flags right after it.
+  accSweepBurst = ACC_SLICES; updateHUD();
 }
 // Fill finalization — STRICTLY over a settled pile (from loop when calm)
 function finalizeFill(){
@@ -280,7 +284,7 @@ function finalizeFill(){
   // the type multipliers above — so the threshold stays about skill, not about the level number.
   for (const k in accPerType) accPar += Math.floor(accPerType[k] / 2) * MATCH_SCORE * 2 * accMult(k) * levelMergeMult(levelNum);
   level.parBase = Math.round(accPar);
-  refreshAccessibility(); updateHUD();
+  accSweepBurst = ACC_SLICES; updateHUD();   // the settle's pass as a burst of slices (see finishIntro, 2026-09-24)
 }
 function tickIntro(dt){
   intro.t += dt;
@@ -413,7 +417,9 @@ function sleepPhysics(src){
   physAwake = false; calmT = 0;
   sleepAllBodies();
   setFallCap();   // the pile is down: the flight cap (shake/bomb, 2026-09-05) gives way to MAX_FALL
-  if (level) refreshAccessibility(); // final slice over the pile that fell asleep
+  // the final pass over the pile that fell asleep — as a burst of slices, not one full fan in this frame
+  // (2026-09-24, see finishIntro); the loop drains it on the SLEEPING pile, see the drain gate
+  if (level) accSweepBurst = ACC_SLICES;
 }
 // ⚠️⚠️ THE ONLY PLACE WHERE uResY IS WRITTEN. Whoever CHANGES THE BUFFER SIZE —
 // IS OBLIGED to call resize(), otherwise the uniform goes stale. Earlier this was almost
@@ -885,14 +891,18 @@ function loop(){
   // A partial slice costs 2-8 ms of Rapier casts; on a calm moving pile the frame has headroom
   // and the tick is free (0 drops in 86 moving frames measured), but during the eruption the
   // base frame sits at budget and every tick tips exactly its own frame over 16.7 ms.
-  //  - the BURST drains the shake's deferred sweep one slice per frame (~130 ms, see 60-access);
+  //  - the BURST drains the shake's deferred sweep one slice per frame (~130 ms, see 60-access) —
+  //    and, since 2026-09-24, the settle's sweep (finishIntro, finalizeFill, sleepPhysics);
   //  - the background tick STRETCHES to 300 ms while the pile is erupting (maxV > 3) and stays
   //    at 100 ms otherwise. A 300 ms PARTIAL sweep is strictly cheaper than the pre-2026-08-14
   //    300 ms FULL cadence, so this cannot regress past any previously measured state.
   // ⚠️ maxBodySpeed() is called at most 10x/s (inside the 100 ms gate), never per frame.
   // ⚠️ The deadlock/auto-shake conditions at noMoves are DELIBERATELY untouched (the owner's
   // recorded decisions); the burst caps post-shake staleness below their ~1.2 s window.
-  if (physAwake && accSweepBurst > 0){ accSweepBurst--; lastAccMs = now; refreshAccessibility(true); }
+  // ⚠️⚠️ THE BURST DRAINS WHETHER OR NOT THE PILE IS AWAKE (2026-09-24): the settle's burst is armed
+  // exactly as the pile falls asleep (sleepPhysics), and a `physAwake &&` here would hold it until the
+  // next wake — the flags of a sleeping pile would stay stale for as long as the player waits.
+  if (accSweepBurst > 0){ accSweepBurst--; lastAccMs = now; refreshAccessibility(true); }
   else if (physAwake && now - lastAccMs > 100){
     if (now - lastAccMs > 300 || maxBodySpeed() <= 3){ lastAccMs = now; refreshAccessibility(true); }
   }
@@ -1407,6 +1417,11 @@ window.__game = {
     pendingTrim = false;
     finalizeFill(); // synchronously: the tests read topY0/the trim right after skipIntro
     sleepPhysics('skipIntro');
+    // ⚠️⚠️ THE ONE SYNCHRONOUS FULL SWEEP LEFT AT A SETTLE (2026-09-24): finishIntro, finalizeFill and
+    // sleepPhysics above only ARM the slice burst now (and sleepPhysics may return early on a rescue).
+    // The whole suite reads the flags right after skipIntro, so they are made current HERE, in this
+    // call, and the armed burst is cancelled — draining it afterwards would only repeat the work.
+    accSweepBurst = 0; refreshAccessibility();
     renderer.shadowMap.needsUpdate = true; // the settling passed by the loop gate — the shadow over the final pile
   },
   level(){ return level; },
@@ -1834,6 +1849,9 @@ window.__game = {
   // debug/tests: a forced recomputation of accessibility and its snapshot
   forceRefresh(){ refreshAccessibility(); },
   // regression diagnostics: physics sleep, veil blinking, «hangers» in mid-air
+  // the accessibility burst (2026-09-24): the slices still to drain, the burst's full length, and how many
+  // FULL sweeps have run so far — the SETTLEFAN guard traces it per frame
+  accBurst(){ return { left: accSweepBurst, slices: ACC_SLICES, full: accFullSweeps }; },
   awake(){ return { physAwake, sinceWakeMs: physAwake ? Math.round(performance.now() - wakeAtMs) : 0, maxV: +maxBodySpeed().toFixed(2) }; },
   accFlips(){ return accFlips; },
   // v1: the wallet and the stars (economy tests)

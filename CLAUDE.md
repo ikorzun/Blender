@@ -2218,6 +2218,9 @@ with the platform.
   accessible in 10/10 seeds; the share of accessible ones on a full bowl is 21-27%).
   At calm (physAwake=false) the refresh does not tick at all — the pile is motionless;
   the final slice is made by sleepPhysics. The tap remains a raycast from the camera
+  ⛔ SINCE 2026-09-24-b sleepPhysics no longer sweeps the pile in one frame: it ARMS a burst of
+  slices, and that burst drains on the sleeping pile (BATCH 2026-09-24-b). The background tick
+  still does not run at calm.
   (that is choosing an item with a finger, not accessibility).
 - DIFFICULTY (the owner's spec 2026-07): by default (Easy) ANY pair is accessible —
   the overlaps are not checked, there is no veil, the accessibility rays are not cast
@@ -11990,6 +11993,8 @@ The badge's «physics» number never sees this: the tick runs in the UI segment 
 4. genLevel's refreshAccessibility() removed (the fresh-collider query-pipeline trap made its
    result garbage that happened to be neutral); the honest recomputes stand in finishIntro,
    finalizeFill, sleepPhysics.
+   ⛔ SINCE 2026-09-24-b the three sites ARM a burst of slices instead of sweeping in one frame
+   (BATCH 2026-09-24-b); only skipIntro keeps the synchronous full sweep.
 5. Tombstones: the 0.65 s orbit note (the constant is 1.0), the «nine in the air» census
    (chain gate 10 / measured 8; finalPairsRefill ~47 UNGATED — do not add a gate there, it must
    deliver ALL partners), and the 2026-08-14 «events call the full sweep» note revised in place.
@@ -20881,6 +20886,10 @@ after.
 
 ## BATCH 2026-09-24: THE FULL REVIEW — THE FRAME CAP'S CREDIT, THE HARD FAN AT EVERY SETTLE (MEASURED, NOT SHIPPED — HIS CALL), FIVE MONEY HOLES, THE TWO WORKERS, THE ICE LEAK, RAPIER 0.20 REPRODUCIBLE, BRIDGE 2.2.0 (his word, translated: «do a full code review, find the weak spots and propose solutions. Look at the engine and bridge versions, update everything. If there are weak spots in the engine, fix them. The frame rate still drops during the pour and with many objects — find hypotheses and work them through. You wrote this game, you are the strongest developer and architect, you can do it»)
 
+⛔⛔ **THE SETTLE FIX SHIPPED THE SAME DAY ON HIS «yes» — SEE BATCH 2026-09-24-b.** «MEASURED, NOT SHIPPED — HIS
+CALL» in this heading, «THE FIX IS BUILT AND NOT SHIPPED» and «WHY IT WAS NOT IN THE TREE» below record the
+moment of the decision. The mechanism, the two traps and the readers still hold.
+
 Eight read-only review lenses on a clean snapshot of 89eb5a9 (physics and gameplay state, per-frame main-thread
 cost, the boot, the Cloudflare workers, money and identity, comment drift, the Rapier 0.20 changelog, the canon),
 then serial perf measurements with the hypotheses written down BEFORE the first run (the pourbench PREREG), then
@@ -20923,6 +20932,7 @@ threshold of 0.5, a zero credit, the loop not asking, a comment edit): each red 
 green.
 
 ### ⚡⚡ THE HEADLINE: ON HARD THE FULL SKY-RAY FAN RUNS IN ONE FRAME AT EVERY SETTLE — MEASURED; THE FIX IS BUILT AND NOT SHIPPED (HIS DECISION)
+⛔⛔ SHIPPED ON HIS «yes» OF THE SAME DAY, WITH A FULL SUITE — BATCH 2026-09-24-b.
 **THE MECHANISM.** `refreshAccessibility()` (the full fan, up to 56 Rapier casts per item) runs synchronously at
 `finishIntro`, `finalizeFill` and `sleepPhysics` — i.e. twice at the end of every pour and once every time the
 pile falls asleep after a match — plus in the grind, bomb, charge and rival callbacks and in `tickFireSpawn` (the
@@ -20940,7 +20950,7 @@ full fan; the loop's drain gate becomes `accSweepBurst > 0` alone (the settle bu
 `skipIntro` keeps its full sweep synchronous (`accSweepBurst = 0; refreshAccessibility();` after
 `sleepPhysics('skipIntro')` — the suite reads the flags right after it). Same total work, same per-item result, the
 flags converge ~8 frames later (~130 ms at 60 fps, ~270 at 30).
-**WHY IT IS NOT IN THE TREE:** it changes WHEN every page's cached accessibility converges, and the main-run
+**WHY IT WAS NOT IN THE TREE UNTIL HIS «yes» (BATCH 2026-09-24-b):** it changes WHEN every page's cached accessibility converges, and the main-run
 accessibility guards (camera independence, the top item accessible 10/10, the Hard veil, the sensor probe) cannot
 be dry-run — the full suite can, and the full suite is his word («never unasked», 2026-09-12). The advisor's plan
 was the same: «if the fan dominates, it is your headline finding with a concrete fix and the two traps named, and
@@ -21085,3 +21095,99 @@ variants each red» — an off-by-one caught after the push (the twelfth is the 
 | a comment edit | PAYWEB | 20 green |
 
 **No full suite** — his rule («never unasked»); the settle burst needs one and waits for his word together with it.
+⛔ He gave both words the same day, and BATCH 2026-09-24-b ran it.
+
+
+## BATCH 2026-09-24-b: THE SETTLE'S SKY-RAY FAN SHIPPED ON HIS «yes» — A BURST OF SLICES, AND A FULL SUITE (his word, translated: «yes, enable the fix and run the full run»)
+
+This closes the headline of BATCH 2026-09-24: the fix that was measured and held there for his word is in the tree.
+
+### WHAT CHANGED (99-main, 60-access)
+- `finishIntro`, `finalizeFill` (the pour's end) and `sleepPhysics` (every settle after a match) set
+  `accSweepBurst = ACC_SLICES` instead of calling the full fan `refreshAccessibility()`: the same sweep, the same
+  per-item result, over the next 8 loop frames instead of one.
+- ⚠️⚠️ **THE DRAIN IS NO LONGER GATED ON `physAwake`** (`if (accSweepBurst > 0)` in the loop): the settle's burst is
+  armed exactly as the pile falls asleep, and the old `physAwake &&` would have held it until the next wake — the
+  flags of a sleeping pile stale for as long as the player waits. The background tick keeps its `physAwake` gate.
+- ⚠️⚠️ **`skipIntro` KEEPS A SYNCHRONOUS FULL SWEEP** (`accSweepBurst = 0; refreshAccessibility();` after its own
+  `sleepPhysics`): the whole suite reads the flags right after it, and `sleepPhysics` may return early on a rescue.
+- `accFullSweeps` (60-access) counts full sweeps; `__game.accBurst()` = `{ left, slices, full }`. Nothing in
+  production reads either — the guard states «no full fan at a settle» by the counter, whatever frame the arming
+  lands in.
+- ⛔ **NOT CHANGED, AND NAMED:** the event callbacks still run the full fan in one frame — the idle grind (every
+  2 s while the mixer eats), the bomb, the charge, the rival, the treasure, the ice, and the final top-up's
+  +900 ms sweep. Not measured; the same device applies, and it is his word.
+- **Production readers were re-checked on the tree:** the tap casts fresh (`isAccessible`), the hint runs its own
+  full sweep, the test hooks (`autoMatch`, `bestTapTarget`, `matchType`) refresh before reading, `updateHUD` reads
+  no flag, and the deadlock detector needs `availablePairs() === 0` on two ticks ~1.2 s apart against a drain of
+  8 frames. The only unmarked arm that leaned on the old synchronous settle sweep (the shake-spread convergence,
+  main run) now WAITS FOR THE FACT — asleep and the burst drained — and its structural pin reads `performShake`'s
+  own body: the string `accSweepBurst = ACC_SLICES` occurs four times in the build now, so a bare `indexOf`
+  proved nothing.
+
+### THE GUARD: SETTLEFAN (7 arms, its own pages, the state traced PER FRAME IN THE PAGE)
+A burst is ~8 frames (80-130 ms), so a harness poll would land on the bench's clock: the arms read an in-page
+`requestAnimationFrame` trace of `{ awake, left, full }`.
+- **S0** structural, read from each function's OWN body: the three sites arm the burst and carry no bare
+  `refreshAccessibility()`; the drain line has no `physAwake &&`; skipIntro's sync sweep stands after its sleep.
+- **S1** skipIntro on Hard: no burst left, and the cached flags equal a fresh recompute IN THE SAME CALL.
+- **S2** a shake, then the SLEEP frame: 7 of 8 slices left (armed at sleep, one drained in that frame), and the
+  full-sweep counter unchanged from the shake through the drain.
+- **S3** the burst reaches 0 with the pile asleep throughout (judged only on a burst S2 saw armed).
+- **S4** after the drain the cached flags equal a forced recompute, and on Hard they vary.
+- **S5** a REAL intro on Hard (no skipIntro): 7 of 8 left in the frame the intro ends, and no full sweep from the
+  frame before it through the settle — ⚠️ the counter and not «the burst is armed» alone: `finalizeFill` can fire
+  one frame after `finishIntro`, while that burst is still draining, and a «left > 0» arm would be blind there.
+- **S5b** the pour's flags converge after its settle's drain.
+**PROVEN AGAINST TEN VARIANTS** (`tools/build-variant.py` + `tools/section-dryrun.js`; the tree's md5 identical
+before and after) — each property twice, bluntly (the structure broken) and HIDDEN (the structure intact, the
+behaviour broken: `const f = refreshAccessibility; f()` beside a comment carrying the armed string, or the old
+gate as `if (!physAwake){} else if (...)`), so every behavioural arm is shown to see its sabotage without S0:
+| variant | red |
+|---|---|
+| sleepPhysics back to a full sweep | S0, S2, S5 (S5's window covers the pour's first settle) |
+| the same, hidden | S2, S5 |
+| the drain gated on physAwake | S0, S3 |
+| the same, hidden | S3 alone |
+| skipIntro's sync sweep dropped | S0, S1 |
+| the same, hidden (`if (0){...}`) | S1 alone |
+| finishIntro back to a full sweep | S0, S5 |
+| finalizeFill back to a full sweep | S0, S5 |
+| the same, hidden | S5 alone |
+| a comment edit | 7 green |
+
+### THE RE-MEASUREMENT ON THE SHIPPED BUILD
+The ruler is batch 2026-09-24's: headless Chromium `--use-angle=metal`, CPU ×4, 390×844, Hard, level 20, 3 reps
+per arm, the arms alternating, a cold start per rep. The «before» arm is the build without this batch (md5 7a6cd9c1…,
+built outside the tree), the «after» arm is the shipped one. REST = the frame's work minus every named phase, i.e.
+the fan; «out» = time outside the game loop.
+
+| window | before | after |
+|---|---|---|
+| the pour's end: the worst frame | 83.2 ms | **42.4 ms** |
+| the pour's end: frames > 50 ms | 3 | **0** |
+| the pour's end: the worst frame's REST (the fan) | 65 | **0.1** |
+| the pour window: the average frame | 18.68 ms | 18.37 ms |
+| a settle: the median of the 12 settles' worst frames | 60.1 ms | **43 ms** |
+| a settle: frames > 50 ms (the median settle) | 1 | **0** |
+| settles whose worst frame carries the fan (REST > 40) | **11 of 12** | **0 of 12** |
+| a settle: the worst frame over all 12 | 73.1 (REST 60.5: the fan) | 68 (out 60.6, REST 0.1) |
+
+⚠️⚠️ **«THE WORST FRAME OVER ALL» IS NOT THE FAN IN THE AFTER ARM, AND THE ATTRIBUTION IS WHAT SAYS SO.** Its four
+frames above 50 ms (64, 68, 57.2, 52.3) are all «out» 50.8-61.6 with REST ≤ 0.6: time spent outside the game loop
+(the harness's own work between taps, GC). The before arm carries one such frame too (72 ms, out 63.8, REST 1), so
+it appears in both arms at a similar size; the fan frames (REST 49-61) appear only in the before arm. A bench that
+reported only the maximum would have called the fix a 7% gain. The REST column shows the fan is gone.
+⚠️ One rescue appeared in the after arm, in a settle's own window; an earlier base run of the same bench had one
+too. It is noise and it is named here.
+⚠️ And the old numbers of batch 2026-09-24 (87 → 43 at the pour's end, 67 → 41 after a merge) came from a
+different bench run, which is why they do not match these digit for digit. The shape is the same.
+
+### THE RUNS
+**Run 58 — the whole suite on this build (his word this time): 1313 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (13:57–14:23, nothing else of mine running beside it). The last full run
+was run 57 (1288 green, 2026-09-13). Every batch since has added arms, so the count is not comparable one for one.
+Also: SETTLEFAN 7 green twice on the healthy build; the ten variants of the table above, each red exactly where
+stated; FIRE 12 and RIVAL 11 green (the two sections whose callbacks sweep and read the flags); the tree's
+`index.html` md5 checked identical before and after the variant runs.
+The build: `index.html` 12 954 206 → **12 957 408 B**, md5 65687db5065e948f9f32c213bffe0543, build a1ce1510e4c9.
+Pushed to `v2` and `v2:main` on his word, and the site deployed by me after the green run (the standing rule).

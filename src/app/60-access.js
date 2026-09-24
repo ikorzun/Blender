@@ -206,6 +206,14 @@ let accFlips = 0; // diagnostics: how many items changed accessibility during th
 // fan — it drains as a burst of partial slices (see accSweepBurst above); the match has been
 // LOCAL (refreshAccessibilityNear) since 2026-08-14 itself. Regens and the finale keep the
 // full one-shot sweep — their piles are empty or nearly so.
+// ⛔ REVISED AGAIN 2026-09-24 (the owner's «yes» after the full review): the three SETTLE sites —
+// finishIntro and finalizeFill (twice at the end of every pour) and sleepPhysics (every time the pile
+// falls asleep after a match) — arm the same burst instead of the one-frame full fan. On Hard that
+// fan was the owner's «the frame rate drops with many objects»: lv20, CPU x4, the pour's end max
+// 86.8 ms with 3 frames over 50 (the fan's own 55-61 ms), each settle 65-67 ms; the burst gave 43 and
+// 41 with none over 50. skipIntro keeps a SYNCHRONOUS full sweep (the suite reads the flags right
+// after it). Still a one-frame full fan, not measured, named: the event callbacks (the idle grind,
+// the bomb, the charge, the rival, the treasure, the ice) and the final top-up's +900 ms sweep.
 // ⚠️ The cursor LIVES BETWEEN CALLS and sweeps over the alive ones: removing items does not
 // break it (the index is taken modulo the alive length at every step).
 const ACC_SLICES = 8;
@@ -217,7 +225,13 @@ let accCursor = 0;
 // loaded. performShake now arms `accSweepBurst = ACC_SLICES`, and the main loop drains ONE
 // partial slice per frame (~130 ms total) — the same total work, the same result per item,
 // full coverage still completes by ~+1.05 s, below the ~1.2 s two-tick deadlock window.
+// Since 2026-09-24 the three settle sites arm it too (see the revision above), and the loop drains it
+// on a SLEEPING pile as well — the settle's burst is armed exactly as the pile falls asleep.
 let accSweepBurst = 0;
+// How many FULL sweeps have run (a counter, nothing reads it but the SETTLEFAN guard through
+// __game.accBurst): «no full fan at the settle» is stated by it directly, whatever frame the
+// burst's arming lands in (2026-09-24).
+let accFullSweeps = 0;
 // ⚠️⚠️ LOCAL RECALCULATION AROUND AN EVENT (2026-08-14, the owner confirmed: he has
 // HARD switched on, that is, the fan runs at full strength). The full sweep costs
 // 79-86 ms (CPU ×4) and was called AFTER EVERY COMBINATION — that is, the hitch
@@ -268,6 +282,7 @@ function refreshAccessibility(partial){
     accCursor = (accCursor + sliceSize) % aliveList.length;
     return;
   }
+  accFullSweeps++;
   accCursor = 0;
   for (const it of items){
     if (!it.alive) continue;

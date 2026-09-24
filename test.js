@@ -3050,28 +3050,38 @@ page.on('response', (r) => {
     g.shake();
     await sl(600);  snaps.push(g.accessibleList().join(','));
     await sl(700);  snaps.push(g.accessibleList().join(','));
-    await sl(4200); // the pile settles; sleepPhysics has run its authoritative refresh
+    await sl(4200); // the pile settles
+    // ⚠️ SINCE 2026-09-24 sleepPhysics ARMS a burst of slices instead of a one-frame full sweep, so the
+    // settle's pass lands over the next ~8 frames: WAIT FOR THE FACT (asleep and the burst drained), a
+    // fixed pause would read the bench's clock. The ceiling keeps a wedged burst from hanging the run.
+    for (let i = 0; i < 80 && (g.awake().physAwake || g.accBurst().left > 0); i++) await sl(50);
+    const drained = !g.awake().physAwake && g.accBurst().left === 0;
     const cached = g.accessibleList().join(',');
     g.forceRefresh();
     const fresh = g.accessibleList().join(',');
     const alive = g.alive(), accN = g.accessibleList().length;
     g.cfg.hard = hardWas; g.forceRefresh();
-    return { livened: new Set(snaps).size > 1, settledMatch: cached === fresh, alive, accN };
+    return { livened: new Set(snaps).size > 1, settledMatch: cached === fresh, drained, alive, accN };
   });
   expect(accConv.livened === true,
     '⚠️⚠️ shake spread / LIVENESS: the accessibility flags keep being recomputed during the ' +
     'eruption — the stretch+burst reshape did not wedge the fan (' + JSON.stringify(accConv) + ')');
-  expect(accConv.settledMatch === true && accConv.accN > 0 && accConv.accN < accConv.alive,
-    'shake spread: after settling the cached flags equal a forced full recompute, and on Hard ' +
-    'they actually vary (' + accConv.accN + ' of ' + accConv.alive + ') — neither side vacuous');
+  expect(accConv.drained === true && accConv.settledMatch === true && accConv.accN > 0 && accConv.accN < accConv.alive,
+    'shake spread: after settling (asleep, the settle burst drained: ' + accConv.drained + ') the cached flags ' +
+    'equal a forced full recompute, and on Hard they actually vary (' + accConv.accN + ' of ' + accConv.alive +
+    ') — neither side vacuous');
   {
     // ⚠️ a LOCAL require: the top-level `fs` is in the TDZ here — a later `const fs` in this
     // same enclosing function shadows it (the trap this file already documents once).
     const fsAcc = require('fs');
     const pageSrc = fsAcc.readFileSync(PAGE_FILE, 'utf8');
-    expect(pageSrc.indexOf('accSweepBurst = ACC_SLICES') >= 0,
+    // ⚠️ READ FROM performShake's OWN BODY (2026-09-24): since the settle sites arm the same burst, the
+    // string occurs four times in the build, and a bare indexOf would stay green with the shake rolled back.
+    const shI = pageSrc.indexOf('\nfunction performShake('), shJ = shI < 0 ? -1 : pageSrc.indexOf('\n}', shI + 1);
+    const shBody = shJ < 0 ? '' : pageSrc.slice(shI, shJ);
+    expect(shBody.indexOf('accSweepBurst = ACC_SLICES') >= 0 && !/refreshAccessibility\(\)/.test(shBody),
       'shake spread / structural: performShake arms the slice burst instead of the one-frame ' +
-      'full sweep (the +900 ms setTimeout body)');
+      'full sweep (the +900 ms setTimeout body; read from its own body, ' + shBody.length + ' chars)');
   }
 
   // further on the levels are recreated through an evaluate-regen (bypassing the «Next» button) —
@@ -18319,6 +18329,176 @@ window.bridge = {
 
   await chPage.close();
   // ⟦FPSCAP-SECTION-END⟧
+
+  // ⟦SETTLEFAN-SECTION-BEGIN⟧ — THE SETTLE'S SKY-RAY FAN DRAINS AS A BURST OF SLICES (the owner's «yes», 2026-09-24)
+  // ⛔⛔ On Hard, finishIntro and finalizeFill (the pour's end) and sleepPhysics (every settle after a match) ran the FULL
+  // sky-ray fan in ONE frame — lv20, CPU x4: the fan's own 55-61 ms, the pour's end max 86.8 ms with 3 frames over 50,
+  // each settle 65-67 ms. They ARM the slice burst now and the loop drains it, on a SLEEPING pile too, while skipIntro
+  // keeps a synchronous full sweep (the whole suite reads the flags right after it). A burst is ~8 frames (80-130 ms),
+  // so the state is traced PER FRAME IN THE PAGE: a harness poll would land on the bench's clock, not on the drain.
+  // `__game.accBurst()` = { left, slices, full } — the slices still to drain, the burst's length, the full sweeps so far;
+  // «no full fan» is stated by the counter, whatever frame the arming lands in (finalizeFill can fire one frame after
+  // finishIntro, while its burst is still draining — an arm on «the burst is armed» alone would be blind there).
+  // SABOTAGE (each red on its own arm): the site bodies or the drain line edited → S0; skipIntro's synchronous sweep
+  // dropped → S1; sleepPhysics back to a full refresh → S2; the drain gated on `physAwake &&` again → S3;
+  // finishIntro or finalizeFill back to a full refresh → S5; a comment edit → green.
+  {
+    const fsSf = require('fs');
+    const sfSrc = fsSf.readFileSync(PAGE_FILE, 'utf8');
+    const sfBody = (name) => { const i = sfSrc.indexOf('\nfunction ' + name + '('); if (i < 0) return '';
+      const j = sfSrc.indexOf('\n}', i + 1); return j < 0 ? '' : sfSrc.slice(i, j); };
+    // S0 — structural: each settle site ARMS the burst and runs no bare full sweep; the drain line carries no physAwake
+    // gate; skipIntro makes the flags current AFTER its own sleepPhysics. Read from each function's OWN body — the
+    // string `accSweepBurst = ACC_SLICES` occurs four times in the build, so a bare indexOf would prove nothing.
+    const s0 = {};
+    for (const nm of ['finishIntro', 'finalizeFill', 'sleepPhysics']){
+      const b = sfBody(nm);
+      s0[nm] = b.length > 0 && b.indexOf('accSweepBurst = ACC_SLICES') >= 0 && !/refreshAccessibility\(\)/.test(b);
+    }
+    const sfLoop = sfBody('loop');
+    s0.drain = sfLoop.indexOf('if (accSweepBurst > 0){ accSweepBurst--;') >= 0 && sfLoop.indexOf('physAwake && accSweepBurst') < 0;
+    const skI = sfSrc.indexOf('\n  skipIntro(){'), skJ = skI < 0 ? -1 : sfSrc.indexOf('\n  },', skI + 1);
+    const skB = skJ < 0 ? '' : sfSrc.slice(skI, skJ);
+    const skSleep = skB.indexOf("sleepPhysics('skipIntro')"), skSync = skB.indexOf('accSweepBurst = 0; refreshAccessibility();');
+    s0.skipIntro = skSleep > 0 && skSync > skSleep;
+    expect(Object.keys(s0).length === 5 && Object.values(s0).every(Boolean),
+      'SETTLEFAN S0: finishIntro, finalizeFill and sleepPhysics ARM the slice burst and run no one-frame full sweep, the drain ' +
+      'is not gated on physAwake, and skipIntro makes the flags current after its sleep (' + JSON.stringify(s0) + ')');
+
+    // THE SETTLE AFTER A MATCH-SIZED EVENT: a shake wakes the pile, it falls asleep, the burst drains asleep.
+    const sp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const spErr = [];
+    sp.on('pageerror', (e) => spErr.push(e.message));
+    await sp.goto('file://' + PAGE_FILE + '?dev=1');
+    let s1 = { why: 'no page' }, s2 = { why: 'no page' };
+    try {
+      await sp.waitForFunction(() => window.__game && window.__game.accBurst && window.__game.level(), null, { timeout: 30000 });
+      // S1 — skipIntro stays synchronous: no burst left, and the flags current IN THE SAME CALL (no frame in between).
+      s1 = await sp.evaluate(() => {
+        const g = window.__game;
+        g.storyEnable(false); g.cfg.hard = true; g.setLevel(12); g.regen(); g.skipIntro();
+        const ab = g.accBurst(), cached = g.accessibleList().join(','), accN = g.accessibleList().length;
+        g.forceRefresh();
+        return { left: ab.left, same: cached === g.accessibleList().join(','), accN, alive: g.alive() };
+      });
+      s2 = await sp.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.extinguish(); g.fireDue(600000);          // no flare-up in the window: the fire's pick runs a full sweep
+        g.stats().lastAction = performance.now();   // and no idle grind (Hard: 10 s), which runs one too
+        await sl(400);
+        const trace = []; let stop = false;
+        const tick = () => { if (stop) return; const b = g.accBurst();
+          trace.push({ awake: g.awake().physAwake, left: b.left, full: b.full }); requestAnimationFrame(tick); };
+        const full0 = g.accBurst().full, slices = g.accBurst().slices;
+        g.shake();
+        requestAnimationFrame(tick);
+        let armedAt = -1, drainedAt = -1;
+        const t0 = performance.now();
+        while (performance.now() - t0 < 12000){
+          await sl(50);
+          g.stats().lastAction = performance.now();
+          for (let i = 1; i < trace.length; i++){
+            // the SLEEP frame: the first sample asleep after an awake one
+            if (armedAt < 0 && !trace[i].awake && trace[i - 1].awake) armedAt = i;
+            if (armedAt >= 0 && drainedAt < 0 && i >= armedAt && trace[i].left === 0){ drainedAt = i; break; }
+          }
+          if (drainedAt >= 0 && trace.length > drainedAt + 10) break;
+          if (armedAt >= 0 && drainedAt < 0 && trace.length > armedAt + 240) break;   // ~4 s asleep and never drained
+        }
+        stop = true;
+        const atSleep = armedAt >= 0 ? trace[armedAt] : null;
+        const asleepThrough = armedAt >= 0 && drainedAt >= 0 && trace.slice(armedAt, drainedAt + 1).every(s => !s.awake);
+        const fullEnd = g.accBurst().full;
+        const cached = g.accessibleList().join(','), accN = g.accessibleList().length;
+        g.forceRefresh();
+        const same = cached === g.accessibleList().join(',');
+        g.cfg.hard = false; g.setLevel(1);   // a section that raises the level puts it back (the canon's rule)
+        return { frames: trace.length, armedAt, drainedAt, slices, leftAtSleep: atSleep ? atSleep.left : null,
+                 asleepThrough, fullDelta: fullEnd - full0, same, accN, alive: g.alive() };
+      });
+    } catch (e) { s2 = Object.assign({}, s2, { why: 'threw: ' + String(e).slice(0, 140) }); }
+    await sp.close();
+    console.log('settlefan S1:', JSON.stringify(s1), 'S2-S4:', JSON.stringify(s2));
+    expect(s1.left === 0 && s1.same === true && s1.accN > 0 && s1.accN < s1.alive && spErr.length === 0,
+      'SETTLEFAN S1: skipIntro stays SYNCHRONOUS — no burst left and the cached flags equal a fresh recompute in the same ' +
+      'call, and on Hard they vary (' + JSON.stringify(s1) + (spErr.length ? ', errors ' + spErr.join(' | ') : '') + ')');
+    expect(s2.armedAt > 0 && s2.leftAtSleep >= s2.slices - 1 && s2.fullDelta === 0,
+      'SETTLEFAN S2: when the pile falls asleep the settle pass is ARMED as a burst (' + s2.leftAtSleep + ' of ' + s2.slices +
+      ' slices left in the sleep frame) and NO full sweep runs from the shake through the drain (' + s2.fullDelta + ')');
+    // S3 judges the burst S2 found ARMED; with none armed (S2's failure) there is nothing to drain and S3 says so
+    // rather than repeating S2's red — each sabotage lands on its own arm.
+    expect(s2.armedAt > 0 && (s2.leftAtSleep === 0 || (s2.drainedAt > s2.armedAt && s2.asleepThrough === true)),
+      'SETTLEFAN S3: the burst DRAINS WHILE THE PILE SLEEPS — it reaches 0 in frame ' + s2.drainedAt + ' (armed in ' +
+      s2.armedAt + ') with the pile asleep throughout, not held until the next wake (' + JSON.stringify(s2) + ')');
+    // S4 judges convergence after a drain S3 saw; a wedged burst is S3's red, not a coin toss here.
+    expect(s2.drainedAt < 0 || (s2.same === true && s2.accN > 0 && s2.accN < s2.alive),
+      'SETTLEFAN S4: after the drain the cached flags equal a forced full recompute, and on Hard they vary (' +
+      s2.accN + ' of ' + s2.alive + ')');
+
+    // S5 — THE POUR'S END ON A REAL INTRO (no skipIntro): finishIntro and finalizeFill arm the burst, no full sweep runs
+    // from the frame before the intro ends through the settle's drain, and the flags converge.
+    const ep = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const epErr = [];
+    ep.on('pageerror', (e) => epErr.push(e.message));
+    await ep.addInitScript(() => {
+      try { localStorage.setItem('mixer_level', '12'); localStorage.setItem('mixer_hard', '1'); } catch (e) {}
+      window.__sfTrace = [];
+      const tick = () => {
+        try {
+          const g = window.__game;
+          if (g && g.accBurst && g.level && g.level()){
+            const b = g.accBurst(), lv = g.level();
+            window.__sfTrace.push({ done: document.documentElement.classList.contains('introdone'),
+              par: lv.parBase || 0, left: b.left, full: b.full, slices: b.slices, awake: g.awake().physAwake });
+          }
+        } catch (e) {}
+        if (window.__sfTrace.length < 3000) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await ep.goto('file://' + PAGE_FILE + '?dev=1');
+    let s5 = { why: 'no page' };
+    try {
+      // the fact: past the intro, finalizeFill has run, the pile asleep and the burst drained, then a few frames more
+      // (a wedged burst is S3's business: past ~240 frames asleep we stop waiting for the drain)
+      await ep.waitForFunction(() => {
+        const tr = window.__sfTrace || [];
+        const iP = tr.findIndex(s => s.par > 0);
+        if (iP < 0) return false;
+        const k0 = tr.findIndex((s, i) => i > iP && !s.awake);
+        if (k0 < 0) return false;
+        const k = tr.findIndex((s, i) => i >= k0 && s.left === 0);
+        return (k >= 0 && tr.length > k + 5) || tr.length > k0 + 240;
+      }, null, { timeout: 45000 });
+    } catch (e) {}
+    try {
+      s5 = await ep.evaluate(() => {
+        const g = window.__game, tr = window.__sfTrace || [];
+        const iD = tr.findIndex(s => s.done), iP = tr.findIndex(s => s.par > 0);
+        const k0 = iP < 0 ? -1 : tr.findIndex((s, i) => i > iP && !s.awake);
+        const k = k0 < 0 ? -1 : tr.findIndex((s, i) => i >= k0 && s.left === 0);
+        const cached = g.accessibleList().join(','), accN = g.accessibleList().length;
+        g.forceRefresh();
+        const same = cached === g.accessibleList().join(',');
+        g.setLevel(1);
+        return { n: tr.length, iD, iP, asleep: k0, drained: k, slices: iD >= 0 ? tr[iD].slices : null,
+                 leftAtDone: iD >= 0 ? tr[iD].left : null, leftAtPar: iP >= 0 ? tr[iP].left : null,
+                 fullBefore: iD > 0 ? tr[iD - 1].full : null, fullAfter: tr.length ? tr[tr.length - 1].full : null,
+                 same, accN, alive: g.alive(), hard: g.cfg.hard };
+      });
+    } catch (e) { s5 = Object.assign({}, s5, { why: 'threw: ' + String(e).slice(0, 140) }); }
+    await ep.close();
+    console.log('settlefan S5:', JSON.stringify(s5));
+    expect(s5.hard === true && s5.iD > 0 && s5.iP >= s5.iD && s5.asleep > s5.iP &&
+           s5.leftAtDone >= s5.slices - 1 && s5.leftAtPar >= 1 && s5.fullBefore !== null && s5.fullAfter === s5.fullBefore,
+      'SETTLEFAN S5: on a REAL intro on Hard the pour\'s end arms the burst (' + s5.leftAtDone + ' of ' + s5.slices +
+      ' left in the frame the intro ends) and no full sweep runs from the frame before it through the settle (' +
+      s5.fullBefore + ' -> ' + s5.fullAfter + ')' + (epErr.length ? ', errors ' + epErr.join(' | ') : '') + ' (' + JSON.stringify(s5) + ')');
+    expect((s5.drained < 0 || (s5.same === true && s5.accN > 0 && s5.accN < s5.alive)) && epErr.length === 0,
+      'SETTLEFAN S5b: after the pour\'s settle drained the cached flags equal a forced full recompute (' + s5.accN + ' of ' +
+      s5.alive + (epErr.length ? ', errors ' + epErr.join(' | ') : '') + ')');
+  }
+  // ⟦SETTLEFAN-SECTION-END⟧
 
   // ===== A PAUSE DURING THE INTRO (the owner's complaint 2026-08-12) =====
   // «on pause the timer of the game does not stop and after some time the mixer
