@@ -11,7 +11,8 @@
     "test:site": "node server/site/test/run.js",
     "test:site:break": "node server/site/test/break.js",
     "site:pack": "python3 tools/site-pack.py",
-    "site:deploy": "python3 tools/site-pack.py && npx wrangler deploy --config server/site/wrangler.toml"
+    "site:deploy": "python3 tools/site-pack.py && npx wrangler deploy --config server/site/wrangler.toml",
+    "record": "node tools/play-record.js"
   },
   "engines": {
     "node": ">=22"

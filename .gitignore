@@ -52,3 +52,6 @@ electric-variants/artifact.html
 # tools/site-pack.py (index.html, the bridge pair, music.mp3, avatars/), rebuilt on every build.py run and
 # by `npm run site:deploy`. A product of the build, never a source (2026-09-09-c).
 /site/
+
+# the recording bot's videos (tools/play-record.js) — large files, never committed
+renders/

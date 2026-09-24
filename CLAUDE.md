@@ -21459,3 +21459,90 @@ modules. The Cyrillic census of the tracked files: 0 (bonus.html excepted).
   — in play the collider keeps them out. Stage a rival above the pile surface, never inside it.
 - **THE RIVAL CANNOT BURN.** The fire picker groups candidates by `key` and drops a loner; the rival's key is unique, so
   it is never a candidate. No change was needed.
+
+## BATCH 2026-09-24-d: THE RECORDING BOT — `tools/play-record.js` PLAYS THE REAL BUILD AND WRITES MINUTE-LONG VIDEOS IN 9:16 AND 16:9 (his word, translated: «can you write a bot that plays the game and records minute-long videos in 9:16 and 16:9? You built the whole game, you know how it works»)
+
+### WHAT IT IS
+`npm run record` (both formats, 60 s, 60 fps, level 12) or `npm run record -- --format=9x16 --level=20 --seed=7`.
+The flags are listed in the file's header; the videos land in `renders/` (gitignored — never committed). The page is
+served from this folder on 127.0.0.1 and every request to an outside host is aborted, so nothing is uploaded and the
+leaderboard, the bridge's timestamp call and One Tap simply fail quietly. `index.html` is untouched by this batch:
+the tool drives the game from outside, through the DEV hooks (`?dev=1`, which draws nothing on the game screen).
+
+### ⚠️⚠️ THE GAME RUNS ON A VIRTUAL CLOCK — REAL-TIME CAPTURE JUDDERS, AND THAT WAS MEASURED BEFORE A LINE WAS WRITTEN
+A CDP screencast of level 12 gave frame gaps of p95 30.5 ms at 1080×1920 and 33.7 ms at 1920×1080, the worst 75 ms,
+against 16.7 for 60 fps. So an init script replaces `performance.now`, `Date.now`, `requestAnimationFrame` and the
+timer functions before the game's first script: the clock FOLLOWS real time through the boot (pumped by the native
+rAF and a native 4 ms timer), then freezes, and the recorder steps it exactly 1/60 s per game tick. One video frame
+= one game frame, whatever the machine does; a slow frame only slows the render (~65 ms of real time per frame, a
+device-pixel screenshot ~33 ms of it — a 60-s take renders in ~4 minutes). The level is regenerated after the
+freeze, so every video opens on the real intro: the empty bowl and the pour.
+⚠️ CSS ANIMATIONS AND TRANSITIONS live on the browser's own timeline: each one is PAUSED on first sight, seeked to
+(virtual now − its birth) every frame and FINISHED past its end (so `animationend` still fires). `getAnimations()`
+flushes style, so a transition started by a class change is found in the same frame.
+⚠️ The screenshot is `Page.captureScreenshot` with `clip.scale = DPR` — without the clip CDP returns CSS-size pixels
+(360×640 for a 1080×1920 page). Two native rAFs before it, so the compositor holds the new picture.
+
+### ⚠️⚠️ THE SOUND IS RENDERED OFFLINE, AND ITS SYNC WAS MEASURED
+`window.AudioContext` becomes a subclass of `OfflineAudioContext` whose `currentTime` reads the virtual clock (the
+state always «running», resume/suspend/close resolved); `start()`/`stop()` without a time are pinned to the virtual
+now (in an offline context «now» is 0 for every source). The game builds its whole graph on it exactly as in play —
+75-audio is untouched — and the context renders once after the take. MEASURED: every merge sound's onset lands 50-65
+ms after its tap, which is the samples' own silent lead-in (35-55 ms to −40 dB, measured on the mp3s of
+`Audio/3-objects`) — no scheduling offset and no drift over a take.
+⚠️ THE ONE LIMIT OF THE SHIM: `param.value = x` on an offline context lands at time 0 of the render. Every envelope
+of 75-audio uses `setValueAtTime`/ramps at `t0`, and every `.value` there is set on a node made for one sound — so
+nothing is affected today; a future sound that re-sets `.value` on a long-lived node mid-take would not be.
+The music is `music.mp3` mixed in post at the game's own level (the slider's 0.7 × the music bus 0.5 = 0.35) —
+Playwright mutes the `<audio>` element anyway. THE GAME'S OWN MIX MEASURES −22…−26 LUFS; the final file is lifted
+to −14 LUFS (where Shorts/Reels/TikTok/YouTube sit) with a limiter at −1.5 dBFS — the balance of music and effects
+stays the game's. ⚠️ The limiter was −1 dBFS for the two delivered takes and the AAC encoder overshot it (−0.7 and
+−0.1 dBTP measured); −1.5 gives −1.3 dBTP. `--loudness=game` keeps the game's own level.
+
+### THE BOT: A SKILLED PLAYER, AND WHY EACH HABIT IS THERE
+Input is SYNTHETIC POINTER EVENTS on `#c` — the canvas handlers are plain listeners with no `isTrusted` check, so a
+`pointerdown` + `pointerup` 3 ticks later is a tap (the canon's «a MouseEvent('click') from evaluate is not heard»
+is about CLICK, which the canvas does not listen to). Every tap first asks `elementFromPoint` whether the canvas is on
+top there — a human could not tap through the Shake button or the showcase panel either.
+- **the biggest group** from `bestTapTarget()` (85% of taps; `'any'` for the rest), a tap every 0.38-0.70 s, a rare
+  1.0-1.8 s pause — fast enough to keep the series lit, so turbo pours come;
+- ⚠️⚠️ **THE HOOK ALWAYS OFFERS THE SAME BIGGEST GROUP, AND ITS PIXEL CAN LIE UNDER A PANEL.** The first 16:9 take
+  stood still for most of its second half: the thinned pile lay under the desktop layout's showcase panel and zoom
+  pair, the bot refused the covered pixel and asked again — and got the same one. It now asks up to five random
+  orders for a pixel that is on the canvas, and after two failures TURNS THE BOWL (a drag) the way a player looks for
+  a hidden pair; with no pair within reach at all it takes a FREE shake (never an ad, never a bought one);
+- the treasure, the rival and a ready ice block are tapped 2.5 s into the level (so the video shows them first), the
+  bomb once after 6 s, the type charge whenever it is armed; a turn of the bowl every 8-14 s;
+- **THE ENDGAME CLOSE-UP:** when the pile has thinned to 30% the bot presses «+» once — the game is built for it (the
+  bowl glass dissolves as the camera comes close, his own spec), and the last items and the blades fill the frame.
+  `--no-end-zoom` switches it off; `--zoom=N` presses «+» at the start of every level (off by default: one step on
+  16:9 dissolves the glass and puts the top of the pile under the eyes — the game's own framing is the default);
+- the win screen's Next after 3.2 s and the New Object screen's button after 2.8 s, so a take walks into the next level.
+The rival needs a neighbour and the leaderboard is aborted, so `setup()` forces one (`rivalSetNext` + `rivalNextAt`)
+and the bomb (`bombNextAt`); `Math.random` is a seeded mulberry32, reseeded before the regen — a take is reproduced by
+its seed (printed in the file name). The automation gates hold: no poster, no film (webdriver), no service worker.
+
+### THE SIZES
+9:16 = 405×720 CSS at DPR 8/3 → 1080×1920 (a 402-wide iPhone's proportions; the canvas's own DPR cap of 2 draws the
+3D at 810×1440 and scales it up, while the HUD is drawn at full resolution — still sharper than a real iPhone, where
+the touch cap is 1.5). 16:9 = 1280×720 at DPR 1.5 → 1920×1080 (a laptop window; at 720 CSS tall the short-window
+rule gives the HUD the phone's eyes). H.264 High, CRF 18, BT.709 limited range — the JPEG frames go through RGB so ONE
+scaler writes the range (a yuvj → yuv chain can convert it twice and wash the picture out); AAC 192k.
+
+### THE DELIVERED TAKES (seed 2026, level 12, Easy)
+| | 9:16 | 16:9 |
+|---|---|---|
+| the file | 54.7 MB, 60.000 s, 3600 frames | 33.1 MB, 60.000 s, 3600 frames |
+| level 12 cleared at | ~42 s | ~47 s |
+| then | the win screen, the New Object screen, level 13's pour and play | the same |
+| taps / specials / shakes / turns / charges | 60 / 2 / 4 / 5 / 1 | 56 / 2 / 4 / 4 / 1 |
+| loudness / true peak | −14.5 LUFS / −0.7 dBTP | −14.5 LUFS / −0.1 dBTP |
+⚠️ The two formats are DIFFERENT GAMES from one seed: the viewport changes the tap pixels and the accessible sets,
+so the deals diverge after the first tap.
+
+### THE GATE
+The tool is not the game and has no suite section: `index.html` did not change, so no guard of the game moved. Its
+proof is the takes themselves — ffprobe (the sizes, 60 fps, exactly 60 s), contact sheets at 16 moments of each take
+(the pour, the play, the rival's ×3 window, the bomb, turbo's «Power chain!», the endgame close-up, the finale's
+grind, the win screen's cascade, the New Object screen, the next level), the sync measurement above and the loudness.
+⚠️ NEVER RUN IT BESIDE `node test.js` — a second browser job slows the suite into false reds (the canon's rule).

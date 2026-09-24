@@ -6,7 +6,25 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-24-g (the rival is a glass bubble with his face inside), v2 = main** · **the full suite: 1322 green, 0 red (run 59, batch -v; this batch ran its own sections)** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+**Build: batch 2026-09-24-g (the rival is a glass bubble with his face inside), v2 = main** · **the full suite: 1322 green, 0 red (run 59, batch -v; this batch ran its own sections)** · **on GitHub and blendo.monster** · **new: a bot that records the game (batch -d, a tool — the game did not change)** · **the level pacing: not built — you are still thinking**
+
+**24 SEPTEMBER, EVENING — A BOT THAT PLAYS THE GAME AND RECORDS MINUTE-LONG VIDEOS.**
+
+You asked for a bot that plays and records minute videos in 9:16 and 16:9. It is `tools/play-record.js`; one command
+(`npm run record`) plays the real game and writes both videos into the `renders/` folder (they are not uploaded to
+GitHub — too big). Two videos went to you in the chat: 1080×1920 and 1920×1080, exactly 60 seconds, 60 frames a
+second, with the game's own sound effects and its music.
+- **What the bot does:** starts on the pour into the empty bowl, taps the biggest groups like a good player (so the
+  series and the turbo pours come), taps the rival bubble, the bomb and the lightning charge, turns the bowl, shakes
+  only with free shakes, leans in with «+» when few items are left, goes through the win screen and the New Object
+  screen and starts the next level. In both videos it clears level 12 in about 45 seconds and plays into level 13.
+- **Perfectly smooth:** the game's clock is driven by the bot, one exact game frame per video frame, so the video has
+  no jerks whatever the computer is doing (a live screen recording here dropped a frame every few frames).
+- **The sound is in sync** (measured: every merge sound starts on its tap) and **as loud as other short videos**
+  (−14 LUFS — the game itself plays about 10 dB quieter).
+- **Your choices, all one flag away:** another level or seed (`--level=20 --seed=7`), Hard mode with its grey veil
+  (`--hard`), 30 fps, 30 seconds, no music, a closer camera from the start (`--zoom=1`). A minute of video takes about
+  4 minutes to record.
 
 **24 SEPTEMBER, LATE — THE RIVAL IS A GLASS BUBBLE NOW.**
 
