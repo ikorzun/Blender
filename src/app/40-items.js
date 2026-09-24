@@ -359,30 +359,20 @@ function makeBomb(){
 
 
 // ⚡ THE RIVAL: THE NEXT PLAYER OF THE TABLE, LYING IN THE BOWL (the owner's spec 2026-09-10).
-// A BALL IN THAT PLAYER'S OWN COLOUR, WEARING HIS FACE AS STICKERS — his third and final word on
-// the shape, after a sheet of six recipes and a sheet of four camera angles: «bring the sphere back and stick
-// the avatars onto it like stickers over one another, without stretching the avatar».
-// ⛔⛔ «WITHOUT STRETCHING» IS THE ONE RULE OF THIS PIECE, AND IT IS WHY A STICKER IS A SPHERICAL CAP
-// WHOSE UVs ARE AN ORTHOGRAPHIC PROJECTION of the picture — the image is projected onto the ball
-// the way a slide is, so at the centre there is no distortion at all and towards the rim it is
-// pressed exactly as a paper sticker on a ball is pressed. TWO WAYS THAT LOOK EASIER AND ARE BOTH
-// WRONG, and both were measured on frames rather than reasoned about:
-//   • wrapping the picture over the sphere (a plain `map`) STRETCHES it at the poles — his own
-//     «stretches a lot», and no parameter cures it: it is the wrap itself;
-//   • putting it on a cylinder cap CROPS it — three maps the cap onto the circle INSCRIBED in the
-//     texture, so a 192-square avatar loses its ears. That is what the coin before this did.
-// ⚠️ EACH STICKER SITS ON ITS OWN RADIUS so the stack has an order and the overlaps cannot z-fight;
-// they are laid out on a Fibonacci sphere, which is deterministic — no `Math.random` in the shape,
-// so two rivals of one avatar are the same piece.
-// ⚠️ NO PICTURE — NO STICKERS, AND THAT IS THE PORTAL'S FALLBACK: the avatars are 49 files next to
-// the build and the portal package carries four. Where they are missing the rival is simply a ball
-// in that player's colour; nothing throws, nothing waits and no face is invented.
+// ⚡⚡ SINCE 2026-09-24-g A GLASS BUBBLE WITH HIS FACE INSIDE — the owner's pick off a sheet of five variants rendered
+// in the game («I'll take the bubble»), after «the ball with the rival's texture looks strange».
+// ⛔⛔ THE STICKER BALL THAT STOOD HERE IS CANCELLED (his shape of 2026-09-10 and -v: ten overlapping stickers of one
+// avatar on a ball in his colour, which read as a patchwork of faces at odd angles). What survives of its reasons:
+//   • the picture is NEVER stretched — it is a flat square inside the bubble, shown whole: not wrapped over a sphere
+//     (his «stretches a lot») and not cropped into a circle (the coin before the stickers lost the avatar's ears);
+//   • no picture — no face, and nothing invented (the portal ships no `avatars/`): the bubble becomes a denser orb
+//     in his own colour, RIVAL_GLASS_EMPTY_* in 00-config.
 const rivalTexCache = new Map();      // avatar number -> { tex, waiting[] }, one attempt per session
 function rivalFace(n, cb){
   n = n | 0; if (!(n > 0)) return;
   // ⛔ NOT ON file://: an image loaded there carries the origin `null`, and WebGL REFUSES to upload
-  // it — «the image element contains cross-origin data» — so the sticker would go visible and
-  // render blank, which is worse than the plain coloured ball. It costs nothing in production: on
+  // it — «the image element contains cross-origin data» — so the face would go visible and
+  // render blank, which is worse than the denser orb it would replace. It costs nothing in production: on
   // file:// the leaderboard is muted outright, so there is no neighbour to put on a piece at all.
   if (typeof location !== 'undefined' && location.protocol === 'file:') return;
   let e = rivalTexCache.get(n);
@@ -403,65 +393,72 @@ function rivalFace(n, cb){
     img.src = 'avatars/Avatar' + String(n).padStart(2, '0') + '.png';
   } catch(_){ e.waiting.length = 0; }
 }
-// a sticker: a cap of a sphere of radius `rad`, half-angle `half`, with the picture projected onto
-// it along the cap's own axis. ⚠️ THE UV IS THE STATEMENT «not stretched» AND A GUARD READS IT BACK
-// off the shipped geometry — u = x/(2s)+0.5 for every vertex, i.e. a parallel projection and
-// nothing else.
-function rivalStickerGeo(rad, half){
-  const g = new THREE.SphereGeometry(rad, 20, 10, 0, Math.PI * 2, 0, half);
-  g.rotateX(Math.PI / 2);                                    // the cap looks down +Z
-  const p = g.attributes.position, uv = g.attributes.uv, s = rad * Math.sin(half);
-  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * s) + 0.5, p.getY(i) / (2 * s) + 0.5);
-  uv.needsUpdate = true;
-  return g;
+// THE GLASS: a see-through shell whose RIM carries the tone (a Fresnel, the language of the ice crust and the fire),
+// with two small highlights — the frame he picked from, number for number.
+// ⚠️ A FUNCTION BECAUSE `fxProgramAnchors` (70-fx) MUST WARM THE SAME PROGRAM: a copy of the shader text beside this
+// one would drift at the first edit and the anchor would warm the wrong one.
+// ⚠️ THE TINT IS RAW sRGB, the sky's convention: a raw ShaderMaterial skips the renderer's output conversion.
+// ⚠️ `.color` IS SET ON PURPOSE: code that reads every item's material expects one — `applyVeil`'s fallback
+// (`veilAllItems` pins EVERY live item), `sawVisualMat`, the colour hooks of 99-main. It carries the same tone in
+// LINEAR, the units every other item material holds; the shader paints `uTint`, and nothing paints `.color`.
+function rivalGlassMat(tintHex){
+  const m = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uTint: { value: new THREE.Color(tintHex) },
+                uBody: { value: RIVAL_GLASS_EMPTY_BODY }, uMix: { value: RIVAL_GLASS_EMPTY_MIX } },
+    vertexShader: [
+      'varying vec3 vN; varying vec3 vV;',
+      'void main(){',
+      '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+      '  vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);',
+      '  gl_Position = projectionMatrix * mv;',
+      '}'].join('\n'),
+    fragmentShader: [
+      'uniform vec3 uTint; uniform float uBody; uniform float uMix;',
+      'varying vec3 vN; varying vec3 vV;',
+      'void main(){',
+      '  vec3 n = normalize(vN);',
+      '  float f = pow(1.0 - clamp(dot(n, normalize(vV)), 0.0, 1.0), 2.4);',
+      '  vec3 rim = mix(uTint, vec3(1.0), 0.45);',
+      '  float s1 = pow(clamp(dot(n, normalize(vec3(-0.40, 0.55, 0.73))), 0.0, 1.0), 70.0);',
+      '  float s2 = pow(clamp(dot(n, normalize(vec3(0.45, -0.35, 0.82))), 0.0, 1.0), 160.0) * 0.6;',
+      '  vec3 body = mix(uTint, vec3(1.0), uMix);',
+      '  gl_FragColor = vec4(mix(body, rim, f) + vec3(1.0) * (s1 + s2),',
+      '                      clamp(uBody + f * (1.0 - uBody) + s1 + s2, 0.0, 1.0));',
+      '}'].join('\n'),
+  });
+  m.color = new THREE.Color(tintHex).convertSRGBToLinear();
+  return m;
+}
+// THE FACE: the whole avatar on a flat square, drawn OVER the glass. ⚠️ IN THE TRANSPARENT PASS AND ONE STEP AFTER
+// THE GLASS (`renderOrder`), AND THAT IS THE WHOLE LOOK: an opaque face is drawn first and the milky glass then
+// covers it — the character comes out washed (the bench, the second of its three frames). ⚠️ NO TONE MAPPING: it is
+// his picture, as the leaderboard shows it. ⚠️ A FUNCTION FOR THE SAME ANCHOR REASON AS THE GLASS.
+function rivalFaceMat(){
+  return new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.45, depthWrite: true,
+                                       toneMapped: false, visible: false });
 }
 function makeRival(av, name){
   const S = MESH_SCALE;                        // a rival is exactly the size of a standard item
   if (!geoCache.has('RV')) geoCache.set('RV', new THREE.SphereGeometry(1.0, 40, 28));
-  const tint = new THREE.Color(avatarTint(av)).convertSRGBToLinear();
-  let mat;
-  if (CFG.matcap){
-    mat = new THREE.MeshMatcapMaterial({ color: tint, matcap: makeMatcap('soft') });
-    mat.onBeforeCompile = matcapSpecPatch;     // the same relief and depth tint the pile has
-  } else {
-    mat = new THREE.MeshStandardMaterial({ color: tint, metalness: 0, roughness: 0.28 });
-    mat.envMapIntensity = 0.5;
-  }
-  const mesh = new THREE.Mesh(geoCache.get('RV'), mat);
-  mesh.castShadow = mesh.receiveShadow = true;
+  // ⚠️ THE SQUARE IS CACHED like the sphere: a plane per rival would outlive its rival on the GPU (the material
+  // is freed in `removeItem`, a geometry nobody caches is not)
+  if (!geoCache.has('RVF')) geoCache.set('RVF', new THREE.PlaneGeometry(2 * RIVAL_FACE_FRAC, 2 * RIVAL_FACE_FRAC));
+  const tintHex = avatarTint(av);
+  const tint = new THREE.Color(tintHex).convertSRGBToLinear();
+  const glass = rivalGlassMat(tintHex);
+  const mesh = new THREE.Mesh(geoCache.get('RV'), glass);
+  mesh.castShadow = mesh.receiveShadow = false;   // a glass bubble casting a solid disc would read as a ball again
   mesh.scale.setScalar(S);
-  // the stickers are CHILDREN of the ball — the fire overlay's own pattern: syncMeshes moves one
-  // object, and the item's material stays the one thing the veil and the dissolve reach for
-  const faceMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.35,
-    side: THREE.FrontSide, depthWrite: true, visible: false });
-  const N = RIVAL_STICKERS, GA = Math.PI * (3 - Math.sqrt(5));
-  const RV_UP = new THREE.Vector3(0, 1, 0), RV_Z = new THREE.Vector3(0, 0, 1);
-  const bx = new THREE.Vector3(), by = new THREE.Vector3(), bm = new THREE.Matrix4();
-  for (let i = 0; i < N; i++){
-    // ⚠️ THE OFFSET FIBONACCI (`i + 0.5`), NOT THE ENDPOINT ONE: the old form put a centre EXACTLY
-    // on each pole, which is the placement whose covering radius is worst — and the two poles are
-    // also the only directions where a meridian does not exist, so they cost twice.
-    const y = 1 - 2 * (i + 0.5) / N, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * i;
-    const dir = new THREE.Vector3(Math.cos(t) * rr, y, Math.sin(t) * rr).normalize();
-    const key = 'RVC' + i;
-    // ⚠️ EACH STICKER ON ITS OWN RADIUS so that two overlapping caps never z-fight, and the STEP is
-    // small (0.003): with fourteen of them the old 0.007 would have lifted the last one 9.5% above
-    // the ball and the silhouette would be the sticker's, not the ball's.
-    if (!geoCache.has(key)) geoCache.set(key, rivalStickerGeo(1.004 + i * 0.003, RIVAL_STICKER_HALF));
-    const st = new THREE.Mesh(geoCache.get(key), faceMat);
-    // ⚠️⚠️ THE ROLL IS NOT LEFT TO ARITHMETIC: the face's own +Y is laid along the MERIDIAN, so
-    // every sticker stands upright in the BALL's frame. `setFromUnitVectors` alone gives the
-    // minimal rotation from +Z to the normal and lets the roll fall where it may — measured in
-    // the live game, the face the player was looking at came out UPSIDE DOWN. At the two poles
-    // the meridian does not exist and +Z is the reference: a choice, not a measurement.
-    const ref = Math.abs(dir.y) > 0.985 ? RV_Z : RV_UP;
-    bx.crossVectors(ref, dir).normalize();
-    by.crossVectors(dir, bx);
-    st.quaternion.setFromRotationMatrix(bm.makeBasis(bx, by, dir));
-    st.rotateZ((i * 0.7919 % 1 - 0.5) * 0.36);                // slapped on by hand, not by a ruler
-    mesh.add(st);
-  }
-  rivalFace(av, t => { faceMat.map = t; faceMat.visible = true; faceMat.needsUpdate = true; });
+  const face = new THREE.Mesh(geoCache.get('RVF'), rivalFaceMat());
+  face.renderOrder = 1;                        // after the glass (renderOrder 0) — see rivalFaceMat
+  face.castShadow = false;
+  mesh.add(face);
+  // the picture arrives when it arrives; until then (and for good where there is none) the glass is the denser orb
+  rivalFace(av, t => {
+    face.material.map = t; face.material.visible = true; face.material.needsUpdate = true;
+    glass.uniforms.uBody.value = RIVAL_GLASS_BODY; glass.uniforms.uMix.value = RIVAL_GLASS_MIX;
+  });
   const item = {
     key: 'RIVAL', rival: true, rivalAv: av | 0, rivalName: name || '',
     type: { name: 'rival', mat: 'rival' }, baseColor: tint.clone(), fxColor: tint.clone(),
@@ -472,6 +469,15 @@ function makeRival(av, name){
   mesh.position.copy(item.p);
   scene.add(mesh);
   return item;
+}
+// ⚡ THE FACE TURNS TO THE PLAYER, EVERY FRAME (the bubble, 2026-09-24-g): the whole piece takes the camera's own
+// orientation, so the picture inside is square to the screen and upright whatever the orbit, the tilt or the zoom.
+// ⚠️ A TICK OF THE LOOP, RIGHT BEFORE THE RENDER (99-main), AND NOT `syncMeshes`: that one runs only while the
+// physics steps, and the pile sleeps at rest — the face would stop following the camera the moment the player
+// orbits a quiet bowl. ONE WRITER: `syncMeshes` leaves the rival's rotation alone (50-physics).
+// ⚠️ THE COLLIDER IS A SPHERE, so the render rotation carries no physics — the same reason the daruma was allowed.
+function tickRivalFace(){
+  for (const it of items) if (it.alive && it.rival && it.mesh) it.mesh.quaternion.copy(camera.quaternion);
 }
 
 // THE «TYPE CHARGE» GRANT. 1/level (level.chargeGiven) and only into an empty slot, among the LIVE
@@ -750,6 +756,11 @@ function removeItem(it){
   destroyItemBody(it);
   scene.remove(it.mesh);
   it.mesh.material.dispose();
+  // ⚠️ THE RIVAL'S FACE HAS A MATERIAL OF ITS OWN (one per rival; its picture is shared through `rivalTexCache` and
+  // its square through `geoCache`): only the glass above was freed, so every rival leaked one material — the sticker
+  // ball's shared face material did the same (the full review's leak class, 2026-09-24). The picture is the cache's
+  // and is NOT disposed here.
+  if (it.rival) for (const ch of it.mesh.children) if (ch.material) ch.material.dispose();
   // ⛔ AN UNBROKEN ICE CRUST DIES WITH ITS ITEM (the full review 2026-09-24). The crust owns its geometry (a
   // non-indexed copy of the model) and its material, and only the smash path freed them (`tickIceBooms`) —
   // a block eaten by the finale, swept by the bowl collect-all or left on the level at a regen kept both in

@@ -680,7 +680,7 @@ function loop(){
   // BOWL SHATTER: slow-mo (the owner's «yes!») — we slow down GAME time (physics,
   // fx, ticks on dt); the real clock (toasts, collection, HUD) is not touched
   if (now < slowmoUntil) dt *= BOWL_SLOWMO_K;
-  if (paused){ renderer.render(scene, camera); return; } // a still frame (before the perf meter — the pause does not spoil the frame statistics)
+  if (paused){ tickRivalFace(); renderer.render(scene, camera); return; } // a still frame (before the perf meter — the pause does not spoil the frame statistics); the rival's face turns to the camera here too (40-items)
   // ⚠️⚠️ THE MATCAP EDITOR FREEZES THE LEVEL CLOCK (the owner's word
   // 2026-08-17-e: «if the matcap editor is open, then we freeze the mixer timer»).
   // ⛔ SETTING A PAUSE IS FORBIDDEN — the whole point of the editor is to tweak the material
@@ -1113,6 +1113,7 @@ function loop(){
   // We measure it here and not piece by piece: the goal of the breakdown is to find THE MAIN eater, not
   // to itemize the eyes tick down to a microsecond. Should it need splitting — we split it then.
   if (perfFrames > 5){ _phUi = performance.now() - _tUi; _pushRing(uiRing, _phUi); }
+  tickRivalFace();                           // the rival's bubble faces the camera — right before the render, whatever moved it this frame (40-items)
   const _tRen = performance.now();
   renderer.render(scene, camera);
   // ⚠️ THIS IS NOT GPU TIME. renderer.render hands over the commands and returns; the real
@@ -1288,6 +1289,7 @@ window.__game = {
     let n = 0;
     for (const it of items){
       if (!it.alive || !it.mesh) continue;
+      if (it.rival) continue;                // the bubble's glass is transparent by design (40-items) — a flip would draw it opaque
       const m = it.mesh.material;
       if (!m || m.transparent === !!on) continue;
       m.transparent = !!on;
@@ -1696,70 +1698,45 @@ window.__game = {
                         mult: RIVAL_MULT, ms: RIVAL_MS, nextLevel: rivalNextLevel,
                         next: (typeof lbNextRival === 'function') ? lbNextRival() : null,
                         inPile: (function (){ let n = 0; for (const it of items) if (it.alive && it.rival) n++; return n; })() }; },
+  // ⚡ THE BUBBLE (2026-09-24-g): what the guard reads is the piece's STRUCTURE (a glass root, the face as its one
+  // child, both materials' transparency and draw order), the picture's WHOLENESS (the plane's UVs span 0..1 on both
+  // axes — the avatar is shown whole, never wrapped or cropped), and the FACING — the angle between the face's world
+  // normal and the camera's view axis, and between their ups, read off the world matrices three will render with.
+  // ⛔ THE STICKER BALL'S READINGS ARE GONE WITH IT (`stickers`, `half`, `uvErr`, `upErr`/`upN`, `cover`/`coverGap`).
   rivalInfo(){ const i = items.findIndex(it => it.alive && it.rival);
                const it = i >= 0 ? items[i] : null;
-               const pl = it && it.mesh.children[0];
-               // ⚠️ THE BODY'S TONE IS HANDED OUT IN sRGB, i.e. in the units of the baked table:
-               // the material holds it in LINEAR, and comparing a linear number with the table
-               // would go red on a healthy build.
-               const c = it && it.mesh.material.color.clone().convertLinearToSRGB();
-               // ⚠️⚠️ «NOT STRETCHED» IS A STATEMENT ABOUT THE UVs AND IS READ BACK OFF THE SHIPPED
-               // GEOMETRY: a sticker is an ORTHOGRAPHIC projection, u = x/(2s)+0.5 for every
-               // vertex. A wrap or a cap-mapped cylinder gives a wildly different number here.
-               let uvErr = -1;
-               if (pl){ const gg = pl.geometry, pp2 = gg.attributes.position, uu = gg.attributes.uv;
-                 const s2 = gg.parameters.radius * Math.sin(gg.parameters.thetaLength);
-                 uvErr = 0;
-                 for (let k = 0; k < pp2.count; k++) uvErr = Math.max(uvErr,
-                   Math.abs(uu.getX(k) - (pp2.getX(k) / (2 * s2) + 0.5)),
-                   Math.abs(uu.getY(k) - (pp2.getY(k) / (2 * s2) + 0.5))); }
-               // ⚠️ «THE FACES STAND UPRIGHT» IS AN ANGLE, AND IT IS MEASURED ONLY WHERE IT
-               // EXISTS: at the two poles the meridian is undefined, so those stickers are
-               // skipped and `upN` says how many were actually read — an empty measurement must
-               // not pass for a green one.
-               // ⚠️⚠️ «FULLY COVERED» IS A NUMBER AND IT IS READ OFF THE SHIPPED GEOMETRY:
-               // 600 directions of a fibonacci sample, each asked whether it lies inside SOME cap.
-               // `cover` is the share that does (1 = no bald patch anywhere) and `coverGap` the
-               // worst margin — negative means every seam overlaps, and by how much. A count of
-               // stickers cannot say this: six caps of 0.62 rad give 14 pieces of geometry and
-               // half a ball.
-               let cover = -1, coverGap = -1;
-               if (it && pl){
-                 const hf = pl.geometry.parameters.thetaLength, M = 600, GA = Math.PI * (3 - Math.sqrt(5));
-                 const axes = it.mesh.children.map(st => new THREE.Vector3(0, 0, 1).applyQuaternion(st.quaternion));
-                 const v = new THREE.Vector3(); let inside = 0; coverGap = -Math.PI;
-                 for (let k = 0; k < M; k++){
-                   const y = 1 - 2 * (k + 0.5) / M, rr = Math.sqrt(Math.max(0, 1 - y * y)), t = GA * k;
-                   v.set(Math.cos(t) * rr, y, Math.sin(t) * rr);
-                   let best = -1;
-                   for (const a of axes){ const d = v.dot(a); if (d > best) best = d; }
-                   const ang = Math.acos(Math.min(1, Math.max(-1, best)));
-                   if (ang <= hf) inside++;
-                   if (ang - hf > coverGap) coverGap = ang - hf;
-                 }
-                 cover = inside / M;
-               }
-               let upErr = -1, upN = 0;
-               if (it){ const U = new THREE.Vector3(0, 1, 0), dv = new THREE.Vector3(),
-                        yv = new THREE.Vector3(), mv = new THREE.Vector3();
-                 upErr = 0;
-                 for (const st of it.mesh.children){
-                   dv.set(0, 0, 1).applyQuaternion(st.quaternion);
-                   if (Math.abs(dv.y) > 0.985) continue;
-                   yv.set(0, 1, 0).applyQuaternion(st.quaternion);
-                   mv.copy(U).addScaledVector(dv, -U.dot(dv)).normalize();
-                   upErr = Math.max(upErr, Math.acos(Math.min(1, Math.max(-1, yv.dot(mv)))));
-                   upN++; } }
+               const g = it && it.mesh.material, face = it && it.mesh.children[0];
+               // ⚠️ THE TONE IS READ OFF THE UNIFORM THE SHADER PAINTS, in raw sRGB — the units of the baked table.
+               // `.color` beside it is linear and paints nothing (40-items).
+               const tint = (g && g.uniforms && g.uniforms.uTint) ? g.uniforms.uTint.value.getHexString() : '';
+               let uv = null, faceErr = -1, faceUpErr = -1;
+               if (face){
+                 const uu = face.geometry.attributes.uv; let lo = 9, hi = -9;
+                 for (let k = 0; k < uu.count; k++){ lo = Math.min(lo, uu.getX(k), uu.getY(k)); hi = Math.max(hi, uu.getX(k), uu.getY(k)); }
+                 uv = [+lo.toFixed(4), +hi.toFixed(4)];
+                 const q = new THREE.Quaternion(); face.getWorldQuaternion(q);
+                 const n = new THREE.Vector3(0, 0, 1).applyQuaternion(q), cz = new THREE.Vector3(0, 0, 1).applyQuaternion(camera.quaternion);
+                 const u = new THREE.Vector3(0, 1, 0).applyQuaternion(q), cu = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+                 faceErr = Math.acos(Math.min(1, Math.max(-1, n.dot(cz))));
+                 faceUpErr = Math.acos(Math.min(1, Math.max(-1, u.dot(cu)))); }
                return { index: i, av: it ? (it.rivalAv | 0) : 0, name: it ? it.rivalName : '',
-                        // ⚠️ THE FLAG IS ON THE SHARED MATERIAL, NOT ON THE MESHES: reading
-                        // `child.visible` here would be true on a build with no picture at all.
-                        faceOn: !!(pl && pl.material.visible && pl.material.map),
-                        stickers: it ? it.mesh.children.length : 0,
-                        half: pl ? +pl.geometry.parameters.thetaLength.toFixed(3) : 0,
-                        uvErr: +uvErr.toFixed(6), upErr: +upErr.toFixed(4), upN,
-                        cover: +cover.toFixed(3), coverGap: +coverGap.toFixed(3),
-                        tint: c ? c.getHexString() : '',
-                        want: it ? new THREE.Color(avatarTint(it.rivalAv)).getHexString() : '',
+                        kind: g && g.isShaderMaterial ? 'bubble' : (g ? 'other' : ''),
+                        // ⚠️ THE FLAG IS THE MATERIAL'S, AND IT NEEDS THE MAP: `visible` alone is true on a
+                        // build whose picture never arrived.
+                        faceOn: !!(face && face.material.visible && face.material.map),
+                        parts: it ? it.mesh.children.length : 0,
+                        glass: g ? { transparent: !!g.transparent, depthWrite: !!g.depthWrite, visible: !!g.visible,
+                                     order: it.mesh.renderOrder | 0, castShadow: !!it.mesh.castShadow,
+                                     body: g.uniforms ? +g.uniforms.uBody.value : null,
+                                     mix: g.uniforms ? +g.uniforms.uMix.value : null } : null,
+                        face: face ? { transparent: !!face.material.transparent, order: face.renderOrder | 0,
+                                       toneMapped: !!face.material.toneMapped, alphaTest: face.material.alphaTest,
+                                       depthWrite: !!face.material.depthWrite, scale: +face.scale.x.toFixed(4),
+                                       frac: +(face.geometry.parameters.width / 2).toFixed(4),
+                                       geo: face.geometry === geoCache.get('RVF') } : null,
+                        uv, faceErr: +faceErr.toFixed(4), faceUpErr: +faceUpErr.toFixed(4),
+                        scale: it ? +it.mesh.scale.x.toFixed(4) : 0, r: it ? +it.r.toFixed(4) : 0,
+                        tint, want: it ? new THREE.Color(avatarTint(it.rivalAv)).getHexString() : '',
                         left: Math.round(rivalLeftMs()), mult: rivalMultNow(),
                         reward: rewardMult(), paid: scoreBoostMult() }; },
   rivalNextAt(lv){ if (lv != null) rivalNextLevel = lv | 0; return rivalNextLevel; },

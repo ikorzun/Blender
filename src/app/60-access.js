@@ -15,6 +15,7 @@ function aliveMeshes(){ return items.filter(i=>i.alive).map(i=>i.mesh); }
 // The camera has nothing to do with it. The mechanic is switched on by the Hard difficulty (CFG.hard);
 // by default everything alive is accessible except the surprise — it is always honest.
 const _apt = new THREE.Vector3();
+const _qIdent = new THREE.Quaternion();   // the rival's samples: see isAccessible
 // We shoot the rays THROUGH RAPIER (native BVH, microseconds per ray; three-raycast
 // over meshes cost 86-106 ms per refresh). The samples come from item.samples,
 // built over the PHYSICAL colliders (50-physics buildAccessSamples).
@@ -45,7 +46,13 @@ function isAccessible(item){
   if (!CFG.hard && !item.surprise && !item.rival) return true;   // the rival is dug out honestly in BOTH modes
   if (!item.samples || !item.samples.length) return false;
   if (!_rapierRay) _rapierRay = new RAPIER.Ray({ x:0, y:0, z:0 }, { x:0, y:1, z:0 });
-  const q = item.mesh.quaternion;
+  // ⚠️⚠️ THE RIVAL'S SAMPLES ARE ROTATED BY NOTHING (the glass bubble, 2026-09-24-g): its MESH takes the
+  // CAMERA's orientation every frame (`tickRivalFace`, 40-items), and a sample carried by it would move with the
+  // orbit — the verdict would then depend on the camera, the very defect accessibility was built against (the
+  // owner's «the items dim depending on the angle», 2026-07). Its collider is a sphere, so every sample of the
+  // 'ball' set (the centre and ±0.5·s on x and z) lies inside it at ANY rotation, and the world-fixed identity
+  // keeps them horizontal — the set's own intent.
+  const q = item.rival ? _qIdent : item.mesh.quaternion;
   const n = item.samples.length / 3;
   for (let k = 0; k < n; k++){
     _apt.set(item.samples[k*3], item.samples[k*3+1], item.samples[k*3+2])

@@ -808,7 +808,11 @@ function grindShred(item, dur, shake){
     // ⚙️ THE SAWING (the owner's choice 2026-08-01): the item does not scatter in a fountain of
     // shards but FALLS APART INTO TWO HALVES along the cut plane — the cross-section of the real
     // model is visible. The grab phase (the flattening) stayed as it was.
-    sawFX(item);
+    // ⚠️ THE RIVAL IS POPPED, NOT SAWN (2026-09-24-g): the saw rebuilds the model's own material with a
+    // clipping plane, and the bubble's is a glass SHADER with the face as a child — the halves would come out
+    // as two opaque tinted balls with no face. The finale grinds the rival (it is a single, unpaired piece),
+    // so this is the one place a bubble meets the blades.
+    if (item.rival) popFX(gp); else sawFX(item);
     mesh.scale.setScalar(0.0001);                 // the original is gone — from here on, the halves
     bladeDustFX(gp, item.fxColor || item.baseColor);
     if (shake) camShake = Math.max(camShake, shake);
@@ -987,8 +991,15 @@ function collectRival(it){
   dissolveFX(it);
   Sound.play('combo');                      // the ignition of a window, in the combo's own voice
   vibrate([20, 40, 30]);
-  const s0 = it.mesh.scale.x;
-  addFX(new THREE.Object3D(), 0.2, (o, k) => { it.mesh.scale.setScalar(s0 * (1 - k)); });
+  // ⚡ THE BUBBLE BURSTS (2026-09-24-g): the glass goes at once — the pop and the dust above carry the burst —
+  // and the face it held shrinks away over the removal's own 0.2 s. ⛔ The old tail shrank the WHOLE piece, i.e.
+  // a glass ball deflating, which reads as a leak and not as a pop.
+  it.mesh.material.visible = false;
+  const face = it.mesh.children[0];
+  if (face){
+    const f0 = face.scale.x;
+    addFX(new THREE.Object3D(), 0.2, (o, k) => { face.scale.setScalar(Math.max(0.001, f0 * (1 - k))); });
+  }
   try { Telemetry.ev('rival', { av: it.rivalAv | 0, lv: levelNum }); } catch(e){}
   setTimeout(() => afterPause(() => {
     removeItem(it);

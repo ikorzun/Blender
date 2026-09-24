@@ -1359,30 +1359,29 @@ function returnWindow(pairsCnt, distinct){
 const RIVAL_FROM_LEVEL = 5;                  // the same start as the bomb and the ice (his word)
 const RIVAL_GAP_MIN = 1, RIVAL_GAP_MAX = 3;  // ... and the same rhythm: every 1-3 levels
 const RIVAL_MULT = 3;
-// ⚡ THE SHAPE, HIS THIRD WORD ON IT (2026-09-10): «let's bring the sphere back and stick the avatars onto it
-// like stickers over one another, without stretching the avatar». A ball in the neighbour's own colour, wearing
-// N copies of his face as stickers.
-// ⛔⛔ «ONLY KISSING AT THE EDGES» IS CANCELLED BY HIS NEXT WORD — «fully covered with stickers,
-// even overlapping» (2026-09-10-v). The pair is DERIVED and not chosen: for N points laid out by the
-// fibonacci spiral the COVERING RADIUS (the largest angle from any direction to its nearest centre)
-// is 1.09 / 0.95 / 0.86 / 0.78 / 0.72 rad at N = 6 / 8 / 10 / 12 / 14 — measured, not estimated. A
-// cap must exceed it or a bald patch is guaranteed: 10 at 0.95 rad clears 0.86 with 0.095 rad of
-// overlap on every seam, and `rivalInfo().cover` reads that back off the shipped geometry.
-// ⚠️ TEN AND NOT FOURTEEN BECAUSE THE FACE IS THE POINT: both cover the ball, and both were
-// rendered side by side — at fourteen the heads shrink into a pattern and the neighbour stops
-// being recognisable, which is the whole reason his face is on the piece at all.
-// ⚠️ THE TESSELLATION MOVED WITH THE COUNT (40×24 → 20×10 in `rivalStickerGeo`): fourteen caps of
-// the old resolution are 27k triangles for ONE item, against a pool median of 424 and a maximum of
-// 3100. At this size a cap of 20×10 is smooth — the SILHOUETTE of a sticker is drawn by the
-// picture's alpha, not by the mesh.
-const RIVAL_STICKERS = 10;
-const RIVAL_STICKER_HALF = 0.95;
 const RIVAL_MS = 5000;
-// ⚡ THE RIVAL STANDS UPRIGHT LIKE A DARUMA (his own reference «like a Japanese daruma»): the render
-// rotation of a BALL carries no physics, so the ball keeps its faces up and only turns on its own
-// axis. `false` gives it the pile's tumble back — and with it the upside-down face of the first
-// live frame. The branch lives in `syncMeshes` (50-physics) and the whole reason is written there.
-const RIVAL_UPRIGHT = true;
+// ⚡⚡ THE SHAPE IS A GLASS BUBBLE WITH HIS FACE INSIDE (the owner 2026-09-24-g: «the ball with the rival's texture
+// looks strange. Propose variants or remove it for now» → a sheet of five variants rendered in the game → «I'll take
+// the bubble»). A see-through bubble in the neighbour's own tone, ONE picture of his avatar inside, the whole
+// picture and not a projection of it, always turned to the player; a tap bursts the bubble.
+// ⛔⛔ THE STICKER BALL IS CANCELLED WITH IT — his own shape of 2026-09-10 («bring the sphere back and stick the
+// avatars onto it like stickers over one another, without stretching the avatar») and 2026-09-10-v («fully covered
+// with stickers, even overlapping»): ten overlapping caps of one avatar read as a patchwork of faces at odd angles,
+// the tentacles of one cut by the rim of the next. `RIVAL_STICKERS` (10), `RIVAL_STICKER_HALF` (0.95 rad) and the
+// fibonacci covering arithmetic behind them are gone, and so is `rivalStickerGeo`.
+// ⛔ AND THE DARUMA WITH THEM (`RIVAL_UPRIGHT`, his «like a Japanese daruma», the yaw integrated in `syncMeshes`):
+// a ball of stickers needed its faces kept upright; the one picture of a bubble is turned to the camera outright,
+// every frame, by `tickRivalFace` (40-items) — see there.
+// ⚠️ THE PICTURE'S SHARE OF THE BUBBLE'S DIAMETER IS THE BENCH'S NUMBER, not a derived one: 0.775 is the frame he
+// picked from (a plane of 1.55 in a unit sphere). The avatars are squares with their character inside a
+// transparent margin, so the square's corners may pass the glass without a pixel showing.
+const RIVAL_FACE_FRAC = 0.775;
+// ⚠️ THE GLASS HAS TWO STATES, AND THE SECOND IS THE PORTAL'S: with his face inside the body is a faint milk
+// (alpha 0.22, 80% towards white — the frame he picked); with NO face — the portal ships no `avatars/`, or a picture
+// that failed to load — a faint empty bubble would all but vanish among the items, so it becomes a denser orb in his
+// own colour (alpha 0.70, 35% towards white), findable as the old coloured ball was.
+const RIVAL_GLASS_BODY = 0.22, RIVAL_GLASS_MIX = 0.80;
+const RIVAL_GLASS_EMPTY_BODY = 0.70, RIVAL_GLASS_EMPTY_MIX = 0.35;
 // "THE EXPLOSION IS LIKE A SHAKE EFFECT" (the second half of the owner's spec 2026-07-27-b;
 // PHYSICS's constants, added by rule 3 — adding one's own is allowed).
 // BOMB_JOLT is the amplitude of the jolt given to the WHOLE pile (the second layer of blastWave on top of

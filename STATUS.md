@@ -6,7 +6,27 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-24-v (the same fix for the other moments: the grinder, the bomb, the lightning charge, the rival, the golden fish, the ice and the final top-up), v2 = main** · **the full suite: 1322 green, 0 red** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+**Build: batch 2026-09-24-g (the rival is a glass bubble with his face inside), v2 = main** · **the full suite: 1322 green, 0 red (run 59, batch -v; this batch ran its own sections)** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+
+**24 SEPTEMBER, LATE — THE RIVAL IS A GLASS BUBBLE NOW.**
+
+You said «I'll take the bubble», so the ball covered in stickers is gone. The rival is a see-through glass bubble in
+his colour with ONE picture of his avatar inside — the whole picture, never stretched or cropped — and it always
+turns to face you, whichever way you spin the bowl. A tap bursts it: the glass disappears at once and the face
+shrinks away; the ×3 on all points for five seconds works exactly as before.
+- **Where the avatars are missing (the Playgama package has no `avatars/` folder)** there is no face to show, so the
+  bubble becomes a denser glass ball in his colour, easy to spot. Adding the folder to the package is yours to decide
+  (about 848 KB).
+- **At the end of a level** the mixer now pops the rival like a bubble instead of sawing it in half (a saw would cut
+  the glass into two coloured halves with no face).
+- A picture of the three looks went to you in the chat: the frame you picked, the game now, and the no-picture
+  version.
+
+**Checked:** the rival's own test section, rewritten for the bubble (14 checks: the glass and the face, the face
+turned to you at two camera angles using the real arrow keys, the burst frame by frame, no memory leak across levels,
+and the structure of the build); twelve deliberately broken copies, each caught exactly where it should be, plus a
+comment-only edit that stayed green; and the two other test sections that look at the rival. No full test run — your
+rule.
 
 **24 SEPTEMBER, NIGHT — THE SAME FIX FOR THE OTHER MOMENTS.**
 

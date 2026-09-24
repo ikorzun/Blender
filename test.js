@@ -21505,10 +21505,14 @@ window.bridge = {
     expect(rvSched.none === 0 && rvSched.kept === 6,
       '⛔ NO NEIGHBOUR IN THE TABLE — NO RIVAL, AND THE QUEUE KEEPS WAITING (' + JSON.stringify(rvSched) + ')');
 
-    // (2) THE PIECE ITSELF. A ball in the neighbour's tone with his face STUCK ON as overlapping
-    // stickers («bring the sphere back and stick the avatars onto it like stickers over one another, without stretching
-    // the avatar»): the owner rejected a wrapped sphere («stretches a lot») and the cylinder cap
-    // before it, which crops a 192-square avatar into its inscribed circle.
+    // (2) THE PIECE ITSELF — A GLASS BUBBLE WITH HIS FACE INSIDE (the owner 2026-09-24-g, off a sheet of five
+    // variants rendered in the game: «I'll take the bubble»). ⛔ THE STICKER BALL'S ARMS ARE GONE WITH IT (ten
+    // overlapping caps; the UVs of each cap, the covering of the ball, the stickers upright on it) — a guard
+    // dies with its mechanic. What the bubble promises is read here: a glass ROOT (a shader, transparent, no depth
+    // write — the pile shows through it) with the face as its ONE child; the face drawn in the transparent pass
+    // AFTER the glass (an opaque face is drawn first and the milky glass then washes it — the bench's second frame)
+    // and without tone mapping; and the picture WHOLE — the plane's UVs span 0..1 on both axes, so the avatar is
+    // neither wrapped (his «stretches a lot») nor cropped into a circle (the coin before the stickers).
     const rvItem = await rp.evaluate(async () => {
       const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms));
       g.rivalSetNext(7, 'Godwit'); g.setLevel(6); g.rivalNextAt(6); g.regen(); g.skipIntro();
@@ -21521,38 +21525,57 @@ window.bridge = {
       return { info, px: g.pixelOf(info.index), acc: g.accessibleList().includes(info.index),
                score: g.stats().score, misses: g.stats().misses, alive: g.alive() };
     });
-    // ⚠️⚠️ «NOT STRETCHED» IS ASSERTED ON THE UVs THEMSELVES, and that is the only honest way to
-    // state it: a sticker is an ORTHOGRAPHIC projection of the picture onto a cap of the ball
-    // (u = x/(2s)+0.5), while a wrapped `map` — the shape he rejected — puts a longitude there and
-    // reads far from it. A count of stickers alone would be green on a build that wraps.
-    expect(rvItem.info && rvItem.info.stickers >= 10 && rvItem.info.faceOn && rvItem.info.av === 7 &&
-           rvItem.info.uvErr >= 0 && rvItem.info.uvErr < 1e-5 && rvItem.info.tint === rvItem.info.want,
-      'THE PIECE: a ball in the neighbour\'s own tone wearing stickers of his face, each an ' +
-      'orthographic projection — the picture is not stretched anywhere (' + JSON.stringify(rvItem.info) + ')');
-    // ⚠️⚠️ «FULLY COVERED, EVEN OVERLAPPING» (his word 2026-09-10-v) IS ASSERTED AS A NUMBER: 600
-    // directions of the ball, every one of them inside some cap, and the WORST seam overlapping by
-    // at least 0.05 rad. ⛔ THE OVERLAP HALF IS NOT DECORATION — «covered» alone is satisfied by
-    // caps that merely touch, i.e. by the exact configuration he asked to leave behind, and a
-    // touching cover falls apart at the first change of the count. The sabotage is the previous
-    // shape (6 caps of 0.62 rad), which reads about half a ball.
-    expect(rvItem.info && rvItem.info.cover === 1 && rvItem.info.coverGap <= -0.05,
-      'THE PIECE: the ball is COVERED, with overlap on every seam — 600 directions, cover ' +
-      (rvItem.info ? rvItem.info.cover : '?') + ', the worst seam ' +
-      (rvItem.info ? rvItem.info.coverGap : '?') + ' rad (' + JSON.stringify(rvItem.info) + ')');
-    // ⚠️⚠️ AND THE FACES STAND UPRIGHT, which the UV assert above cannot see: a sticker's own +Y
-    // lies along the meridian, so the only spread is the ±0.18 rad of hand-slapped jitter. ⛔ THE
-    // SABOTAGE IS `setFromUnitVectors` ALONE (the shape this shipped as, and the frame in which the
-    // player met an UPSIDE-DOWN face). `upN` is the control — at the two poles the meridian does
-    // not exist and those stickers are skipped, so an empty measurement must not read as green.
-    expect(rvItem.info && rvItem.info.upN >= 3 && rvItem.info.upErr >= 0 && rvItem.info.upErr < 0.25,
-      'THE PIECE: every sticker away from the poles stands UPRIGHT on the ball — max tilt ' +
-      (rvItem.info ? rvItem.info.upErr : '?') + ' rad over ' + (rvItem.info ? rvItem.info.upN : '?') +
-      ' of them, against the ±0.18 of jitter (' + JSON.stringify(rvItem.info) + ')');
+    const rvI = rvItem.info || {}, rvG = rvI.glass || {}, rvF = rvI.face || {};
+    expect(rvI.kind === 'bubble' && rvI.parts === 1 && rvI.faceOn && rvI.av === 7 && rvI.tint === rvI.want &&
+           rvG.transparent === true && rvG.depthWrite === false && rvG.visible === true && rvG.castShadow === false &&
+           rvF.transparent === true && rvF.order > rvG.order && rvF.toneMapped === false && rvF.geo === true &&
+           Array.isArray(rvI.uv) && rvI.uv[0] === 0 && rvI.uv[1] === 1,
+      'THE PIECE: a glass bubble in the neighbour\'s own tone with his face inside — the glass transparent and ' +
+      'writing no depth, the face drawn AFTER it in the transparent pass, untoned, its square cached, and the ' +
+      'picture whole (UVs 0..1) (' + JSON.stringify(rvItem.info) + ')');
+    // ⚠️ THE GLASS THINS ONCE THE FACE HAS ARRIVED — and «no picture» (the portal ships no `avatars/`) is a DENSER
+    // orb in his colour, never a blank hole. The two numbers are the ones he picked from; the fallback's are read
+    // as «denser» rather than pinned.
+    expect(rvG.body === 0.22 && rvG.mix === 0.8,
+      'THE GLASS OF A BUBBLE WITH A FACE is the frame he picked (body 0.22, white mix 0.80) (' + JSON.stringify(rvG) + ')');
+
+    // (2b) ⚡ THE FACE TURNS TO THE PLAYER, AND IT DOES SO ON A SLEEPING PILE. The piece takes the camera's own
+    // orientation every frame RIGHT BEFORE THE RENDER (`tickRivalFace`, 40-items) — not in `syncMeshes`, which
+    // runs only while the physics steps: the pile sleeps at rest, and the face would stop following a player who
+    // orbits a quiet bowl. So the orbit here is REAL ARROW KEYS on the desktop page (the drag's own clamps and
+    // directions, 2026-09-07-c), the angle is read off the world matrices three renders with, and it is read
+    // TWICE — before and after the orbit. ⚠️ ONE READING IS NOT ENOUGH: a face that happens to point at the
+    // camera once is green at one azimuth; `azMoved` is the control that the camera actually went somewhere.
+    // ⚠️ Each read waits two frames first: the tick runs before the render, and a read squeezed between a key
+    // event and the next frame reads the previous frame's pose.
+    const rvRead = () => rp.evaluate(async () => {
+      const g = window.__game;
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const i = g.rivalInfo();
+      return { faceErr: i.faceErr, faceUpErr: i.faceUpErr, az: g.cam().az, asleep: !g.awake().physAwake };
+    });
+    const rvF0 = await rvRead();
+    await rp.keyboard.down('ArrowLeft'); await rp.waitForTimeout(650); await rp.keyboard.up('ArrowLeft');
+    const rvF1 = await rvRead();
+    const rvAzMoved = Math.abs(rvF1.az - rvF0.az);
+    expect(rvAzMoved > 0.3 && rvF0.faceErr >= 0 && rvF0.faceErr < 0.02 && rvF0.faceUpErr >= 0 && rvF0.faceUpErr < 0.02 &&
+           rvF1.faceErr >= 0 && rvF1.faceErr < 0.02 && rvF1.faceUpErr >= 0 && rvF1.faceUpErr < 0.02,
+      '⚡ THE FACE FACES THE PLAYER AND STANDS UPRIGHT AT BOTH AZIMUTHS — the camera orbited ' + rvAzMoved.toFixed(2) +
+      ' rad by the arrow keys; face angle ' + rvF0.faceErr + ' → ' + rvF1.faceErr + ', up ' + rvF0.faceUpErr + ' → ' +
+      rvF1.faceUpErr + ' rad (the pile asleep: ' + rvF0.asleep + '/' + rvF1.asleep + ')');
+    // the camera moved: the tap below aims at the pixel the rival stands on NOW
+    rvItem.px = await rp.evaluate(() => { const g = window.__game; return g.pixelOf(g.rivalInfo().index); });
 
     // (3) NO PAIR NEEDED — and the tap pays no score and counts no mistake. ⚠️ THE THREE NEGATIVE
     // HALVES NEED THE POSITIVE ONE BESIDE THEM: «the score did not move» is also true of a tap
     // that never landed, which is exactly how this file lost a guard for three weeks.
     let rvTap = { why: 'no pixel' };
+    // ⚠️ THE POP IS 200 ms LONG, SO IT IS TRACED IN THE PAGE, ONE READING PER FRAME — a harness poll would land on
+    // the bench's clock and miss it. The trace starts BEFORE the click and stops once the piece is gone.
+    await rp.evaluate(() => { const g = window.__game; window.__rvTrace = [];
+      (function tick(){ const i = g.rivalInfo();
+        window.__rvTrace.push({ idx: i.index, gv: i.glass ? i.glass.visible : null, fs: i.face ? i.face.scale : null });
+        if (window.__rvTrace.length < 600 && (i.index >= 0 || window.__rvTrace.length < 5)) requestAnimationFrame(tick); })(); });
     if (rvItem.px && !rvItem.px.occluded){
       await rp.mouse.click(rvItem.px.px, rvItem.px.py);
       await rp.waitForTimeout(450);
@@ -21570,6 +21593,19 @@ window.bridge = {
            rvTap.rival.left > 3000 && rvTap.rival.mult === 3,
       'A TAP ON A SINGLE RIVAL: it leaves alone (no pair), pays NO score and counts NO mistake, and ' +
       'opens the ×3 window (' + JSON.stringify(rvTap) + ')');
+    // (3b) THE BUBBLE BURSTS: the glass goes at once and the face inside shrinks away over the removal's 0.2 s.
+    // ⛔ The sticker ball's tail shrank the WHOLE piece — for a glass bubble that reads as a leak, not a pop; that
+    // is the sabotage, and it keeps the glass visible to the end. `popped` is the control: without frames of the
+    // piece still alive after the tap, both conditions below would be vacuous.
+    const rvTrace = await rp.evaluate(() => window.__rvTrace || []);
+    const rvPopped = rvTrace.filter(f => f.idx >= 0 && f.gv === false);
+    const rvFirstPop = rvTrace.findIndex(f => f.idx >= 0 && f.gv === false);
+    const rvGlassBack = rvFirstPop >= 0 && rvTrace.slice(rvFirstPop).some(f => f.idx >= 0 && f.gv === true);
+    const rvMinFs = rvPopped.length ? Math.min(...rvPopped.map(f => f.fs)) : null;
+    expect(rvPopped.length >= 1 && !rvGlassBack && rvMinFs !== null && rvMinFs < 0.95,
+      'THE BUBBLE BURSTS: the glass gone at once and the face shrinking before the piece leaves (' +
+      rvPopped.length + ' frames popped, the face down to ' + rvMinFs + ', the glass back: ' + rvGlassBack +
+      ', ' + rvTrace.length + ' frames traced)');
     // (4) AND THE CORNER SAYS SO — the only place on this screen where a multiplier lives.
     expect(rvTap.active === true && /^\d s$/.test(String(rvTap.label)) && /×3/.test(String(rvTap.title)),
       'THE BADGE CARRIES THE WINDOW: the combined multiplier and its own countdown in seconds (' +
@@ -21629,6 +21665,50 @@ window.bridge = {
     expect(rvEnd.left === 0 && rvEnd.mult === 1 && rvEnd.reward === 1 &&
            rvEnd.label === 'Boost' && /×5/.test(String(rvEnd.title)),
       'THE WINDOW CLOSES BY ITSELF AND THE CORNER GOES BACK TO THE SHOP\'S OWN ×5 (' + JSON.stringify(rvEnd) + ')');
+    // (8) THE FACE'S SQUARE IS CACHED, SO REGENS DO NOT LEAK GEOMETRY. One rival per level, each with a plane of
+    // its own, and a geometry nobody caches outlives its piece on the GPU (`removeItem` frees the materials only).
+    // Four regens that each deal a rival; the count after the first is the baseline. ⚠️ LEVEL 6 IS CHOSEN FOR A
+    // DETERMINISTIC DEAL: every open type is dealt there (no cap), so no new type geometry arrives between readings.
+    const rvGeo = await rp.evaluate(async () => {
+      const g = window.__game, sl = ms => new Promise(r => setTimeout(r, ms)), out = [];
+      const raf = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      for (let k = 0; k < 4; k++){
+        g.rivalSetNext(7, 'Godwit'); g.setLevel(6); g.rivalNextAt(6); g.regen(); g.skipIntro();
+        await sl(500); await raf();
+        out.push({ geoms: g.perfStats().geoms, inPile: g.rivalRule().inPile });
+      }
+      return out;
+    });
+    expect(rvGeo.length === 4 && rvGeo.every(r => r.inPile === 1) && rvGeo[3].geoms - rvGeo[1].geoms <= 0,
+      'THE FACE\'S SQUARE IS SHARED: four levels with a rival leave the GPU\'s geometry count flat (' +
+      rvGeo.map(r => r.geoms + (r.inPile ? '' : '(no rival)')).join(' → ') + ')');
+
+    // (9) STRUCTURE, read off the shipped build — the parts a live arm cannot reach cheaply: the finale's grinder
+    // POPS the bubble instead of sawing it (the saw rebuilds the model's own material, and the glass is a shader
+    // with a child: two opaque tinted halves with no face); both of the bubble's programs are warmed by the
+    // anchors; the face's own material is freed with its piece; `syncMeshes` leaves the rival's rotation to the
+    // tick (ONE writer); its accessibility samples are not rotated by the camera-facing mesh (the verdict must not
+    // depend on the orbit — the owner's «the items dim depending on the angle», 2026-07); and the tick stands
+    // before BOTH renders — the paused frame included, which no live arm here reaches.
+    const rvSrc = require('fs').readFileSync(PAGE_FILE, 'utf8');
+    const rvFn = (name) => { const i = rvSrc.indexOf('\nfunction ' + name + '('); if (i < 0) return '';
+      const j = rvSrc.indexOf('\n}', i + 1); return j < 0 ? '' : rvSrc.slice(i, j); };
+    const rvAnch = (() => { const i = rvSrc.indexOf('(function fxProgramAnchors(){'); const j = rvSrc.indexOf('camera.add(g);', i);
+      return (i < 0 || j < 0) ? '' : rvSrc.slice(i, j); })();
+    const rvLoop = rvFn('loop');
+    const rvStruct = {
+      grinderPops: /if \(item\.rival\) popFX\(gp\); else sawFX\(item\);/.test(rvFn('grindShred')),
+      anchors: /rivalGlassMat\(/.test(rvAnch) && /rivalFaceMat\(\)/.test(rvAnch),
+      disposes: /if \(it\.rival\) for \(const ch of it\.mesh\.children\) if \(ch\.material\) ch\.material\.dispose\(\);/.test(rvFn('removeItem')),
+      syncSkips: /if \(it\.rival\) continue;/.test(rvFn('syncMeshes')),
+      samplesFixed: /const q = item\.rival \? _qIdent : item\.mesh\.quaternion;/.test(rvFn('isAccessible')),
+      tickPaused: /if \(paused\)\{ tickRivalFace\(\); renderer\.render\(scene, camera\);/.test(rvLoop),
+      tickMain: /tickRivalFace\(\);[^\n]*\n\s*const _tRen = performance\.now\(\);\s*\n\s*renderer\.render\(scene, camera\);/.test(rvLoop),
+    };
+    expect(Object.values(rvStruct).every(Boolean),
+      'THE BUBBLE\'S STRUCTURE IN THE BUILD: the grinder pops it, both programs are anchored, the face\'s material is ' +
+      'freed, the rotation has one writer, the samples ignore the camera, the tick stands before both renders (' +
+      JSON.stringify(rvStruct) + ')');
     expect(rvErr.length === 0, 'THE RIVAL\'S PAGE RAISED NO ERRORS (' + rvErr.join(' | ') + ')');
     await rp.close(); rvStand.close();
   }

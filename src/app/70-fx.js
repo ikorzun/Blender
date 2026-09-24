@@ -1850,6 +1850,17 @@ function chargeSurgeMake(mesh){
   // EXACTLY the production program gets warmed up.
   try { const im = iceCrustMat(); im.uniforms.uGlowK.value = 0; im.colorWrite = false;
         g.add(new THREE.Mesh(tiny, im)); } catch (e) {}
+  // ⚠️ THE RIVAL'S BUBBLE (2026-09-24-g) — its glass is a ShaderMaterial and its face a textured basic one with
+  // an alpha test and no tone mapping: two programs no other item compiles. Without an anchor the first rival of
+  // a session compiles both INSIDE the frame it appears in. The SAME factories as the piece (`rivalGlassMat`,
+  // `rivalFaceMat`, 40-items), quenched by `colorWrite` like the ice — and the face anchor carries a 1×1 sRGB map,
+  // because a map and its encoding are part of the program key: without one it would warm a program the face
+  // never uses. `depthWrite = false` on it (render state, not the key): a depth write here is a one-pixel hole.
+  try { const rg = rivalGlassMat(0xffffff); rg.colorWrite = false; g.add(new THREE.Mesh(tiny, rg)); } catch (e) {}
+  try { const rf = rivalFaceMat(), tx = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+        tx.encoding = THREE.sRGBEncoding; tx.needsUpdate = true;
+        rf.map = tx; rf.visible = true; rf.colorWrite = false; rf.depthWrite = false;
+        g.add(new THREE.Mesh(tiny, rf)); } catch (e) {}
   const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0.001, 0)]);
   const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ transparent:true, opacity:0, dashSize:0.3, gapSize:0.15 })); // lineFX
   ln.computeLineDistances();

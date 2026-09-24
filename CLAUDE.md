@@ -2866,6 +2866,9 @@ with the platform.
   < 0.25 held for 0.4 s OR a force after 3 s of REAL time; sleepAll
   (zero the velocities + body.sleep) / wakeAll on any event. A forced sleep
   PER BODY is not to be done — cascading wake-ups rock the pile (measured).
+- ⚠️ ONE EXCEPTION, AND IT CARRIES NO PHYSICS: the rival's glass bubble takes the CAMERA's orientation every frame
+  (`tickRivalFace`, right before the render — BATCH 2026-09-24-g); `syncMeshes` skips its rotation (one writer), its
+  collider is a sphere, and its accessibility samples are rotated by nothing so the verdict stays camera-independent.
 - The rotation of the meshes is HONEST — mesh.quaternion from the bodies (syncMeshes). Removing
   an item: destroyItemBody IMMEDIATELY on animating (Rapier wakes the neighbours).
 - The shake/vibration of the blades — applyImpulse by mass (impulseBody/spinBody).
@@ -18328,6 +18331,14 @@ genuinely bad pack gives a new length with a wrong hash.
 ## BATCH 2026-09-10-b: THE RIVAL IN THE BOWL — THE NEXT PLAYER OF THE TABLE, A TAP ON HIM IS ×3 ON EVERYTHING FOR FIVE SECONDS (his spec over five messages: «show what it looks like» → the sheets → «the avatar… stretches a lot… we could try several faces, like a Japanese daruma» → «1. A multiplier on all points for 5 seconds 2. No pair needed 3. The next one» → «Do it» → «let's bring the sphere back and stick the avatars onto it like stickers over one another, without stretching the avatar»)
 
 ### THE SHAPE WAS PICKED OFF RENDERED SHEETS, AND THREE OF ITS RULES ARE MEASUREMENTS RATHER THAN TASTE
+⛔⛔ **THE STICKER BALL AND THE DARUMA OF THIS SECTION ARE CANCELLED — 2026-09-24-g, HIS WORD «I'll take the bubble»**
+off a second sheet of five variants rendered in the game. The piece is a GLASS BUBBLE with ONE whole picture of the
+avatar inside, turned to the camera every frame (BATCH 2026-09-24-g). What still holds from here: the mechanic (the
+schedule, no pair, the ×3 window, `rewardMult`, play time, the corner badge), the baked tint table, the neighbour's
+source (`lbNextRival`), «no neighbour — no rival», the `file://` note and the census of `!it.surprise`. What is
+history: the stickers, their UVs, the roll, the daruma's yaw and the arms that read them. ⚠️ Two lessons of this
+section survive the shape — a picture wrapped on a sphere stretches at the poles and a cylinder cap crops the square
+into its inscribed circle — and they are exactly why the bubble shows the picture FLAT and WHOLE.
 Six recipes were built on ONE item of ONE seeded layout (a mulberry32 `Math.random` in an init script — every
 variant lands on the same piece, so the comparison is about the recipe and not about the deal) and shown as a
 contact sheet; a second sheet turned the camera through 40/80/120° so he could see each of them from a rotated
@@ -18480,6 +18491,9 @@ the second is printing both positions and the gap at detonation time instead of 
 
 ## BATCH 2026-09-10-v: THE BALL IS PLASTERED, NOT DOTTED; THE FIRE COMES OFTENER FROM THE FIFTH (his three lines: «a sphere the size of a watermelon, fully covered with stickers, even overlapping» / «fire, yes» / «the rest of the objects table is on hold for now»)
 
+⛔⛔ **THE STICKER HALF OF THIS BATCH IS CANCELLED — 2026-09-24-g** (the glass bubble replaced the plastered ball;
+BATCH 2026-09-24-g). «The size of a watermelon» still holds (the bubble is `r = 1.0·MESH_SCALE`, exactly an item);
+the fire half of this batch is untouched.
 ### ⛔⛔ «ONLY KISSING AT THE EDGES» LIVED ONE BATCH — THE PAIR IS DERIVED NOW, NOT CHOSEN
 The previous edition wrote «the stickers only kiss at the edges … which is what makes it read as a
 sticker BALL and not as a painted one». He looked at the frame and asked for the opposite. THE
@@ -21331,3 +21345,101 @@ break; the finale's measured ~1 ms) and the build re-made: `diff` against the te
 build label only, and run 59 ran on the re-made build.
 The build: `index.html` 12 957 408 → **12 960 572 B**, md5 42906022d4b641a413710b06d3526c95, build 3d4f74456bf9.
 Pushed to `v2` and `v2:main` (fetched first), and the site deployed by me after the green run (the standing rule).
+
+## BATCH 2026-09-24-g: THE RIVAL IS A GLASS BUBBLE WITH HIS FACE INSIDE — THE STICKER BALL AND THE DARUMA ARE GONE (his word, translated: «the ball with the rival's texture looks strange. Propose variants or remove it for now» → a sheet of five variants rendered in the game → «I'll take the bubble»)
+
+### WHAT HE WAS LOOKING AT, AND WHY IT READ AS STRANGE
+The sticker ball of 2026-09-10-b/-v carried TEN overlapping caps of one avatar at odd angles (the covering needed
+every seam to overlap), so the ball read as a patchwork of faces, the tentacles of one cut by the rim of the next.
+Nothing in its guard was wrong — covered, orthographic, upright — and every one of those properties is what made it
+busy. **A guard states the decision, not the taste; the frame is what settled it**, for the fifth time in this project.
+
+### FIVE VARIANTS, RENDERED IN THE REAL GAME, ONE PICKED
+A variant build outside the tree (`?rstyle=N`, never shipped) drew five recipes on ONE seeded layout (a mulberry32
+`Math.random` in an init script), cropped round the piece, as a sheet: one face on a ball, the glass bubble, a lime
+token, a die-cut sticker, a plain ball with a lime rim. He picked the bubble. ⚠️ The bench's own frames differ from the
+shipped build's in the pile behind the piece (a different build deals differently) — the two agree in shape, not digit
+for digit.
+
+### WHAT SHIPPED (40-items, 50-physics, 60-access, 70-fx, 80-gameplay, 99-main; the constants in 00-config)
+- **THE GLASS** (`rivalGlassMat`): a sphere with a Fresnel ShaderMaterial — the rim carries the tone, two small
+  highlights, `transparent`, no depth write, the tint a RAW sRGB uniform (the sky's convention: a raw ShaderMaterial
+  skips the renderer's output conversion). `.color` is set on it ON PURPOSE, in LINEAR: `applyVeil`'s fallback
+  (`veilAllItems` pins every live item), `sawVisualMat` and the colour hooks read one — it paints nothing.
+- **THE FACE** (`rivalFaceMat`): the WHOLE avatar on a flat square of side `2·RIVAL_FACE_FRAC` (1.55 of a unit
+  sphere — the bench's number, not a derived one), its child. ⚠️⚠️ IN THE TRANSPARENT PASS AND ONE STEP AFTER THE
+  GLASS (`renderOrder` 1), AND THAT IS THE WHOLE LOOK: an opaque face is drawn BEFORE every transparent object, so the
+  milky glass then covers it and the character comes out washed — the bench's second frame. No tone mapping (his
+  picture as the leaderboard shows it); `alphaTest` 0.45 cuts the square's transparent margin.
+- **THE SQUARE IS CACHED** (`geoCache 'RVF'`, like the sphere 'RV'): `removeItem` frees materials, not geometries, so a
+  plane per rival would outlive it on the GPU. And `removeItem` frees the face's OWN material (one per rival; its
+  picture is `rivalTexCache`'s and is not disposed) — the sticker ball's shared face material had the same leak.
+- **NO PICTURE — A DENSER ORB, NEVER A HOLE** (`RIVAL_GLASS_EMPTY_BODY/MIX` 0.70/0.35 until the picture arrives, then
+  0.22/0.80): the portal ships no `avatars/`, and a faint empty bubble would all but vanish among the items.
+- **THE FACE TURNS TO THE PLAYER, EVERY FRAME** (`tickRivalFace`, called right before BOTH renders — the paused frame
+  included): the whole piece takes `camera.quaternion`. ⚠️⚠️ A LOOP TICK AND NOT `syncMeshes`: that runs only while the
+  physics steps, and the pile sleeps at rest — the face would stop following a player who orbits a quiet bowl.
+  ⚠️ ONE WRITER: `syncMeshes` skips the rival's rotation (position only); the daruma's yaw (`RIVAL_UP_AXIS`, `rvYaw`,
+  `RIVAL_UPRIGHT`) is gone. The collider is a sphere, so the render rotation carries no physics.
+- ⛔⛔ **ITS ACCESSIBILITY SAMPLES ARE ROTATED BY NOTHING** (`isAccessible`, `_qIdent`): the samples were carried by
+  the mesh's quaternion, and a mesh that faces the camera would have made the verdict depend on the orbit — the very
+  defect accessibility was built against (his «the items dim depending on the angle»). The 'ball' set (the centre and
+  ±0.5·s on x and z) lies inside the sphere at any rotation; the identity keeps it horizontal, the set's own intent.
+- **THE BUBBLE BURSTS**: on a tap the glass goes at once and the face shrinks over the removal's 0.2 s (the pop and the
+  dust carry the burst). ⛔ The sticker ball's tail shrank the WHOLE piece — for glass that reads as a leak.
+- **THE FINALE'S GRINDER POPS IT** instead of sawing it (`grindShred`): the saw rebuilds the model's own material with a
+  clipping plane, and the bubble's is a shader with a child — two opaque tinted halves with no face.
+- **TWO PROGRAM ANCHORS** (`fxProgramAnchors`): the same factories, quenched by `colorWrite`; the face's anchor carries
+  a 1×1 sRGB DataTexture because a map and its encoding are part of the program key, and `depthWrite = false`.
+- `setItemsTransparent` (a graphics debug hook) skips the rival: a flip would draw the glass opaque.
+- `rivalInfo()` reads the bubble: `kind`, `faceOn`, `parts`, `glass {transparent, depthWrite, visible, order,
+  castShadow, body, mix}`, `face {transparent, order, toneMapped, alphaTest, depthWrite, scale, frac, geo}`, `uv`
+  [min, max], `faceErr`/`faceUpErr` (the face's world normal and up against the camera's, read off the world matrices),
+  `scale`, `r`, `tint` (the uniform), `want` (the baked table). The sticker readings are gone.
+
+### THE GUARD (RIVAL, 14 arms — the sticker arms went with their mechanic)
+(1) the schedule and its control, unchanged; (2) the piece — a bubble in his tone, the glass transparent and writing no
+depth, the face after it, untoned, cached, the picture whole (UVs 0..1), and the glass of a face-bearing bubble at 0.22 /
+0.80; (2b) ⚡ THE FACING — real ArrowLeft presses on the 1280 page orbit the camera (the moved azimuth is the control),
+and the face's angle and up against the camera's are < 0.02 rad at BOTH azimuths, the tap then aiming at the pixel the
+rival stands on after the orbit; (3) the tap, unchanged; (3b) THE POP, traced in the page one reading per frame (a
+harness poll would miss 200 ms): the glass gone and never back, the face shrinking; (4)-(7) unchanged; (8) the GPU's
+geometry count flat over four levels with a rival (level 6: every open type dealt, no cap); (9) STRUCTURE off the
+shipped build — the grinder pops, both programs anchored, the face's material freed, one rotation writer, the samples
+ignoring the camera, the tick before both renders.
+PROVEN AGAINST TWELVE SABOTAGES AND A COMMENT-ONLY CONTROL (`tools/build-variant.py` outside the tree +
+`tools/section-dryrun.js`, driver in the session scratchpad):
+
+| variant | red |
+|---|---|
+| the tick removed before the main render | the facing arm and the structure arm (`tickMain`) |
+| the tick a no-op (the structure intact) | the facing arm alone (face angle 1.12 → 1.43 rad) |
+| the tick removed from the paused frame | the structure arm alone (`tickPaused`) |
+| the face opaque (`transparent: false`) | the piece arm alone |
+| the picture never assigned (`map`) | the piece arm alone (`faceOn` false) |
+| a plane per rival (uncached) | the piece arm (`geo` false) and the geometry arm (26 → 27 → 28 → 29; healthy 24 flat) |
+| the tint not passed (white glass) | the piece arm alone (`tint` ≠ `want`) |
+| the old whole-piece shrink | the burst arm alone (0 frames popped) |
+| the grinder saws the rival | the structure arm alone (`grinderPops`) |
+| the samples rotated by the camera-facing mesh | the structure arm alone (`samplesFixed`) |
+| the face's material not freed | the structure arm alone (`disposes`) |
+| the glass anchor dropped | the structure arm alone (`anchors`) |
+| a comment edit | 14 green |
+
+Which structure sub-key each variant flips was read back off each variant's build with the arm's own regexes, node
+only (the log truncated the JSON); `syncSkips`, the one key without a browser variant, was proven the same way in
+memory. The tree's `index.html` md5 was identical before and after the variant run.
+
+### THE PRICE, AND WHAT ONLY HIS DEVICES CAN SAY
+- ON THE PORTAL THERE IS STILL NO FACE (no `avatars/` in the package): a denser orb in his colour. Adding the folder is
+  his call (~848 KB), unchanged since 2026-09-10-b.
+- The face is a flat card turned to the camera, so up close it is visibly flat; from the game's distance it reads as a
+  character inside a bubble — the frame he picked.
+- The finale pops the rival instead of sawing it — named above.
+### THE RUNS (his rule: no full suite unasked)
+RIVAL 14 green, three runs over the two builds of the batch (the second differs by one comment), the burst arm seeing 4
+popped frames each time and the geometry count flat at 24; the neighbours that read `rivalInfo` — BOWL140 7, EVENTFAN
+9 — green on the final build. No full suite: nothing on the main run's pages meets a rival (the leaderboard is muted on
+`file://`, so no neighbour is dealt), and the changed shared code (`syncMeshes`, `isAccessible`) is gated on the rival.
+The build: `index.html` 12 960 572 → **12 963 126 B**, md5 96002e8298e87ef990d7507ffa85c56f, build 82a77558bc5f, 31
+modules. The Cyrillic census of the tracked files: 0 (bonus.html excepted).

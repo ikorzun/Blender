@@ -60,7 +60,7 @@
    page. Both halves are guarded, and the fetch handler's own catch searches EVERY `blendo-` cache
    for a document rather than only this build's.  */
 
-const BUILD = '3d4f74456bf9';
+const BUILD = '82a77558bc5f';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
 /* ⛔⛔ THE NAVIGATE BRANCH ANSWERS FOR THE GAME'S OWN PAGE ONLY (the full review 2026-09-24). Until then it
