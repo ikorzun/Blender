@@ -21064,9 +21064,10 @@ it alone.
 green, 0 red** — all of them rather than the changed ones only, because the frame cap changes the clock of every
 page. The site worker 34 green and its break PASS; the bridge probes as above.
 
-**Twelve sabotage variants of this batch's own fixes** (`tools/build-variant.py` outside the tree +
-`tools/section-dryrun.js`; the tree's `index.html` md5 7a6cd9c1… identical before and after), each red on its own
-arm(s):
+**Eleven sabotage variants of this batch's own fixes plus a comment-only edit** (`tools/build-variant.py` outside
+the tree + `tools/section-dryrun.js`; the tree's `index.html` md5 7a6cd9c1… identical before and after): each
+sabotage red on its own arm(s), the comment edit green. ⚠️ The commit message of 6f2699e says «twelve sabotage
+variants each red» — an off-by-one caught after the push (the twelfth is the comment edit); this line is the count.
 
 | variant | section | red |
 |---|---|---|

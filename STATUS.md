@@ -65,8 +65,8 @@ and run the full suite the same day.
 on Hard; and whether Low Power Mode is on when you notice the drops.
 
 **Checked:** every section of the test suite that can run on its own — 31 sections, 373 checks — on the final
-build, all green; twelve deliberately broken copies of this batch's fixes, each red exactly on its own check, and a
-comment-only edit green; the site's server checks 34 green. No full suite, by your word.
+build, all green; eleven deliberately broken copies of this batch's fixes, each red exactly on its own check, plus a
+comment-only edit that stayed green; the site's server checks 34 green. No full suite, by your word.
 
 **21 SEPTEMBER — THE NEW ICON.**
 
