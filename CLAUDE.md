@@ -21600,10 +21600,13 @@ and bot, stepped in chunks of 30 ticks with no screenshot and no sound — 45-80
 
 ### ⛔ THE ZSH TRAP, MET A THIRD TIME — AND IT NEARLY SENT ME AFTER A PHANTOM
 `for cfg in "2600 4400" "3200 5500"; do set -- $cfg; …` does NOT split in zsh: `$1` was «2600 4400», `+("2600 4400")` is
-NaN, the scheduled turns never fired (`vt >= NaN` is false), and the stuck path turned the bowl 28-42 times a run. That
-batch read «stuck in the endgame in 6 of 8» and pointed at the endgame; the same cadence passed as explicit env vars
-cleared 7 of 7. **Pass numbers to a probe as explicit `VAR=value` pairs — never through `set --` in zsh** (the canon's
-own «`for x in "a b c"` does NOT split `$x`», in a new shape).
+NaN, and every scheduled turn after the first one never fired (`vt >= NaN` is false). That batch read «stuck in the
+endgame in 6 of 8», with 28-42 turns a run from the stuck path, and pointed at the endgame; the same cadence passed as
+explicit env vars cleared 7 of 7. ⚠️ WHY THE NaN RUNS STUCK IS NOT EXPLAINED, and «no scheduled turns» is not the
+cause: the control with `OEMIN=1e8` — also no scheduled turn after the first — cleared at 43 and 46 s with 2 turns. It
+was the wrong config, not a finding about the endgame, and nothing was changed on it. **Pass numbers to a probe as
+explicit `VAR=value` pairs — never through `set --` in zsh** (the canon's own «`for x in "a b c"` does NOT split `$x`»,
+in a new shape).
 
 ### THE DELIVERED TAKES (level 12, Easy — the best of three runs per format, seeds 2027-2029, picked by their sheets and logs)
 | | 9:16 (seed 2027) | 16:9 (seed 2029) |
