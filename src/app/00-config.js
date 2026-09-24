@@ -1248,12 +1248,34 @@ const SURPRISE_FROM_LEVEL = 10;
 // render+sync, heating and throttling of the phone, that is "it gets sluggish" LATER from
 // overheating. The cap is PURELY presentational: the fixed-step accumulator is untouched, a
 // skipped frame accumulates dt, the simulation is bit-for-bit the same.
-// ⚠️ 14, not 16.7: rAF at 120 Hz ticks every 8.3 ms — a threshold of 14 skips
-// every second tick (8.3 < 14 → skip; 16.6 > 14 → frame), giving exactly 60 without
-// beating; a threshold of 16.7 would give 40 fps at 120 Hz (every third).
-// At 60 Hz it changes nothing: raw ~16.7 > 14 — not a single frame is skipped.
-// The skip threshold = 840/CFG.fpsCap ms (60 → 14). There is no constant DELIBERATELY:
-// a copy of the number next to the knob would diverge from it at the first edit.
+// ⛔⛔ THE FIXED THRESHOLD «skip if < 840/cap = 14 ms since the last frame» IS CANCELLED
+// (2026-09-24, the full review). It was right for exactly two displays, 60 and 120 Hz, and
+// wrong for every other one: at 75 Hz 13.3 < 14 → every second tick skipped → 37.5 fps;
+// 90 Hz → 45; 100 → 50; 144 → 48; 165 → 55 — BELOW the 60 it promises, on common Android
+// and desktop screens. And at 60 Hz under load a frame that STARTED late (the previous one
+// overran) makes the next on-grid tick arrive <14 ms after it → dropped → a 33 ms gap where
+// 17-20 was possible (WebKit fires a missed rAF as soon as the thread is free, so late
+// starts are exactly what a phone in Low Power Mode produces during the pour).
+// ⚠️ IT ALSO DISTORTED EVERY HEADLESS PERF NUMBER OF THIS PROJECT: headless Chromium on this
+// Mac ticks rAF at ~96 Hz (measured: median 10.4 ms, irregular 7-27) — NOT the «headless
+// does not let go of vsync, 60 Hz» the old guard assumed — so the cap turned the bench into
+// ~46 fps. Measured on the level-12 pour, CPU ×4: mean frame 21.6 ms (cap as it was) →
+// 18.8 (this bucket) → 14.1 (no cap at all).
+// IN FORCE: THE OLD THRESHOLD PLUS A LATENESS CREDIT (`capDecide`, 99-main). A tick renders
+// when the time since the last rendered frame PLUS the credit reaches CAP_THRESHOLD_K · period
+// (0.84 · 16.67 = the old 14 ms at a cap of 60). A rendered frame that came LATER than one period
+// leaves its lateness as credit for the next (at most CAP_CREDIT_K · period = 8.3 ms), so the tick
+// after a late frame still renders, and on a 75/90/144 Hz screen the long interval lets the next
+// short one through. ⚠️⚠️ WHILE FRAMES ARRIVE ON TIME THE CREDIT IS ZERO AND THIS IS EXACTLY THE OLD
+// RULE — the 60 and 120 Hz steady states (the owner's iPhone, normal and Low Power) do not change by
+// one frame. Simulated (the batch record): 60/120 Hz identical without jitter and 60 against 56-58
+// fps with ±2 ms of it; 75/90/100/144/165 Hz → 60-62 fps against 37.5/45/50/48/55.
+// ⛔ A PLAIN TOKEN BUCKET WAS BUILT, SIMULATED AND REJECTED THE SAME DAY: at 120 Hz its credit
+// settles exactly on the threshold and the cadence becomes 8.3/25 ms alternation — a regression on
+// the one display that matters most. Do not «simplify» this into a bucket.
+// ⚠️ The credit cap (0.5 · period) is also what stops a stall from buying a burst: after any pause
+// at most ONE extra frame renders early, then the grid is back.
+const CAP_THRESHOLD_K = 0.84, CAP_CREDIT_K = 0.5;
 const BOMB_FROM_LEVEL = 5;
 // ⚠️⚠️ THE FROZEN ITEM (the owner's spec 2026-08-13, the full one — answers to 13
 // questions from the dispatcher). One item OF A PAIR is frozen into a translucent block:
@@ -1879,7 +1901,7 @@ const PERF_LOW_DPR = 1.0;        // against 1.5 on touch devices
 const PERF_LOW_FX = 0.4;         // the fraction of particles out of the full one (dust 1280 -> 512)
 
 const CFG = {
-  fpsCap: 60,          // the frame cap (see FRAME_MIN_MS); 0 = switch it off for a measurement
+  fpsCap: 60,          // the frame cap (see CAP_THRESHOLD_K); 0 = switch it off for a measurement
   perfTier: 'high',   // 'high' | 'low' — set by applyPerfTier (10-stage)
   fxScale: 1,         // a multiplier of the particle count; 70-fx reads it on every effect
   fxSlow: 1,          // a divider of the effects' clock — ONLY for filming/debugging (see stepFX)

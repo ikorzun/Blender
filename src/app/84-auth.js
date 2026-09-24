@@ -75,6 +75,14 @@ function authLoadGis(){
 let authGis = null;        // the library handle, kept so the prompt and the sign-out can reach it
 let authInited = false;    // `initialize` has run — once per page, by the line above
 let authTapped = false;    // the One Tap has been asked for this launch
+// ⛔⛔ «THIS DEVICE SIGNED OUT» OUTLIVES THE PAGE (the full review 2026-09-24). `disableAutoSelect` below reaches
+// Google only when the library is LOADED, and a session that STARTS signed in never loads it (the button is not
+// drawn and the One Tap returns early) — so a Logout on such a session armed nothing, and at the end of the NEXT
+// level's intro the One Tap signed the same account straight back in: on a shared phone the child played, spent
+// and bought under the parent's account. The flag makes the next `initialize` ask with `auto_select` off; the
+// prompt is still offered, it just needs a tap. A successful sign-in clears it.
+const AUTH_OUT_LS = 'mixer_auth_out';
+const authOutFlag = () => { try { return localStorage.getItem(AUTH_OUT_LS) === '1'; } catch (e) { return false; } };
 
 async function authInit(){
   if (authInited) return true;
@@ -89,7 +97,7 @@ async function authInit(){
       // ⚡ AUTO-LOGIN IS HIS OWN «auto-login if possible», AND IT BUYS MORE THAN A SAVED TAP: it
       // re-covers Safari's seven-day eviction of localStorage (2026-09-04-a) — a player whose save
       // was swept comes back to his purchases and his row without touching anything.
-      auto_select: true,
+      auto_select: !authOutFlag(),
       // ⛔ WITHOUT `itp_support` THE PROMPT DOES NOTHING AT ALL IN SAFARI, which is his own
       // browser. It costs nothing in the engines that do not need it.
       itp_support: true,
@@ -198,12 +206,16 @@ async function authApply(r){
   // does not move the score — without this the row would keep the animal name until it next did.
   try { if (typeof lbForgetSent === 'function') lbForgetSent(); } catch (e) {}
   // the purchases come back by the same road a returning payment takes
-  try { if (window.Ads && typeof Ads.restorePurchases === 'function') Ads.restorePurchases(); } catch (e) {}
+  // ⛔ `typeof Ads`, NOT `window.Ads` (the full review 2026-09-24): `Ads` is a `const` of 78-ads inside the build's one
+  // closure, never a window property, so the old guard was false on every build and the restore pass after a sign-in
+  // had never run — a player who signed in on a new device to recover a purchase waited for the next launch.
+  try { if (typeof Ads === 'object' && Ads && typeof Ads.restorePurchases === 'function') Ads.restorePurchases(); } catch (e) {}
   // ⚠️ `fireStarsChange` AND NOT A SUBMISSION OF OUR OWN: seven places already go through it, and
   // its leaderboard subscriber is what drops the cache and schedules the send. A second tract next
   // to a working one is the defect this project has paid for five times.
   try { if (typeof fireStarsChange === 'function') fireStarsChange(); } catch (e) {}
   authRedraw();
+  try { localStorage.removeItem(AUTH_OUT_LS); } catch (e) {}   // he signed in again: auto-login may resume
   authLast = { state: 'ok', err: '', name: (r.name || ''), gid: (r.gid || ''), was: before,
     adopted: !!adopted, fresh: !!r.fresh, lifted: lifted, score: score };
   return authLast;
@@ -219,6 +231,7 @@ function authSignOut(){
   // TAPPED ANYTHING: `auto_select` remembers the last account, and the One Tap on entry would undo
   // the sign-out in silence. A shared phone is the whole reason sign-out exists at all.
   try { if (authGis && authGis.disableAutoSelect) authGis.disableAutoSelect(); } catch (e) {}
+  try { localStorage.setItem(AUTH_OUT_LS, '1'); } catch (e) {}
   const restored = (typeof identityRestore === 'function') ? identityRestore() : false;
   if (!restored){
     // The account was CREATED from this device: the identity is the device's own, only the name goes.

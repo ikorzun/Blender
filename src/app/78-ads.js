@@ -831,10 +831,19 @@ const Ads = (function(){
     return catalogPromise;
   }
   function priceOf(id){
-    const it = (catalogCache || []).find(x => x && x.id === id);
+    return priceText((catalogCache || []).find(x => x && x.id === id));
+  }
+  // ⚠️ A PRICE MAY ARRIVE AS A BARE NUMBER (the bridge 2.2.0 check, 2026-09-24): its Xsolla adapter hands
+  // `price: amount` and its Playgama adapter now passes the portal's own `price` through, whose type the
+  // bundle does not fix — while every label reads «Buy » + this string. A string is shown as it is; a number
+  // gets its currency beside it, or the button would read «Buy 20». A number with no currency code is still
+  // better than the hard-wired dollar fallback, so it is shown bare as the last resort.
+  function priceText(it){
     if (!it) return null;
-    return it.price || (it.priceValue != null && it.priceCurrencyCode
-      ? it.priceValue + ' ' + it.priceCurrencyCode : null);
+    if (typeof it.price === 'string' && it.price) return it.price;
+    const v = it.priceValue != null ? it.priceValue : (typeof it.price === 'number' ? it.price : null);
+    if (v != null && it.priceCurrencyCode) return v + ' ' + it.priceCurrencyCode;
+    return typeof it.price === 'number' ? String(it.price) : null;
   }
 
   // GRANTING. Bundles go into the existing META handle buyBundle (77-save).
@@ -957,7 +966,23 @@ const Ads = (function(){
         // SAME orderId, so it is granted once and only once.
         const id = it && toGameId(it.id); if (!id) return;
         const orderId = orderKey(it.orderId);
-        if (ledgerHas(orderId)){ skipped++; return; }   // already closed — do not grant again
+        if (ledgerHas(orderId)){
+          skipped++;   // already granted here — do not grant again
+          // ⛔⛔ BUT CLOSE IT AGAIN (the full review 2026-09-24): the ledger is written BEFORE the claim, so a
+          // claim that failed once (the network, the 8 s abort, a 5xx) left the row open on the server for
+          // ever while every later pass skipped it — and a second device of the same account granted the same
+          // purchase again. An item listed here is by definition still OPEN at its provider (StoreKit lists
+          // unfinished transactions, our server unclaimed rows), and both close by the order idempotently.
+          // ⛔ Never for the Playgama bridge: it consumes by PRODUCT id and could close a different purchase.
+          if (consumesByOrder(api) && isConsumable(id)){
+            try {
+              const storeId = native ? (toNativeId(id) || id) : id;
+              const cp = api.consumePurchase(storeId, orderId);
+              if (cp && cp.catch) cp.catch(()=>{});
+            } catch(e){}
+          }
+          return;
+        }
         const r = settlePurchase(id, it);
         if (r.ok) restored++;
       });
@@ -979,6 +1004,7 @@ const Ads = (function(){
     restorePurchases,
     catalog,          // a promise with the product list (cached for the session)
     priceOf,          // the product's price string from the catalog or null (a fetch is required)
+    priceText,        // priceOf's pure formatter — the suite feeds it every adapter's shape (DEV exposes Ads)
     get paymentsOn(){ return paymentsOn(); },
     cancel, // genLevel kills a hanging show (the callbacks are closed over the old level)
     get mode(){ return mode; },

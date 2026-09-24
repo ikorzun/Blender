@@ -2487,7 +2487,7 @@ with the platform.
   - `75-audio.js` — procedural sound (Sound) + samples (playBuf) + vibrate.
   - `78-ads.js` — rewarded ads: Playgama Bridge (github.com/playgama/bridge)
     with a stub fallback. On http/https it dynamically loads the neighbouring
-    `playgama-bridge.js` (release v2.1.0 since 2026-09-03, LGPL — which is why it is NOT inlined into
+    `playgama-bridge.js` (release v2.2.0 since 2026-09-24, v2.1.0 before it; LGPL — which is why it is NOT inlined into
     index.html), `bridge.initialize()` reads `playgama-bridge-config.json`;
     if the platform supports rewarded (`isRewardedSupported`) — mode
     'bridge': the reward strictly by the REWARDED state, CLOSED before the reward = no
@@ -7011,6 +7011,10 @@ was measuring the load (an isolated probe passed at that: 19.5 → 44.8). A chec
 with a cap of 12 (the threshold 70): under the suite 52.6 → 93.9 → 30.9, it binds under any
 real load. Headless does not release vsync — 120 Hz cannot be created on the stand,
 which is why the threshold is derived from the knob (840/cap), and is not a literal.
+⛔⛔ TWO SENTENCES OF THIS PARAGRAPH ARE REFUTED (2026-09-24, BATCH 2026-09-24): «at 60 Hz it changes nothing» —
+a frame that STARTED late made the next tick arrive < 14 ms after it and dropped it, and 75-165 Hz screens fell to
+37.5-55 fps; and «headless does not release vsync» — headless Chromium on this Mac ticks rAF at ~96 Hz, so the
+cap bent every headless perf number taken since this paragraph. IN FORCE: the threshold plus a lateness credit.
 
 ## THE FROZEN BLOCK (the owner's spec 2026-08-13, answers to 13 questions)
 
@@ -8286,6 +8290,9 @@ THERE, not by rolling the physics back.
 ⚠️ Rebuilding the vendor bundle is done by the command from the header of `build.py`,
 the version is pinned in `package.json` (^0.20.0). Rollback: `git revert` +
 `npm i @dimforge/rapier3d-compat@0.19.3`.
+⛔ UNTIL 2026-09-24 THE LOCK STILL SAID 0.19.3 while package.json said ^0.20.0 — `npm ci` would have installed
+0.19.3 and a vendor rebuild would have downgraded the physics in silence. The lock pins 0.20.0 now, and the
+vendor bundle rebuilt from it is byte-identical to the shipped one (BATCH 2026-09-24).
 
 **THREE RISKS FROM AN INDEPENDENT ANALYSIS OF THE API — CHECKED ONE BY ONE.**
 1. ⛔ **«On an active pile 0.20 is 14% WORSE, p95 doubles» — NOT CONFIRMED ON OUR
@@ -20698,6 +20705,7 @@ No variant went uncaught, so no arm in test.js was changed.
 
 ### ITEM 7: THE BRIDGE AND THE ADS TRACK
 - THE BRIDGE IS CURRENT: the vendored `playgama-bridge.js` is 2.1.0, which is the newest tag and the npm `latest`. Do NOT swap it for the code-split CDN build.
+  ⛔ STALE SINCE 2026-09-24: 2.2.0 was released and is vendored now (BATCH 2026-09-24). The CDN rule stands.
 - THE TRACK (ads when the hints run out) is written to `docs/ADS-TRACK.md` and waits for his decisions D1-D9; nothing of it is in the code («we will go through it separately»).
 - TWO DEFECTS FOUND AND NOT FIXED IN THIS BATCH, named:
   1. The game never passes the placement name to the SDK: both offers go out as the fallback 'rewarded'.
@@ -20870,3 +20878,209 @@ everything»: touch a clone only when it is on `v2`, has no modified tracked fil
 in all three clones before asking whether their `main` carried anything of its own. It did not — each old position
 was already contained in GitHub's `main`, verified through the reflog — but the order was wrong: check first, move
 after.
+
+## BATCH 2026-09-24: THE FULL REVIEW — THE FRAME CAP'S CREDIT, THE HARD FAN AT EVERY SETTLE (MEASURED, NOT SHIPPED — HIS CALL), FIVE MONEY HOLES, THE TWO WORKERS, THE ICE LEAK, RAPIER 0.20 REPRODUCIBLE, BRIDGE 2.2.0 (his word, translated: «do a full code review, find the weak spots and propose solutions. Look at the engine and bridge versions, update everything. If there are weak spots in the engine, fix them. The frame rate still drops during the pour and with many objects — find hypotheses and work them through. You wrote this game, you are the strongest developer and architect, you can do it»)
+
+Eight read-only review lenses on a clean snapshot of 89eb5a9 (physics and gameplay state, per-frame main-thread
+cost, the boot, the Cloudflare workers, money and identity, comment drift, the Rapier 0.20 changelog, the canon),
+then serial perf measurements with the hypotheses written down BEFORE the first run (the pourbench PREREG), then
+the fixes that are unambiguous, each gated by its section's dry-run and a sabotage.
+
+### ⛔⛔ EVERY HEADLESS PERF NUMBER OF THIS PROJECT BEFORE THIS BATCH WAS TAKEN ON EASY AND UNDER A DISTORTED CAP
+Two facts, both measured, and each alone is enough to make the old numbers incomparable with anything after:
+1. **THE FRAME CAP BENT THE BENCH.** Headless Chromium on this Mac ticks rAF at ~96 Hz (median 10.4 ms, irregular
+   7-27) — NOT the «headless does not let go of vsync, 60 Hz» the old FPSCAP guard assumed. The fixed threshold
+   `rawMs < 840/cap = 14 ms` skipped every tick that came early and turned the bench into ~46 fps with irregular
+   33 ms gaps. Every frame number from 2026-08-12 (when the cap came in) to this batch was read off that clock.
+2. **THE BENCH RAN EASY.** On Easy `isAccessible` returns on its first line, so the sky-ray fan — the most
+   expensive thing the game does on Hard — never ran in any perf measurement but the one of 2026-08-14. The owner
+   plays Hard (his own word, 2026-08-14).
+⚠️ Compare numbers only inside this batch's ruler: headless Chromium `--use-angle=metal`, CPU ×4 by CDP, 390×844,
+cold start per rep, ≥ 3 reps per arm, the arms alternating (ABBA), medians. The whole Phase 1 of this batch was
+first run on Easy by the same mistake; the advisor's re-read caught it, and the Hard re-run changed the finding.
+
+### THE FRAME CAP: THE OLD THRESHOLD PLUS A LATENESS CREDIT (shipped — `capDecide`, 99-main; the constants in 00-config)
+The fixed threshold was right for two displays only. At 75 Hz 13.3 < 14 skips every second tick → 37.5 fps; 90 Hz
+→ 45; 100 → 50; 144 → 48; 165 → 55 — BELOW the 60 it promises. And at 60 Hz under load a frame that STARTED late
+(the previous one overran) made the next on-grid tick arrive < 14 ms after it → dropped → a 33 ms gap where 17-20
+was possible (WebKit fires a missed rAF as soon as the thread is free — exactly what a phone in Low Power Mode
+produces during the pour).
+**IN FORCE:** a tick renders when the time since the last rendered frame PLUS the credit reaches
+`CAP_THRESHOLD_K · period` (0.84 · 16.67 = the old 14 ms at 60); a frame that came later than one period leaves its
+lateness as credit (at most `CAP_CREDIT_K · period` = 8.3 ms). ⚠️⚠️ **WHILE FRAMES ARRIVE ON TIME THE CREDIT IS
+ZERO AND THIS IS EXACTLY THE OLD RULE** — the 60 and 120 Hz steady states do not change by one frame. The credit cap
+is what stops a stall from buying a burst.
+**MEASURED** (CPU ×4, 3 reps each, the arms alternating, mean frame, the old cap → the credit): the lv12 pour
+20.8 → 17.4, the lv20 pour 21.4 → 17.9, the shake 22.9 → 18.0; with no cap at all the lv12 pour reads 13.8-14.1. Simulated over tick streams (`capsim.js`): 60/120 Hz
+identical without jitter, 60 against 56-58 fps with ±2 ms of it; 75/90/100/144/165 Hz → 60-62 against
+37.5/45/50/48/55.
+⛔ **A PLAIN TOKEN BUCKET WAS BUILT, MEASURED AND REJECTED THE SAME DAY:** at 120 Hz its credit settles exactly on
+the threshold and the cadence becomes an 8.3/25 ms alternation — a regression on the one display that matters
+most (the owner's iPhone). Do not «simplify» the credit into a bucket.
+**THE GUARD:** FPSCAP, 7 arms — the pure decision over simulated 60/120/75/90/144/240 Hz streams, a late frame at
+60, a stall buys no burst, the defaults, the cap live at 12. Six sabotages (the old rule, an uncapped credit, a
+threshold of 0.5, a zero credit, the loop not asking, a comment edit): each red on its own arms, the comment
+green.
+
+### ⚡⚡ THE HEADLINE: ON HARD THE FULL SKY-RAY FAN RUNS IN ONE FRAME AT EVERY SETTLE — MEASURED; THE FIX IS BUILT AND NOT SHIPPED (HIS DECISION)
+**THE MECHANISM.** `refreshAccessibility()` (the full fan, up to 56 Rapier casts per item) runs synchronously at
+`finishIntro`, `finalizeFill` and `sleepPhysics` — i.e. twice at the end of every pour and once every time the
+pile falls asleep after a match — plus in the grind, bomb, charge and rival callbacks and in `tickFireSpawn` (the
+review's per-frame #1-#3; those were not measured separately). The 2026-08-14 cure made the BACKGROUND tick partial
+and the MATCH local; these three event sites kept the one-frame fan.
+**MEASURED ON HARD** (lv20, CPU ×4; «REST» = the frame's work minus every named phase, i.e. the fan):
+| window | Easy | Hard (base) | Hard (the burst variant) |
+|---|---|---|---|
+| the pour's end | max ~36 ms, jank50 0 | max 86.8, **3 frames > 50 ms** (REST 55-61) | max 43.3, jank50 0 |
+| each settle after a match | max 36.9 | max 67.4 / 65.4 (two A/Bs), 1-3 frames > 50 | max 40.8 / 40.6, jank50 0 |
+The lv12 pour: max 70.3, the same 3 frames. On a ×1-class phone the review estimates 15-20 ms per fan — one visible
+hitch per settle, which is the owner's «the frame rate drops with many objects».
+**THE FIX (the `hardburst` variant, four lines):** the three sites arm `accSweepBurst = ACC_SLICES` instead of the
+full fan; the loop's drain gate becomes `accSweepBurst > 0` alone (the settle burst must drain on a SLEEPING pile);
+`skipIntro` keeps its full sweep synchronous (`accSweepBurst = 0; refreshAccessibility();` after
+`sleepPhysics('skipIntro')` — the suite reads the flags right after it). Same total work, same per-item result, the
+flags converge ~8 frames later (~130 ms at 60 fps, ~270 at 30).
+**WHY IT IS NOT IN THE TREE:** it changes WHEN every page's cached accessibility converges, and the main-run
+accessibility guards (camera independence, the top item accessible 10/10, the Hard veil, the sensor probe) cannot
+be dry-run — the full suite can, and the full suite is his word («never unasked», 2026-09-12). The advisor's plan
+was the same: «if the fan dominates, it is your headline finding with a concrete fix and the two traps named, and
+he decides». **Production readers were checked:** the tap casts fresh (`handleTapInner` → `isAccessible`), the hint
+runs its own full sweep, the fire's pick casts fresh, and the deadlock/auto-shake read `availablePairs` over two
+ticks (~1.2 s) against a drain of ~130 ms. The veil is cosmetic and lerps over 0.25 s anyway.
+⚠️ THE TWO TRAPS, FOR WHOEVER APPLIES IT: (1) `skipIntro` must stay synchronous; (2) the drain must not wait for
+`physAwake` — the burst is armed exactly as the pile sleeps.
+⚠️ The first A/B (ab9) saw three dead taps in one rep of the VARIANT (a zero step, no match). The re-run with per-tap
+diagnostics (ab10, 12 settles per arm) did not reproduce them: every tap landed on the canvas, with no menu and no
+shop open. The cause is NOT known — a HUD overlap is the likeliest, not a proven one; if it recurs, the bench prints
+the element under each tap.
+
+### THE FORKS MEASURED FOR HIM, NONE SHIPPED
+- **CCD substeps (H2).** Rapier 0.20 reports the CCD phase as 0 and puts its cost in «remainder». `ccdSub` 4 → 1:
+  the step p95 −39% on the pour (18.5 → 11.3) and −26% on the shake (15.5 → 11.5; −34% at 0); rescues 0 and the
+  wall excess unchanged on the bench; the frame AVG unchanged (the bench sits at the cap). It is behaviour (the
+  anti-tunnelling complex): a 12-minute Hard soak with `ccdSub=1` before any ship, and his word.
+- **H1 — the hull input capped at 32 points.** The step p95 −11% on the pour (19.4 → 17.2) and −22% on the shake
+  (16.9 → 13.2), the frame avg unchanged; the pre-registered WIN was −15%, so the pour misses. It changes the
+  collision shapes, i.e. how the pile settles — his call.
+- **H3 SIMD, H4 the intro's two substeps, three.js 0.186:** named only (the browser floor; the look of the pour;
+  the r149 UMD ban — an upgrade means ES modules and a bundler).
+
+### MONEY AND IDENTITY — FIVE HOLES CLOSED
+1. ⛔⛔ **A SKIPPED PURCHASE IS CLAIMED AGAIN** (78-ads restore pass). The ledger is written BEFORE the claim, so a
+   claim that failed once (the network, the 8 s abort, a 5xx) left the row OPEN on the server for ever while every
+   later pass skipped it — and a second device of the same account granted the same purchase again. An item that
+   is listed is by definition still open at its provider, and both StoreKit and our worker close by the order
+   idempotently. ⛔ Never for the Playgama bridge: it consumes by PRODUCT id and could close a different purchase.
+   Guard: PAYWEB 6b (the second pass claims `cs_pay_1` again: `claimed = cs_pay_1,cs_pay_1`).
+2. ⛔⛔ **A CANCEL CLOSES THE PAYMENT TAB** (the return gate in shell.html). It returned early on `?paid=cancel`,
+   so «back» on Stripe's page booted a SECOND FULL GAME in the payment tab — two live game tabs, and whichever
+   granted the next purchase could be overwritten by the other's stale save. The gate clears the pending mark and
+   hands back an EMPTY session id — exactly what 83-pay's own cancel path writes. Guards: PAYWEB 7b (the tab opens
+   and closes itself, the mark null) and a structural arm comparing the gate's two key literals with 83-pay's
+   `PAY_PENDING_LS` / `PAY_RETURN_LS` (a copy across files, pinned).
+3. ⛔⛔ **`?dev=1` NO LONGER MAKES THE BOOST FREE WHERE A PAYMENT PROVIDER EXISTS** (90-input). `DEV` is on for any
+   host with `?dev=1` (or `mixer_dev` in localStorage), so a shared link `blendo.monster/?dev=1` handed the paid
+   boost out for nothing — the emulation predates payments. It now runs only where `Ads.paymentsOn` is false
+   (file://, localhost, a platform without payments). Guards: PAYWEB 9 (on our domain with `?dev=1` the Buy button
+   opens the payment tab, the budget does not move, the toast carries no «TEST») and 9b (the control: without a
+   provider `?dev=1` still emulates).
+4. ⛔⛔ **LOGOUT SURVIVES THE PAGE** (84-auth, `mixer_auth_out`). `disableAutoSelect` reaches Google only when the
+   library is loaded, and a session that STARTS signed in never loads it — so a Logout there armed nothing and the
+   next level's One Tap signed the same account straight back in: on a shared phone the child played and bought
+   under the parent's account. The flag makes the next `initialize` ask with `auto_select` off; a successful sign-in
+   clears it. Guard: AUTH A17.
+5. ⛔ **THE RESTORE PASS AFTER A SIGN-IN HAD NEVER RUN** (84-auth). `window.Ads` is undefined — `Ads` is a `const`
+   of 78-ads inside the build's one closure — so the guard was false on every build. `typeof Ads === 'object'`.
+   Guard: AUTH A18 (exactly one more `mine` call after the sign-in).
+⛔ **NAMED, NOT FIXED — HIS CALL:** the two-tab race itself (money #1 of the review: any second game tab's stale
+save overwrites a grant; the cure is a storage-event save sync or a single-tab lock — a design choice); a failed
+`/v1/me` during sign-in pushes the device's lower score onto the account's row (#6: tell «no row» from a failure);
+a paid session unwatched until the next launch (#7); a leaderboard key refusal that can lock payments (#8).
+
+### THE WORKERS
+- **The site worker** (deployed by me after the push, the standing rule): the preview-bot pattern named a bare
+  `Pinterest`, which also matches the Pinterest APP's in-app browser (`[Pinterest/iOS]`) — players got the 1 KB card.
+  Now `Pinterestbot|Pinterest\/0\.`. And `If-Modified-Since` answered 304 on `a >= b`: a rolled-back build restored
+  with its OLD mtime (`cp -p`, `rsync -a`) would have kept every newer holder on the build being rolled back away
+  from — now exact equality. `test:site` 34 green (three new arms), `test:site:break` two new sabotages.
+- **The pay and leaderboard workers — named for his deploy, not changed:** the pay worker throws out of `fetch()`
+  on a malformed token (`atob` before the `try`; no catch-all), returns Stripe's error text to anonymous callers,
+  and compares the admin token with `!==`; and NOTHING in the code limits anonymous writes — the Cloudflare
+  rate-limit rule is the only guard, and it cannot be read from the repo (his dashboard: WAF → Rate limiting).
+
+### THE SERVICE WORKER ANSWERS FOR THE GAME'S OWN PAGE ONLY (src/sw.js)
+The navigate branch answered EVERY navigation inside the scope with the cached game, and the scope is the whole
+site: a returning player could not reach `/terms`, `/refund`, `/privacy` (the purchase screen's own links), and on a
+first visit a navigation to `/terms` was SAVED under the document's key — from then on `/` opened the Terms page,
+with `?nosw=1` unreachable because it lives in the game's own JS. `DOC_PATH` is derived from the worker's location
+('/' on the domain, '/Blender/' on Pages); every other navigation goes to the network. Guard: a PWA arm over seven
+navigations (the legal pages, bonus.html, og.jpg, the card, a 404) — the sabotage (the path test dropped) reddens
+it alone.
+
+### THE ICE LEAK, THE DUPLICATE ATLAS, RAPIER 0.20 REPRODUCIBLE
+- **An unbroken ice crust dies with its item** (40-items `removeItem`): the crust owns a non-indexed copy of the
+  model and its material, and only the smash path freed them — a block eaten by the finale, swept by the bowl
+  collect-all or left at a regen kept ~100-560 KB in GPU and JS memory for the session. Guard: ICELEAK (a regen of
+  a level with one unbroken block drops exactly one live geometry: 28 → 27).
+- **41-props.js carried the animal atlas twice**: `glb2module.py` always emits its own embed line, and after the
+  2026-09-01 regeneration the file had the alias AND a byte-identical 14 578-byte copy that overwrote it. Removed;
+  the note at the alias says to REPLACE the generated line on the next regeneration.
+- **Rapier 0.20.0 is reproducible now.** `package.json` has said `^0.20.0` since 2026-08-14 while the LOCK still
+  pinned 0.19.3 — `npm ci` would have installed 0.19.3 and a vendor rebuild would have downgraded the physics in
+  silence. The lock pins 0.20.0 (the registry's integrity) with `engines: node >=22`; the vendor bundle rebuilt from
+  it is byte-identical to the shipped one (md5 2bb571b6…).
+
+### THE BRIDGE 2.1.0 → 2.2.0 (the release asset = the npm `dist/playgama-bridge.js`, md5 d1907f21…)
+- **The surface** on a bare page: only additions (`PLATFORM_ID.PLAYGAMA_SANDBOX`, `LAUNCH_SOURCE.POST`), nothing
+  removed. **In the game** (`ab.js`, without a platform and with `playgama`): every module's member census identical
+  but three additions (`platform.data`, `social.getPostReward`, `social.isPostRewardSupported`); the platform id
+  still `mock` off the portal (PLATPAUSE's gate); no new page or console errors. **Storage** (`ab-storage.js`, both
+  platforms): identical. **The config landmines** (`advertisement.interstitial.autoShow`, `loadingSound`) and the
+  curtain code (`setHideGate`, `showFullLoadingLogo`, the colour, the z-index): unchanged.
+- **Two new things read on the portal:** `?public_token=` in the URL overrides `saas.publicToken` (harmless — the
+  portal owns the iframe's address, and off the portal there is no leaderboard to submit to), and nothing in our code
+  is keyed on the `'playgama'` id, so a sandbox upload (`playgama_sandbox`) changes nothing.
+- ⚠️ **THE PLAYGAMA ADAPTER NOW ASKS THE PORTAL FOR THE CATALOG FIRST** and passes the portal's own `price` through
+  (2.1.0 built «N Gam» itself); the Xsolla adapter hands `price: amount`, a number. Every label is «Buy » + the price,
+  so `priceOf` now formats through `priceText`: a string as it is, a number with its currency code beside it, a bare
+  number as the last resort. Guard: PAYWEB 2b (a table of seven shapes).
+
+### WHAT THE REVIEW FOUND AND THIS BATCH DID NOT FIX (named to him, ranked)
+- **Physics (8):** the stuck-removal rescuer cannot end a level and only covers 2 of 8 removal paths (major: a last
+  stuck item leaves an empty bowl for good); the bowl-shatter callbacks ignore the pause; taps swallowed by
+  collapsing meshes; the fire clock runs through pauses (against the recorded spec) and the scheduled charge can land
+  on the first playable frame; `trimOverfill` can delete the rival; the shatter collection counts the rival as a type
+  (a stray `Save.ac` key); the fish has no box for the wall rescuer and the bomb's box is scaled twice.
+- **Per frame (14):** #1 is the headline above; also the fire picker's live fan every 20-30 s, Rapier getter churn,
+  `updateHUD`'s forced layouts, the ray glue, `rescueSweep` crossings, 140 material program-key builds on a level's
+  first frame, the paused loop re-rendering an unchanged scene, first-use shader compiles, and three minor ones
+  (the chain-bolt tick with bolts off, `matchMedia` every frame, per-frame allocations).
+- **Boot:** the 12.95 MB build parses all 106 models' geometry as JS at load; the ranked options are binary
+  geometry (−30 to −34 ms compile, −2.84 MB raw), stripping comments in the built file only (−1.41 MB raw, −13%
+  gzip), an early Rapier init, deferring what level 1 does not need.
+
+### THE RUNS
+**Every dry-runnable section of the suite, one after another, on the final build (57ea250ff8f0): 31 sections, 373
+green, 0 red** — all of them rather than the changed ones only, because the frame cap changes the clock of every
+page. The site worker 34 green and its break PASS; the bridge probes as above.
+
+**Twelve sabotage variants of this batch's own fixes** (`tools/build-variant.py` outside the tree +
+`tools/section-dryrun.js`; the tree's `index.html` md5 7a6cd9c1… identical before and after), each red on its own
+arm(s):
+
+| variant | section | red |
+|---|---|---|
+| the restore pass never closes a skipped purchase again | PAYWEB | 6b alone |
+| the cancel returns early in the return gate | PAYWEB | 7b and the keys arm (the gate's pending-key literal lived in the removed branch — an honest cascade) |
+| the gate clears a misspelt pending key | PAYWEB | 7b and the keys arm |
+| the DEV emulation ignores the provider | PAYWEB | 9 alone (the budget doubled, no payment tab) |
+| a numeric price passes bare (`if (it.price) return it.price`) | PAYWEB | 2b alone |
+| `auto_select: true` | AUTH | A17's first half alone |
+| the flag never set on Logout | AUTH | A17's first half alone |
+| the flag never cleared on sign-in | AUTH | A17's second half alone |
+| `window.Ads` back | AUTH | A18 alone |
+| the crust's dispose loop emptied | ICELEAK | its arm (a regen of two blocks dropped 0 geometries, 29 → 29) |
+| the navigate branch without the path test | PWA | the navigation arm alone |
+| a comment edit | PAYWEB | 20 green |
+
+**No full suite** — his rule («never unasked»); the settle burst needs one and waits for his word together with it.

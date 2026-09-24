@@ -26,7 +26,10 @@ const STATIC_DAY = /\.(png|jpe?g|webp|gif|svg|ico|woff2?)$/i;  // a day; the htm
 // ⛔ SEARCH ENGINES ARE DELIBERATELY ABSENT from this list (no Googlebot, no Bingbot, no Applebot):
 // handing a crawler that RANKS the page a different document than the player gets is cloaking, and it is
 // punished. A preview bot renders a card and ranks nothing, which is why the swap is legitimate for it.
-const PREVIEW_BOT = /TelegramBot|Twitterbot|facebookexternalhit|WhatsApp|Discordbot|Slackbot|Slack-ImgProxy|LinkedInBot|Pinterest|redditbot|vkShare|Iframely|SkypeUriPreview|Embedly|Mastodon|Bluesky/i;
+// ⛔ `Pinterestbot|Pinterest\/0\.` AND NEVER A BARE `Pinterest` (the full review 2026-09-24): the Pinterest APP opens
+// links in its own browser, whose user-agent carries `[Pinterest/iOS]` / `Pinterest for Android` — a bare word handed
+// a PLAYER the 1 KB card instead of the game. Its crawler says `Pinterest/0.2 (+…/bot.html)` or `Pinterestbot`.
+const PREVIEW_BOT = /TelegramBot|Twitterbot|facebookexternalhit|WhatsApp|Discordbot|Slackbot|Slack-ImgProxy|LinkedInBot|Pinterestbot|Pinterest\/0\.|redditbot|vkShare|Iframely|SkypeUriPreview|Embedly|Mastodon|Bluesky/i;
 const DOC = /^\/(index\.html)?$/;                            // the document itself, nothing else
 
 // ⚡ THE DOCUMENT'S VALIDATOR (2026-09-09-k, his «the game loads longer at the address than on GitHub
@@ -100,7 +103,11 @@ export default {
           fresh = inm.split(',').some((t) => t.trim().replace(/^W\//, '') === val.tag);
         } else if (ims && val.lastmod) {
           const a = Date.parse(ims), b = Date.parse(val.lastmod);
-          fresh = !Number.isNaN(a) && !Number.isNaN(b) && a >= b;
+          // ⛔ EQUAL, NOT `a >= b` (the full review 2026-09-24): a date that goes BACKWARDS — a rolled-back build
+          // restored with its old mtime (`cp -p`, `rsync -a` from a backup) — would answer every player who
+          // holds the NEWER build 304, i.e. keep the build being rolled back away from. A 304 only for exactly
+          // our date costs nothing: the date a browser sends is the one it was given.
+          fresh = !Number.isNaN(a) && !Number.isNaN(b) && a === b;
         }
         const h = { 'Cache-Control': 'no-cache', ETag: val.tag };
         if (val.lastmod) h['Last-Modified'] = val.lastmod;

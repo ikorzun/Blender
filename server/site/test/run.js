@@ -125,6 +125,12 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
   // 17. ⛔ NO CLOAKING: a search engine ranks the page, so it must see exactly what the player sees
   { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' } });
     expect((await res.text()) === HTML && log[0].path === '/index.html', 'CRAWLER: Googlebot gets the build — the swap is for preview bots only, ranking crawlers are never cloaked (' + log[0].path + ')'); }
+  // 17b. ⛔ THE PINTEREST APP IS A PLAYER (the full review 2026-09-24): its in-app browser carries `[Pinterest/iOS]`, and a
+  //      bare `Pinterest` in the bot list handed it the 1 KB card instead of the game. Its crawler still gets the card.
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [Pinterest/iOS]' } });
+    expect((await res.text()) === HTML && log[0].path === '/index.html', 'CRAWLER: the Pinterest APP\'s own browser gets the game, not the card (' + log[0].path + ')'); }
+  { const { res, log } = await go('https://blendo.monster/', { headers: { 'user-agent': 'Pinterest/0.2 (+https://www.pinterest.com/bot.html)' } });
+    expect((await res.text()) === CARD && log[0].path === '/card.html', 'CRAWLER: the Pinterest CRAWLER still gets the card (' + log[0].path + ')'); }
   // 18. THE PICTURE ITSELF is the crawler's second request and must pass through untouched
   { const { res, log } = await go('https://blendo.monster/og.jpg', { headers: { 'user-agent': TG } });
     const b = new Uint8Array(await res.arrayBuffer());
@@ -181,6 +187,13 @@ function sliceOk(bytes, start) { for (let i = 0; i < bytes.length; i++) if (byte
     const body = await res.text();
     expect(res.status === 200 && body === HTML,
       'DOC-DATE: an OLDER If-Modified-Since gets the whole document — a release reaches the next load (' + res.status + ' body=' + body.length + 'B)'); }
+  { // ⛔ A NEWER If-Modified-Since IS NOT FRESH (the full review 2026-09-24): after a rollback whose date went backwards,
+    //   a player holding the newer build sends a LATER date — `a >= b` answered him 304 and kept him on the build being
+    //   rolled back away from. Only exactly our date is a 304.
+    const { res } = await go('https://blendo.monster/', { headers: { 'if-modified-since': new Date(1788900000000 + 86400000).toUTCString() } });
+    const body = await res.text();
+    expect(res.status === 200 && body === HTML,
+      'DOC-DATE: a NEWER If-Modified-Since gets the whole document — a rolled-back build reaches the player (' + res.status + ' body=' + body.length + 'B)'); }
   { // ⚠️ RFC 9110 PRECEDENCE, and it is not a formality: a client that still holds a stale ETag from an
     //   edge where the tag survived must NOT be answered 304 because its date happens to look fresh.
     const { res } = await go('https://blendo.monster/', { headers: { 'if-none-match': '"stale-tag"', 'if-modified-since': LM } });

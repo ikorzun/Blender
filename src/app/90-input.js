@@ -724,7 +724,13 @@ document.querySelectorAll('#starsOverlay .st-buy').forEach(btn => {
     // the purchase goes THROUGH A PAYMENT — Ads.purchase(tier) itself carries out the payment
     // and the handing out (inside, the order is «hand out -> close»); we read {ok}. Where there
     // are no payments (a platform without payments) — the former honest «soon».
-    if (!DEV){
+    // ⛔⛔ THE FREE EMULATION IS FOR A PAGE WITHOUT A PAYMENT PROVIDER ONLY (the full review 2026-09-24). `DEV`
+    // is on for ANY host with `?dev=1` in the address (or `mixer_dev` in localStorage), so on blendo.monster a
+    // shared link `…/?dev=1` handed the paid boost out for nothing — the rule above predates payments. Where a
+    // provider exists (our domain, the portal, the wrapper) the purchase always goes through it; file://,
+    // localhost and a platform without payments keep the emulation he uses to look at the booster.
+    const payHere = !!(typeof Ads === 'object' && Ads && Ads.paymentsOn);
+    if (!DEV || payHere){
       if (!(typeof Ads === 'object' && Ads.purchase)){ toast('Coming soon'); return; }
       Ads.purchase(tier).then((res) => {
         if (!res || !res.ok){

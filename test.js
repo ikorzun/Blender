@@ -12996,6 +12996,50 @@ window.bridge = {
   }
   // ⟦BOWL140-SECTION-END⟧
 
+  // ⟦ICELEAK-SECTION-BEGIN⟧ — AN UNBROKEN ICE CRUST IS FREED WITH ITS ITEM (the full review 2026-09-24)
+  // ⛔⛔ The crust owns a geometry and a material, and only the smash path freed them: a block that left the level
+  // UNBROKEN (the finale, the bowl collect-all, a regen) kept both for the rest of the session. The measure is the
+  // renderer's own count of live geometries across a regen of the SAME level below the distinct cap: there the deal is
+  // every open type (the second deal uploads no new geometry), the ice schedule has moved past the level (the second
+  // deal carries no block), and the bomb schedule is pointed away (a bomb in only one of the two deals would move the
+  // count by its own geometry). A healthy build drops exactly one geometry per block; a leaking one drops none.
+  // SABOTAGE: drop the crust's disposal from removeItem (40-items) — the drop is 0.
+  {
+    const ip = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const ipErr = [];
+    ip.on('pageerror', (e) => ipErr.push(e.message));
+    await ip.goto('file://' + PAGE_FILE + '?dev=1');
+    let leak = { lv: 0, why: 'no page' };
+    try {
+      await ip.waitForFunction(() => window.__game && window.__game.frozenInfo, null, { timeout: 30000 });
+      leak = await ip.evaluate(async () => {
+        const g = window.__game; const sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        let lv = 0;
+        for (let i = 0; i < 10 && !lv; i++){
+          const at = Math.max(11, g.frozenNextAt()); if (at > 22) break;
+          g.setLevel(at); g.regen(); g.skipIntro(); await sl(450);
+          if (g.frozenInfo().length) lv = at;
+        }
+        if (!lv) return { lv: 0, why: 'no ice dealt at 11..22' };
+        const nIce = g.frozenInfo().length;
+        g.bombNextAt(999);          // no bomb in the second deal: its geometry would move the count
+        await sl(300);
+        const g0 = g.perfStats().geoms;
+        g.regen(); g.skipIntro(); await sl(450);
+        const nIce2 = g.frozenInfo().length;
+        const g1 = g.perfStats().geoms;
+        g.setLevel(1);              // a section that raises the level puts it back (the canon's rule)
+        return { lv, nIce, nIce2, g0, g1, drop: g0 - g1 };
+      });
+    } catch (e) { leak = { lv: 0, why: 'threw: ' + String(e).slice(0, 120) }; }
+    console.log('iceleak:', JSON.stringify(leak));
+    expect(leak.lv > 0 && leak.nIce >= 1 && leak.nIce2 === 0 && leak.drop === leak.nIce && ipErr.length === 0,
+      'ICE: an UNBROKEN crust is freed with its item — a regen of the same level drops exactly one live geometry per block ('
+      + JSON.stringify(leak) + (ipErr.length ? ', errors ' + ipErr.join(' | ') : '') + ')');
+    await ip.close();
+  }
+  // ⟦ICELEAK-SECTION-END⟧
+
   // ⟦PROGRESSION-SECTION-BEGIN⟧ — THE TWO PROGRESSION BOUNDARIES, DERIVED (stage «Stale notes», 2026-09-13). Four comments
   // quoted these boundaries as literals («82», «89», «level 112», «a whole nine») and every one went stale on an edit of
   // TYPES, PAIRS, LEVEL_TYPES_MIN or the distinct cap. This block states them from live hooks instead, so the numbers
@@ -13258,7 +13302,10 @@ window.bridge = {
       let offline = !!opt.offline;
       const box = {
         console, URL,
-        self: { addEventListener: (t, f) => { handlers[t] = f; }, location: { origin: 'https://blendo.monster' },
+        // the worker derives its own page's path from `location.href` (2026-09-24): '/' on the domain, '/Blender/'
+        // on GitHub Pages. `opt.href` stands the sandbox on either scope.
+        self: { addEventListener: (t, f) => { handlers[t] = f; },
+          location: { origin: new URL(opt.href || 'https://blendo.monster/sw.js').origin, href: opt.href || 'https://blendo.monster/sw.js' },
           skipWaiting: async () => { calls.push('skipWaiting'); }, clients: { claim: async () => { calls.push('claim'); } } },
         caches: {
           keys: async () => [...stores.keys()],
@@ -13283,6 +13330,8 @@ window.bridge = {
     };
     const sw = runSw();
     const ORI = 'https://blendo.monster/';
+    // the build's cache name for arm 4b, derived like arm 5's (the stamp is the md5 of the build with its label blank)
+    const BUILD_CACHE_4B = 'blendo-' + crypto.createHash('md5').update(fs.readFileSync(PAGE_FILE, 'utf8').replace(/id="buildVer">[^<]*</, 'id="buildVer">__BUILDVER__<')).digest('hex').slice(0, 12);
     const shot = (url, o) => { const e = sw.ev(url, o); sw.handlers.fetch(e); return e.took !== null; };
     const untouched = {
       range: shot(ORI + 'music.mp3', { range: true }),
@@ -13298,6 +13347,30 @@ window.bridge = {
     expect(Object.keys(untouched).every(k => untouched[k] === false),
       'PWA: the worker does not intercept a single media or foreign request — a Range header (on media OR on the document), music.mp3, anything under /video/, a cross-origin fetch (the video domain, the leaderboard), a POST, and any same-origin path outside the allowlist (' +
       JSON.stringify(untouched) + '). ⛔⛔ THE RANGE ARM IS THE ONE THAT MATTERS: a respondWith on a Range request answers Safari\'s two-byte probe with a 200 out of the Cache API, and the film and the music then play NOTHING — on a build where every other assert here is green. The site Worker slices ranges on purpose (2026-09-08-g); a service worker in front of it would undo that. ⛔ SABOTAGE: drop the `headers.has(\'range\')` line (the DOCUMENT-with-Range case flips). ⚠️ DROPPING THE MEDIA TEST ALONE CHANGES NOTHING — measured: the allowlist does not list media either, so MEDIA is the layer that saves the NEXT edit. The pair that proves it: add music.mp3 to ALLOW (still green — MEDIA refuses it) and then remove MEDIA (red)');
+
+    // ---- 4b. ⛔⛔ A NAVIGATION IS ANSWERED FOR THE GAME'S OWN PAGE ONLY (the full review 2026-09-24). The worker used
+    // to hand the cached game to EVERY navigation in its scope: the legal pages behind the purchase screen's links
+    // were unreachable for a returning player, and a first-visit navigation to /terms was SAVED under the document's
+    // key — from then on `/` opened the Terms page. The control is the second half: the game's own page, spelled
+    // either way and with a query, IS still answered (without it the arm is satisfied by a worker that answers no
+    // navigation at all, i.e. one that lost the instant start). And the same on GitHub Pages' scope, where the
+    // page is '/Blender/' and bonus.html lives beside it.
+    {
+      const navs = ['terms', 'refund', 'privacy', 'bonus.html', 'og.jpg', 'card.html', 'no-such-page'];
+      const dom = runSw({ noOld: true });
+      const other = {}; for (const n of navs) { const e = await dom.go(ORI + n); other[n] = e.took !== null; }
+      const own = {}; for (const u of [ORI, ORI + 'index.html', ORI + '?paid=cs_x', ORI + 'index.html?flow=0']) {
+        const e = await runSw().go(u); own[u.slice(ORI.length) || '/'] = e.took !== null; }
+      const docAfterTerms = dom.docIn(BUILD_CACHE_4B);
+      const pg = runSw({ noOld: true, href: 'https://ikorzun.github.io/Blender/sw.js' });
+      const PG = 'https://ikorzun.github.io/Blender/';
+      const pgOwn = (await pg.go(PG)).took !== null, pgIdx = (await pg.go(PG + 'index.html')).took !== null;
+      const pgBonus = (await pg.go(PG + 'bonus.html')).took !== null;
+      expect(Object.keys(other).every(k => other[k] === false) && !docAfterTerms &&
+             Object.keys(own).every(k => own[k] === true) && pgOwn && pgIdx && !pgBonus,
+        'PWA: a navigation is answered for the game\'s own page only — the legal pages, bonus.html, a picture opened as a page and an unknown path go to the network untouched, and nothing is written under the document\'s key by them; the game\'s page (`/`, `/index.html`, with a query) IS answered, on the domain and on the GitHub Pages scope (' +
+        JSON.stringify({ other, docAfterTerms, own, pgOwn, pgIdx, pgBonus }) + '). ⛔ SABOTAGE: drop the `isDocPath` test in the navigate branch — every other navigation is answered with the cached game (the legal links unreachable, and a first-visit /terms saved as the game)');
+    }
 
     // ---- 5. and what it DOES take, and in which order
     // ⛔⛔ THIS ARM IS THE INVERSE OF WHAT IT SAID UNTIL 2026-09-10-i, AND ITS OLD SABOTAGE IS THE NEW HEALTHY
@@ -18150,35 +18223,79 @@ window.bridge = {
   // ⛔ THE SECOND SECTION OF EDGES WAS REMOVED 2026-08-14 — see the tombstone of the first one above.
   // It guarded the lockstep of the theme-color meta with the background; the meta was removed together with the machinery.
 
-  // ===== THE FRAME CAP 60 FPS (a perf pass 2026-08-12) =====
+  // ===== THE FRAME CAP 60 FPS (a perf pass 2026-08-12; a TOKEN BUCKET since 2026-09-24) =====
+  // ⟦FPSCAP-SECTION-BEGIN⟧
   // The iPhone Pro drives rAF at 120 Hz — the game was drawing twice as often as intended;
   // the cap is purely presentational (the fixed step is intact, dt accumulates on a skip).
-  // ⚠️ HEADLESS DOES NOT LET GO OF VSYNC — 120 Hz cannot be created on the stand, therefore the threshold
-  // is derived from the cap (840/cap) and the mechanic is proved by a HARD cap at
-  // the ordinary 60 Hz: the frames are obliged to grow heavier up to the threshold and to come back.
-  // ⚠️⚠️ THE CAP FOR THE CHECK IS 12 (a threshold of 70 ms), AND NOT 30 (a threshold of 28): the first
-  // version with a cap of 30 WENT RED UNDER THE FULL SUITE — the base frames of the stand under
-  // load are already 34.7 ms, the threshold of 28 bound NOTHING, and the guard measured
-  // the load, and not the mechanic (the isolated probe passed at that: 19.5 →
-  // 44.8). The threshold of a check is obliged to lie ABOVE any real load of the stand.
-  // ⚠️ ITS OWN PAGE (2026-08-14): the section lived on the page of the removed section of edges
-  // and was orphaned together with it — the run fell with `chPage is not defined` WITHOUT
-  // a verdict. The canon: a guard brings up the needed state itself, and does not inherit it.
+  // ⛔⛔ THE FIXED THRESHOLD `rawMs < 840/cap` IS CANCELLED (the full review 2026-09-24): it cut 75/90/100/
+  // 144/165 Hz screens to 37-55 fps and dropped the frame after every late one at 60 Hz. And the premise
+  // this section was written on — «HEADLESS DOES NOT LET GO OF VSYNC, the stand is 60 Hz» — is FALSE on
+  // this Mac: headless Chromium ticks rAF at ~96 Hz (median 10.4 ms, 7-27 irregular), so the old cap had
+  // been turning every headless perf number of the project into ~46 fps. The stand's cadence is PRINTED
+  // below and never asserted — it is a property of the machine, not of the game.
+  // ⛔ A PLAIN TOKEN BUCKET WAS BUILT FIRST AND REJECTED BY SIMULATION: at 120 Hz it judders 8.3/25 ms. The rule in
+  // force is the old threshold PLUS a lateness credit, identical to the old one while frames are on time.
+  // ⚠️⚠️ THE MECHANISM IS PROVED ON THE PURE DECISION (`__game.capDecide`), NOT ON THE STAND: a display the
+  // stand does not have (75/90/144/240 Hz, a late 60 Hz tick) cannot be created in headless, so the
+  // arms feed the production function the tick sequence of each display and count what renders. The
+  // page part below keeps the old two-sided binding/return on the LIVE loop (the wiring).
   const chPage = await browser.newPage({ viewport: { width: 390, height: 780 } });
   await chPage.goto('file://' + PAGE_FILE);
   await chPage.waitForFunction(() => window.__game && window.__game.alive() > 0, { timeout: 60000 });
   await chPage.evaluate(() => window.__game.skipIntro());
   await chPage.waitForTimeout(400);
-  // ⚠️⚠️ THE SIGN OF BINDING IS THE MINIMUM OF THE FRAME, NOT P95. The second version compared
-  // p95 and went red on the RETURN: the window «cap 60 again» fell into a general sag
-  // of the stand (74.8 at a base of 30.9) — p95 measures the load. The minimum is deaf to it BY
-  // CONSTRUCTION: the load lengthens the frames, a frame SHORTER than the threshold it will not create;
-  // with a cap of 12 the minimum is obliged to be ≥ ~the threshold 70, with a cap of 60 vsync gives ~16.7.
+  const capSim = await chPage.evaluate(() => {
+    const g = window.__game, cap = g.fpsCapInfo().cap;
+    // drive the pure decision over `sec` seconds of ticks every `iv` ms (or an explicit list)
+    const drive = (ivs) => { let credit = 0, since = 0, ren = 0, back2back = 0, prevRun = false, maxRun = 0, runLen = 0;
+      for (const iv of ivs){ since += iv; const c = g.capDecide(credit, since, cap);
+        if (c.run){ credit = c.credit; since = 0; ren++; if (prevRun) back2back++; runLen++; maxRun = Math.max(maxRun, runLen); }
+        else runLen = 0;
+        prevRun = c.run; }
+      return { ren, back2back, maxRun }; };
+    const ticks = (hz, sec) => Array.from({ length: Math.round(hz * sec) }, () => 1000 / hz);
+    const r = {};
+    for (const hz of [60, 75, 90, 120, 144, 240]) r['hz' + hz] = drive(ticks(hz, 4));
+    // 60 Hz with one late start: the grid is 16.67, a frame that started 5 ms late makes the next tick
+    // 11.67 ms after it — the old rule dropped exactly that tick
+    r.late60 = drive([16.667, 16.667, 21.667, 11.667, 16.667, 16.667, 26.667, 6.667, 16.667, 16.667]);
+    // a 1 s stall, then a 120 Hz stream: the credit is capped — at most ONE early frame, never a burst
+    r.stall = drive([1000].concat(ticks(120, 1)));
+    return r;
+  });
+  // the stand's own rAF cadence — information only (see the header)
+  const standTick = await chPage.evaluate(() => new Promise(res => { const a = []; let last = 0, n = 0;
+    const f = (ts) => { if (last) a.push(ts - last); last = ts; if (++n < 61) requestAnimationFrame(f); else { a.sort((x, y) => x - y); res(+a[a.length >> 1].toFixed(1)); } };
+    requestAnimationFrame(f); }));
+  console.log('frame cap — the pure decision over displays (4 s each):', JSON.stringify(capSim), '| the stand ticks rAF every', standTick, 'ms (median)');
+  expect(capSim.hz60.ren >= 239 && capSim.hz120.ren >= 239 && capSim.hz120.ren <= 241 && capSim.hz120.back2back === 0,
+    '⚠️⚠️ THE FRAME CAP ON 60 AND 120 Hz: every 60 Hz tick renders, every SECOND 120 Hz tick renders and no two ' +
+    'in a row — 60 fps on both (' + JSON.stringify({ hz60: capSim.hz60, hz120: capSim.hz120 }) +
+    '). SABOTAGE: CAP_THRESHOLD_K 0.5 — the 120 Hz off-ticks render and the count doubles.');
+  expect(capSim.hz75.ren >= 232 && capSim.hz90.ren >= 232 && capSim.hz144.ren >= 232 &&
+         capSim.hz75.ren <= 256 && capSim.hz90.ren <= 256 && capSim.hz144.ren <= 256,
+    '⚠️⚠️ THE FRAME CAP DOES NOT STARVE A 75/90/144 Hz SCREEN: 58-64 fps on each over 4 s — the bare threshold ' +
+    '`< 840/cap` gave 37.5 / 45 / 48 (' + JSON.stringify({ hz75: capSim.hz75, hz90: capSim.hz90, hz144: capSim.hz144 }) +
+    '). SABOTAGE: drop the credit from capDecide (`rawMs < …` alone) — this arm goes red.');
+  expect(capSim.hz240.ren <= 241 && capSim.hz240.ren >= 232,
+    '⚠️ THE CAP STILL CAPS: a 240 Hz stream renders at most 60 fps (' + JSON.stringify(capSim.hz240) + ')');
+  expect(capSim.late60.ren === 10,
+    '⚠️⚠️ A LATE FRAME AT 60 Hz DOES NOT COST THE NEXT ONE: after a start 5 ms late the next tick comes 11.7 ms ' +
+    'later and still renders, and after one 10 ms late the 6.7 ms tick does too — the bare threshold dropped both (' +
+    JSON.stringify(capSim.late60) + '). SABOTAGE: CAP_CREDIT_K 0 — no credit, and the two ticks are dropped.');
+  expect(capSim.stall.maxRun <= 2 && capSim.stall.ren <= 62,
+    '⚠️ A STALL BUYS NO BURST: after 1 s of nothing, a 120 Hz stream renders at most two ticks in a row and ~60/s ' +
+    '(' + JSON.stringify(capSim.stall) + '). SABOTAGE: drop the Math.min(CAP_CREDIT_K * P, …) — the credit piles up.');
+  // ⚠️⚠️ THE LIVE LOOP: the old two-sided binding/return, re-based on the bucket. THE SIGN OF BINDING IS THE MEAN
+  // AND THE MINIMUM OF THE FRAME, NOT P95 (p95 measures the load of the stand). With cap 12 a frame needs the
+  // threshold 70 ms minus at most the credit 41.7 — so none is shorter than ~28 ms — and they average near
+  // 1000/12 = 83; with cap 60 the frames come back to the stand's own cadence. ⚠️ The minimum is NOT pushed
+  // towards green by load any more: a slow frame now leaves a credit that shortens the next one. Hence 25, not 55.
   const measureFpsCap = async (cap) => {
     await chPage.evaluate((c) => { window.__game.cfg.fpsCap = c;
       window.__game.perfReset(); window.__game.shake(); }, cap);
     await chPage.waitForTimeout(2500);
-    return chPage.evaluate(() => ({ p95: window.__game.perfStats().frame.p95,
+    return chPage.evaluate(() => ({ p95: window.__game.perfStats().frame.p95, avg: window.__game.perfStats().frame.avg,
                                     min: window.__game.frameMin() }));
   };
   const fpsCap60First = await measureFpsCap(60);
@@ -18186,33 +18303,22 @@ window.bridge = {
   const fpsCap60Again = await measureFpsCap(60);
   const fpsCapDefaults = await chPage.evaluate(() => window.__game.fpsCapInfo());
   console.log('frame cap:', JSON.stringify({ fpsCap60First, fpsCap12, fpsCap60Again, fpsCapDefaults }));
-  expect(fpsCapDefaults.cap === 60 && fpsCapDefaults.thresholdMs === 14,
-    '⚠️⚠️ THE FRAME CAP: the real defaults are intact — cfg.fpsCap 60, the threshold 840/60 = 14 ms (' +
-    JSON.stringify(fpsCapDefaults) + ')');
-  // ⚠️⚠️ THE THIRD EDITION OF THE THRESHOLD, AND ALL THREE TIMES THE LOAD OF THE STAND IS TO BLAME.
-  // The history: (1) p95 with a cap of 30 — red under the suite; (2) THE MINIMUM with a cap of 12 —
-  // it held until the suite grew; (3) the ABSOLUTE threshold of the return went down
-  // (`fpsCap60Again.min <= 30`): the grown suite gave 32.3 against 16-18 in the past
-  // runs. ⚠️ The relative form IS KEPT even after the suite got thin again
-  // (the sections of the bonus level moved away 2026-08-18): an absolute is wrong here
-  // BY THE LAW below, and not by the current weight of the run.
-  // ⚠️ THE DIFFERENCE BETWEEN THE TWO HALVES IS LOAD-BEARING, AND IT EXPLAINS THE CHOICE:
-  //   • THE BINDING (cap 12 → minimum ≥ 55) can be held by an ABSOLUTE: the load
-  //     only LENGTHENS the frames, that is, pushes this value TOWARDS green
-  //     and cannot fake a red;
-  //   • THE RETURN (cap 60 again) MUST NOT be held by an absolute for the same reason —
-  //     the load lengthens the frames and breaks it on a sound build. Therefore it is
-  //     now RELATIVE: the return is obliged to be noticeably shorter than the binding.
-  // ⛔ The ability to catch a breakage has not changed: remove the cap — and `fpsCap12.min`
-  // will fall to 17, then the ratio will collapse to one, and the absolute on the left too.
-  expect(fpsCap12.min >= 55 && fpsCap60Again.min !== null &&
-         fpsCap60Again.min < fpsCap12.min * 0.6 &&
-         fpsCap12.min > fpsCap60Again.min * 1.8,
-    '⚠️⚠️ THE FRAME CAP IS LIVE: with a cap of 12 the MINIMUM of the frame is pressed to the threshold 70, with ' +
-    'a cap of 60 there are frames at 16.7 again — the binding and the return by the minimum (' +
+  expect(fpsCapDefaults.cap === 60 && fpsCapDefaults.thresholdMs === 14 && fpsCapDefaults.creditMaxMs === 8.3,
+    '⚠️⚠️ THE FRAME CAP: the real defaults are intact — cfg.fpsCap 60, the threshold 0.84/60 s = 14 ms, the ' +
+    'lateness credit at most 8.3 ms (' + JSON.stringify(fpsCapDefaults) + ')');
+  // ⚠️ THE TWO HALVES KEEP THEIR OLD SHAPES AND THEIR OLD REASONS: the BINDING is held by ABSOLUTES (the load
+  // only lengthens frames — it pushes the mean and the minimum TOWARDS green and cannot fake a red); the RETURN
+  // is RELATIVE (the load lengthens frames and would break an absolute on a sound build).
+  // ⛔ The ability to catch a breakage: remove the cap — the cap-12 mean falls to the stand's ~10-20 ms and the
+  // ratio collapses to one.
+  expect(fpsCap12.avg >= 60 && fpsCap12.min >= 25 && fpsCap60Again.avg > 0 &&
+         fpsCap60Again.avg < fpsCap12.avg * 0.6,
+    '⚠️⚠️ THE FRAME CAP IS LIVE: with a cap of 12 the frames average ≥ 60 ms (1000/12 = 83) and none is shorter ' +
+    'than the cap admits (~28), with a cap of 60 they come back — the binding by absolutes, the return relative (' +
     JSON.stringify({ fpsCap60First, fpsCap12, fpsCap60Again }) + ')');
 
   await chPage.close();
+  // ⟦FPSCAP-SECTION-END⟧
 
   // ===== A PAUSE DURING THE INTRO (the owner's complaint 2026-08-12) =====
   // «on pause the timer of the game does not stop and after some time the mixer
@@ -21226,6 +21332,18 @@ window.bridge = {
     });
     expect(price.p === '€1.99',
       'THE LABEL READS THE CURRENCY FROM THE SERVER: ' + price.p + ' (the markup no longer decides)');
+    // --- 2b. A NUMERIC PRICE (the bridge 2.2.0 check, 2026-09-24): its Xsolla adapter hands `price: amount`, its
+    // Playgama adapter passes the portal's own `price` through with no type fixed — and every label is «Buy » +
+    // this string. The pure formatter is fed each shape; «20» alone next to «Buy» would read as a price in dollars.
+    // ⛔ SABOTAGE: priceText back to `it.price || …` — the numeric rows return the bare 20.
+    const shapes = await pp.evaluate(() => {
+      const f = window.__ads.priceText;
+      return [f({ id: 'x', price: '49 Gam' }), f({ id: 'x', price: 20, priceValue: 20, priceCurrencyCode: 'Gam' }),
+        f({ id: 'x', price: 20, priceCurrencyCode: 'Gam' }), f({ id: 'x', priceValue: 20, priceCurrencyCode: 'Gam' }),
+        f({ id: 'x', price: 20 }), f({ id: 'x', price: null }), f(undefined)];
+    });
+    expect(JSON.stringify(shapes) === JSON.stringify(['49 Gam', '20 Gam', '20 Gam', '20 Gam', '20', null, null]),
+      'A NUMERIC PRICE GETS ITS CURRENCY: ' + JSON.stringify(shapes));
 
     // --- 3. THE FIRST CONTACT CARRIES THE KEY, AND IT IS THE LEADERBOARD'S OWN
     // ⚠️ The signature is RECOMPUTED HERE from `Save.lk` and the exact string the server expects
@@ -21342,6 +21460,22 @@ window.bridge = {
     expect(again.r && again.r.restored === 0 && again.r.skipped === 1 && again.bb === 30 * 60 * 1000,
       'THE SAME PURCHASE IS NEVER GRANTED TWICE: restored ' + (again.r && again.r.restored)
       + ', skipped ' + (again.r && again.r.skipped) + ', the budget still ' + again.bb);
+    // --- 6b. AND THE SKIPPED PURCHASE IS CLOSED AGAIN ON THE SERVER (the full review 2026-09-24)
+    // ⛔⛔ The ledger is written BEFORE the claim, so a claim that never reached the server used to leave the
+    // row OPEN for ever while every later pass skipped it — and a second device of the same account granted
+    // the same purchase again. The skip branch now re-sends the claim BY THE ORDER (idempotent on the
+    // server). The claim is fire-and-forget inside the pass, so the arm waits for the FACT.
+    // SABOTAGE: drop the consume from the skip branch (78-ads) — the claims stay one and the row stays open.
+    try {
+      await pp.waitForFunction(() => {
+        try { return (JSON.parse(localStorage.getItem('__payState') || '{}').claimed || []).length >= 2; }
+        catch (e) { return false; }
+      }, null, { timeout: 8000 });
+    } catch (e) {}
+    const st6 = await payRead(pp, '__payState');
+    expect((st6.claimed || []).join(',') === 'cs_pay_1,cs_pay_1' && (st6.items || []).length === 0,
+      'A SKIPPED PURCHASE IS CLOSED AGAIN ON THE SERVER, NOT LEFT OPEN FOR THE NEXT DEVICE: claims ['
+      + (st6.claimed || []).join(',') + '], rows left ' + (st6.items || []).length);
 
     // --- 7. A CANCEL IS NOT A PURCHASE
     await pp.evaluate(() => {
@@ -21356,6 +21490,50 @@ window.bridge = {
     const cancAsks = (await payRead(pp, '__payLog')).filter(r => r.url.indexOf('/v1/mine') >= 0).length;
     expect(canc.pend === null && canc.search.indexOf('paid=') < 0 && cancAsks === 0,
       'A CANCEL CLEARS THE MARK AND ASKS NOTHING: mark ' + canc.pend + ', asks ' + cancAsks);
+
+    // --- 7b. A CANCEL IN THE PAYMENT TAB CLOSES THAT TAB (the full review 2026-09-24)
+    // ⛔⛔ The return gate used to step aside on `paid=cancel`, so «back» on Stripe's page booted a SECOND FULL
+    // GAME in the payment tab — two live game tabs, and whichever granted the next purchase could be
+    // overwritten by the other's stale save. With a live opener it must clear the pending mark, hand back an
+    // EMPTY session id and close. The arm above is the other half: without an opener the tab IS the game.
+    // ⚠️ «Closed» is the discriminating term: under the old gate the booted game ALSO clears the mark and
+    // hands back an empty id (83-pay's own cancel path) — but it never closes the tab.
+    // SABOTAGE: `if (p === 'cancel') return;` in the gate (shell.html) — the tab stays open.
+    await pp.evaluate(() => {
+      localStorage.setItem('mixer_pay_pending', 'cs_pay_3');
+      localStorage.removeItem('mixer_pay_return');
+      localStorage.setItem('__payState', JSON.stringify({ items: [] }));
+      localStorage.setItem('__payLog', '[]');
+    });
+    let cpop = null, cclosed = false;
+    try {
+      const both = await Promise.all([
+        payCtx.waitForEvent('page', { timeout: 15000 }),
+        pp.evaluate((u) => { window.open(u, '_blank'); }, PAY_URL_Q + '&paid=cancel'),
+      ]);
+      cpop = both[0];
+      await cpop.waitForEvent('close', { timeout: 15000 });
+      cclosed = true;
+    } catch (e) {}
+    const cst = await pp.evaluate(() => ({ pend: localStorage.getItem('mixer_pay_pending'),
+      ret: localStorage.getItem('mixer_pay_return') }));
+    expect(!!cpop && cclosed && cst.pend === null && /^:\d+$/.test(String(cst.ret)),
+      'A CANCEL IN THE PAYMENT TAB CLOSES IT: the tab opened (' + !!cpop + ') and closed itself (' + cclosed
+      + '), the mark ' + cst.pend + ', the hand-back ' + cst.ret + ' (an empty session id)');
+    if (cpop && !cclosed) { try { await cpop.close(); } catch (e) {} }
+    // ⚠️ THE GATE RUNS BEFORE 83-pay EXISTS, so it spells the two keys as literals; this states that the
+    // literals ARE 83-pay's constants, on the shipped file. A rename on one side would leave the cancel
+    // clearing a key nobody reads.
+    // SABOTAGE: rename 'mixer_pay_pending' in the gate — this arm AND the one above.
+    const gAt = shipped.indexOf('id="payReturnGate"');
+    const gSrc = gAt > 0 ? shipped.slice(gAt, shipped.indexOf('</script>', gAt)) : '';
+    const litPend = (gSrc.match(/localStorage\.removeItem\('([^']+)'\)/) || [])[1];
+    const litRet = (gSrc.match(/localStorage\.setItem\('([^']+)'/) || [])[1];
+    const cPend = (shipped.match(/const PAY_PENDING_LS = '([^']+)'/) || [])[1];
+    const cRet = (shipped.match(/const PAY_RETURN_LS = '([^']+)'/) || [])[1];
+    expect(!!cPend && !!cRet && litPend === cPend && litRet === cRet,
+      'THE RETURN GATE NAMES THE KEYS 83-pay OWNS: pending ' + litPend + ' = ' + cPend + ', return '
+      + litRet + ' = ' + cRet);
 
     // --- 8. THE SERVER FORGOT THE KEY: one retry WITH it, instead of a refusal for ever
     // ⚠️ Retention deletes a row after 180 days; without this the browser would go on believing it
@@ -21373,6 +21551,65 @@ window.bridge = {
     expect(rl.length === 2 && !kOf(0) && kOf(1) && retry && retry.ok === true,
       'A FORGOTTEN KEY IS OFFERED AGAIN, ONCE: ' + rl.length + ' asks, the first without the key ('
       + !kOf(0) + '), the second with it (' + kOf(1) + ')');
+
+    // --- 9. THE BUY BUTTON GOES THROUGH THE PROVIDER EVEN WITH `?dev=1` (the full review 2026-09-24)
+    // ⛔⛔ The free emulation (`TEST: booster activated`) used to fire on ANY page carrying `?dev=1` — our own
+    // domain included, where a shared link `…/?dev=1` handed the paid boost out for nothing. This page IS a
+    // provider page with `dev=1`: a REAL click on the button must open the payment tab and ask the server for
+    // a checkout, and grant nothing on the spot. The control below keeps the emulation where he needs it.
+    // SABOTAGE: `if (!DEV)` back in place of `if (!DEV || payHere)` (90-input) — the boost is granted free.
+    await pp.evaluate(() => {
+      try { window.__game.skipIntro(); } catch (e) {}
+      localStorage.setItem('__payState', JSON.stringify({ items: [], sid: 'cs_pay_9' }));
+      localStorage.setItem('__payLog', '[]');
+      localStorage.removeItem('mixer_pay_pending');
+    });
+    try { await pp.waitForFunction(() => document.documentElement.classList.contains('uiready'), null, { timeout: 10000 }); } catch (e) {}
+    const b9 = await pp.evaluate(() => ((window.__game.boostRaw().bb || {})['5'] || 0));
+    let pop9 = null, open9 = false;
+    try { await pp.click('#x5Float', { timeout: 5000 }); open9 = true; } catch (e) {}
+    try {
+      const both = await Promise.all([
+        payCtx.waitForEvent('page', { timeout: 15000 }),
+        pp.click('#starsOverlay .st-buy', { timeout: 5000 }),
+      ]);
+      pop9 = both[0];
+    } catch (e) {}
+    try {
+      await pp.waitForFunction(() => {
+        try { return (JSON.parse(localStorage.getItem('__payLog') || '[]')).some(r => r.url.indexOf('/v1/checkout') >= 0); }
+        catch (e) { return false; }
+      }, null, { timeout: 8000 });
+    } catch (e) {}
+    const a9 = await pp.evaluate(() => ({ bb: (window.__game.boostRaw().bb || {})['5'] || 0,
+      toast: ((document.getElementById('toast') || {}).textContent || '').trim() }));
+    const co9 = ((await payRead(pp, '__payLog')) || []).filter(r => r.url.indexOf('/v1/checkout') >= 0).length;
+    if (pop9) { try { await pop9.close(); } catch (e) {} }
+    try { await pp.click('#starsClose', { timeout: 3000 }); } catch (e) {}
+    await pp.evaluate(() => { localStorage.removeItem('mixer_pay_pending'); });
+    expect(open9 && !!pop9 && co9 === 1 && a9.bb === b9 && a9.toast.indexOf('TEST') < 0,
+      'THE BUY BUTTON PAYS THROUGH THE PROVIDER EVEN WITH ?dev=1: the popup opened (' + open9 + '), the payment tab ('
+      + !!pop9 + '), checkouts asked ' + co9 + ', the budget ' + b9 + ' -> ' + a9.bb + ' (nothing free), the toast «'
+      + a9.toast + '»');
+    // --- 9b. THE CONTROL: WITHOUT A PROVIDER THE DEV EMULATION STILL HANDS THE BOOST OUT
+    // (file:// with ?dev=1 and no ?pay — the page he uses to look at the booster). Without this half the arm
+    // above is satisfied by a button that simply does nothing.
+    const ep = await payCtx.newPage();
+    ep.on('pageerror', e => payErr.push('PAGEERROR(emu): ' + e.message));
+    await ep.goto('file://' + PAGE_FILE + '?dev=1');
+    try { await ep.waitForFunction(() => !!(window.__game && window.__ads), null, { timeout: 20000 }); } catch (e) {}
+    await ep.evaluate(() => { try { window.__game.skipIntro(); } catch (e) {} });
+    try { await ep.waitForFunction(() => document.documentElement.classList.contains('uiready'), null, { timeout: 10000 }); } catch (e) {}
+    const e0 = await ep.evaluate(() => ({ on: window.__ads.paymentsOn, bb: (window.__game.boostRaw().bb || {})['5'] || 0 }));
+    let eOpen = false;
+    try { await ep.click('#x5Float', { timeout: 5000 }); await ep.click('#starsOverlay .st-buy', { timeout: 5000 }); eOpen = true; } catch (e) {}
+    try { await ep.waitForFunction((b) => (((window.__game.boostRaw().bb || {})['5'] || 0) > b), e0.bb, { timeout: 5000 }); } catch (e) {}
+    const e1 = await ep.evaluate(() => ({ bb: (window.__game.boostRaw().bb || {})['5'] || 0,
+      toast: ((document.getElementById('toast') || {}).textContent || '').trim() }));
+    expect(e0.on === false && eOpen && e1.bb === e0.bb + 30 * 60 * 1000 && e1.toast.indexOf('TEST') >= 0,
+      'THE CONTROL: WITHOUT A PROVIDER ?dev=1 STILL EMULATES THE PURCHASE: provider ' + e0.on + ', the budget '
+      + e0.bb + ' -> ' + e1.bb + ', the toast «' + e1.toast + '»');
+    await ep.close();
 
     expect(payErr.length === 0, 'THE PAYMENT PAGE RAISED NO ERRORS (' + payErr.join(' | ') + ')');
     await pp.close();
@@ -21736,6 +21973,84 @@ window.bridge = {
       expect(inn.asked === false && inn.prompted === 0 && inn.disabled === false && out.disabled === true,
         'AUTH: signed in it is not asked again, and signing out DISARMS the auto-login',
         JSON.stringify({ inn: inn, out: out }));
+      await ctx.close();
+    }
+
+    // ---- A17: THE LOGOUT OF A SESSION THAT *STARTED* SIGNED IN (the full review 2026-09-24)
+    // ⛔⛔ A12 disarms the auto-login on a page where GIS is LOADED. A session that STARTS signed in never loads
+    // it (the button is not drawn and the One Tap returns early), so `disableAutoSelect` could not run and the
+    // Logout armed nothing — and at the end of the NEXT level's intro the One Tap signed the same account
+    // straight back in: on a shared phone the child played, spent and bought under the parent's account. The
+    // flag `mixer_auth_out` outlives the page; the next `initialize` asks with auto-login OFF, the prompt still
+    // offered; a sign-in clears it. The intro is run for real, like A12 (the caller is `finishIntro`).
+    // SABOTAGES: `auto_select: true` (the flag ignored) -> the auto arm; the flag never set in authSignOut ->
+    // the same; the flag never cleared in authApply -> the cleared arm.
+    {
+      const { pg, ctx } = await authPage();
+      await pg.evaluate(async (k) => {
+        try { localStorage.removeItem('mixer_auth_out'); } catch (e) {}
+        window.__auth.score = 0;
+        window.__auth.authAns = { ok: 1, gid: 'accOut001', k: k, fresh: 0, name: 'Ivan K' };
+        await __game.authSignIn('h.p.s');
+      }, AK);
+      const boot = async () => {
+        await pg.waitForFunction(() => window.__game && window.__game.authState, null, { timeout: 30000 });
+        let ok = true;
+        try { await pg.waitForFunction(() => document.documentElement.classList.contains('introdone'), null, { timeout: 30000 }); }
+        catch (e) { ok = false; }
+        return ok;
+      };
+      await pg.reload();
+      const intro1 = await boot();
+      const pre = await pg.evaluate(() => ({ src: __game.authState().src, gis: !!window.__auth.gis,
+        prompted: window.__auth.prompted || 0 }));
+      const out = await pg.evaluate(() => { __game.authOut();
+        return { disabled: !!window.__auth.disabled, flag: localStorage.getItem('mixer_auth_out') }; });
+      await pg.reload();
+      const intro2 = await boot();
+      await pg.waitForFunction(() => window.__auth.prompted > 0, null, { timeout: 15000 }).catch(() => {});
+      const next = await pg.evaluate(() => ({ src: __game.authState().src,
+        auto: window.__auth.gis && window.__auth.gis.auto, prompted: window.__auth.prompted || 0 }));
+      // ⚠️ `pre` IS THE PRECONDITION THAT MAKES THE DEFECT REAL: signed in, GIS never loaded, so the Logout
+      // could not reach `disableAutoSelect` (`out.disabled` false). Without it the arm could pass on a page
+      // where A12's own path did the disarming.
+      expect(intro1 && intro2 && pre.src === 'g' && pre.gis === false && pre.prompted === 0
+        && out.disabled === false && out.flag === '1'
+        && next.src === '' && next.prompted === 1 && next.auto === false,
+        'AUTH: a Logout on a session that STARTED signed in still stops the next launch from signing the account back in — asked with auto-login OFF, the prompt still offered',
+        JSON.stringify({ intro1: intro1, intro2: intro2, pre: pre, out: out, next: next }));
+      const cleared = await pg.evaluate(async (k) => {
+        window.__auth.authAns = { ok: 1, gid: 'accOut001', k: k, fresh: 0, name: 'Ivan K' };
+        await __game.authSignIn('h.p.s');
+        return { flag: localStorage.getItem('mixer_auth_out'), src: __game.authState().src };
+      }, AK);
+      expect(cleared.flag === null && cleared.src === 'g',
+        'AUTH: signing in again clears the flag, so auto-login may resume on the next launch',
+        JSON.stringify(cleared));
+      await ctx.close();
+    }
+
+    // ---- A18: THE PURCHASE RESTORE PASS RUNS AFTER A SIGN-IN (the full review 2026-09-24)
+    // ⛔⛔ It was gated on `window.Ads`, and `Ads` is a `const` inside the build's one closure — never a window
+    // property — so the pass after a sign-in had never run: a player who signed in on a new device to recover a
+    // purchase waited for the next launch. The stub counts `/v1/mine`; the boot's own pass is the first ask.
+    // SABOTAGE: `window.Ads && …` back in 84-auth — no second ask.
+    {
+      const { pg, ctx } = await authPage();
+      try { await pg.waitForFunction(() => (window.__auth.mine || 0) >= 1, null, { timeout: 15000 }); } catch (e) {}
+      const m0 = await pg.evaluate(() => window.__auth.mine || 0);
+      await pg.evaluate(async (k) => {
+        window.__auth.score = 0;
+        window.__auth.authAns = { ok: 1, gid: 'accMine01', k: k, fresh: 0, name: 'Ivan K' };
+        await __game.authSignIn('h.p.s');
+      }, AK);
+      try { await pg.waitForFunction((b) => (window.__auth.mine || 0) > b, m0, { timeout: 8000 }); } catch (e) {}
+      // ⚠️ a short settle for a SECOND ask (a double pass); missing one late ask only makes the arm greener
+      await pg.waitForTimeout(400);
+      const m1 = await pg.evaluate(() => window.__auth.mine || 0);
+      expect(m0 === 1 && m1 - m0 === 1,
+        'AUTH: a sign-in runs the purchase restore pass once, straight away',
+        JSON.stringify({ boot: m0, afterSignIn: m1 - m0 }));
       await ctx.close();
     }
 

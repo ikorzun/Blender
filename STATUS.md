@@ -6,7 +6,67 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-15-b (the last Russian quotes in the comments and notes translated into English) on top of 2026-09-15 (the freeze after the intro, «Next player», your two gaps), v2 = main** · **no Russian left in the project except bonus.html** · **the game's code is proven unchanged: with comments stripped, every edited file is byte-identical** · **dry runs green: PWA 14, LOADING 3, PAYWEB 14, STCLOSE 26; the payment server's tests 41** · **no full suite, by your word** · **sign-in is live** · **on GitHub and blendo.monster** · **the level pacing (a new model every second level): not built — you are still thinking** · **your new icon is in (21 September)**
+**Build: batch 2026-09-24 (the full review: the frame cap fixed, five payment holes closed, the service worker, the site worker, the ice leak, bridge 2.2.0, Rapier made reproducible), v2 = main** · **the main cause of the frame drops on Hard is found and a fix is ready — it waits for your «yes» and a full run** · **dry runs of every section green** · **no full suite, by your word** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+
+**24 SEPTEMBER — THE FULL REVIEW: WHY THE FRAME RATE DROPS, AND WHAT I FIXED.**
+
+**The main cause of the drops, found and measured.** You play on Hard. On Hard the game checks, for every item,
+whether it can «see the sky» (that is what decides which items are grey). Three moments ran that check for the
+WHOLE pile inside a single frame: twice at the end of every pour, and once every time the pile comes to rest after
+a merge. With 140 items that one frame takes 55-87 ms on a slowed-down test machine (a stand-in for a phone), which
+is a visible hitch after almost every merge. On Easy none of this happens. My earlier measurements never saw it,
+because they were all run on Easy — that was my mistake, and it is corrected now.
+
+**The fix is built and tested, but not switched on.** It spreads the same check over 8 frames instead of one. On
+the test machine: the worst frame after a pour went from 87 ms to 43 ms, after a merge from 67 ms to 41 ms, and the
+frames over 50 ms went to zero. Nothing about what is grey changes, only when it is computed. It changes something
+every test page relies on, so it needs the full test run, which is yours to allow. Say «yes» and I switch it on
+and run the full suite the same day.
+
+**Fixed now:**
+- **The frame limiter.** The game caps itself at 60 frames a second. The old rule dropped frames it should not
+  have: on 75, 90, 144 and 165 Hz screens it gave 37-55 fps instead of 60, and at 60 Hz a single late frame cost
+  the next one too. Now a late frame is credited, so those screens get their 60, and your iPhone at 60 and 120 Hz
+  behaves exactly as before. On the test machine the average frame during the pour went from 20.8 to 17.4 ms.
+- **Payments, five holes.** A purchase whose confirmation failed once stayed open on the server, and a second
+  device of the same account could get it again: it is now closed again on every start. Pressing «back» on the
+  Stripe page left a second full copy of the game running in that tab: it now closes itself. A link with `?dev=1`
+  made the paid boost free on blendo.monster: now the purchase always goes through the payment where one exists.
+  After «Logout», the next level quietly signed the same Google account back in if the session had started signed
+  in: now «Logout» holds until you sign in again. And the «your purchases come back when you sign in» step had
+  never actually run: it runs now.
+- **The site.** People opening a link inside the Pinterest app got the small share card instead of the game: fixed.
+  And a future rollback of the site would not have reached returning players: fixed.
+- **The installed game (the one on the home screen)** answered every link on the site with the game, so the
+  Terms, Refund and Privacy pages could not be opened from it, and in one case a legal page could get stuck in
+  place of the game: fixed.
+- **A memory leak:** every ice block that was never smashed kept its crust in memory for the whole session: fixed.
+- **The physics engine** (Rapier 0.20) was already the newest, but the project's install list still pointed at the
+  old version, so a clean install would have quietly downgraded it. Fixed and checked: rebuilding gives exactly the
+  file the game uses.
+- **The Playgama bridge is updated to 2.2.0**, the newest. I compared it with 2.1.0 inside the game, on its own and
+  on the Playgama platform: nothing was removed, saving works the same, the two settings that must never appear in
+  the config are still absent. One change mattered: prices on the portal can now come as bare numbers, so the Buy
+  button now always shows the currency next to the number.
+
+**Waiting for your word (measured, not switched on):**
+- **The Hard fix above.** Needs your «yes» and a full test run.
+- **A lighter collision check (CCD).** It makes the physics step 26-39% cheaper on the test machine. It is part of
+  what stops items from flying through the walls, so it needs a 12-minute test on Hard before I would trust it.
+- **Simpler collision shapes.** 11-22% cheaper physics, but items would settle slightly differently.
+- **Found by the review and not fixed yet** (details in the project notes): if a disappearing item ever gets stuck,
+  the level cannot end; the fire and the scheduled bonus keep their clocks running during a pause; two open game
+  tabs can overwrite a purchase in each other's save; a failed leaderboard answer during Google sign-in can put the
+  phone's lower score onto the account's row. And on the servers: nothing limits how often anyone can write to the
+  leaderboard except a Cloudflare rule, and I cannot see from here whether that rule exists — please check in
+  Cloudflare: Security → WAF → Rate limiting rules.
+
+**Two things only you can tell me:** a screenshot with `?fps=1` at the end of the address, taken during the pour
+on Hard; and whether Low Power Mode is on when you notice the drops.
+
+**Checked:** every section of the test suite that can run on its own — 31 sections, 373 checks — on the final
+build, all green; twelve deliberately broken copies of this batch's fixes, each red exactly on its own check, and a
+comment-only edit green; the site's server checks 34 green. No full suite, by your word.
 
 **21 SEPTEMBER — THE NEW ICON.**
 

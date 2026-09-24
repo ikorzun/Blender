@@ -32,7 +32,8 @@ const CASES = [
   ['the weak-ETag comparison dropped (a compressed edge weakens the tag and the 304 stops matching)', "t.trim().replace(/^W\\//, '')", "t.trim()", 1],
   ['the redirect loses the path', "url.hostname = APEX; url.protocol = 'https:'; url.port = '';", "url.hostname = APEX; url.protocol = 'https:'; url.port = ''; url.pathname = '/'; url.search = '';", 2],
   // the crawler card (2026-09-09-g): four ways to get it wrong, each reddening its own arms
-  ['the crawler shortcut dropped (Telegram swallows the build again)', "if (DOC.test(url.pathname) && PREVIEW_BOT.test(request.headers.get('user-agent') || '')) {", "if (false) {", 3],
+  // 4, not 3, since 2026-09-24: the Pinterest crawler's control arm expects the card too
+  ['the crawler shortcut dropped (Telegram swallows the build again)', "if (DOC.test(url.pathname) && PREVIEW_BOT.test(request.headers.get('user-agent') || '')) {", "if (false) {", 4],
   // ⚠️ THE ANCHOR CARRIES `PREVIEW_BOT` SINCE 2026-09-09-k: two shortcuts test DOC now (the card's and the
   // document's validator), and the bare `DOC.test(url.pathname) && ` matched both — the tool said STALE
   // rather than patching one at random, which is what it is for.
@@ -40,7 +41,11 @@ const CASES = [
   // 14, not 5, since 2026-09-09-k/-m: the card shortcut stands BEFORE the document's validator, so «everyone
   // is a bot» replaces the document everywhere — 2 arms that expect the build at `/`, 3 crawler arms that
   // expect a NON-bot to get the build, and all 9 document arms (5 DOC-ETAG + 4 DOC-DATE).
-  ['the shortcut ignores the user-agent (a player is served the card)', "PREVIEW_BOT.test(request.headers.get('user-agent') || '')", "true", 14],
+  // 16 since 2026-09-24: + the Pinterest APP arm (it expects the game) and the newer-date arm (a document arm)
+  ['the shortcut ignores the user-agent (a player is served the card)', "PREVIEW_BOT.test(request.headers.get('user-agent') || '')", "true", 16],
+  // the full review 2026-09-24: the Pinterest app's own browser, and a date that goes backwards on a rollback
+  ['a bare Pinterest in the bot list (the Pinterest APP is served the card)', "Pinterestbot|Pinterest\\/0\\.|", "Pinterest|", 1],
+  ['a newer If-Modified-Since answered 304 (a rollback never reaches the player)', "&& a === b;", "&& a >= b;", 1],
   ['Vary: User-Agent dropped (a shared cache would mix the two documents)', "        r.headers.set('Vary', 'User-Agent');   // one URL, two documents: the shared cache must not mix them\n", "", 1],
   ['a missing card answered instead of falling through to the build', "if (card.status === 200) {", "if (true) {", 1],
   // the manifest's type (2026-09-09-h): forced here because the assets store need not know `.webmanifest`

@@ -60,9 +60,22 @@
    page. Both halves are guarded, and the fetch handler's own catch searches EVERY `blendo-` cache
    for a document rather than only this build's.  */
 
-const BUILD = '42b001670929';
+const BUILD = '57ea250ff8f0';
 const CACHE = 'blendo-' + BUILD;
 const DOC   = './';                       // the document is cached under ONE key, so `?flow=0` still finds it
+/* ⛔⛔ THE NAVIGATE BRANCH ANSWERS FOR THE GAME'S OWN PAGE ONLY (the full review 2026-09-24). Until then it
+   answered EVERY navigation inside the scope with the cached game — and the scope is the whole site. Two
+   defects, both real: (1) a returning player could not reach blendo.monster/terms, /refund or /privacy (the
+   purchase screen's own links) — the worker handed back a second copy of the game with no network request;
+   (2) on a first visit the install prefetches nothing, so a player whose NEXT page was a legal link had
+   `GET /terms` SAVED UNDER THE DOCUMENT'S KEY — and from then on `/` and `/?paid=…` opened the Terms page,
+   with `?nosw=1` unreachable because it lives in the game's own JS. The same held on GitHub Pages for
+   /Blender/bonus.html. `DOC_PATH` is the scope's own path — '/' on the domain, '/Blender/' on Pages —
+   derived from the worker's location, never written down; `index.html` spelled out is the same page.
+   Every other navigation goes to the network untouched; offline, a legal link gets the browser's offline
+   page instead of the game, which is correct. */
+const DOC_PATH = new URL('./', self.location.href).pathname;
+function isDocPath(p){ return p === DOC_PATH || p === DOC_PATH + 'index.html'; }
 
 /* media: never intercepted. `/video/` is listed as a path as well as by extension — the
    folder is what the intro's sources point at, and a future asset there must be safe too. */
@@ -166,6 +179,6 @@ self.addEventListener('fetch', (e) => {
   try { url = new URL(req.url); } catch (_) { return; }
   if (url.origin !== self.location.origin) return;   // the leaderboard, video.blendo.monster, the SDK
   if (MEDIA.test(url.pathname)) return;              // ⛔ see the header
-  if (req.mode === 'navigate') { e.respondWith(docFromCache(req)); return; }
+  if (req.mode === 'navigate') { if (isDocPath(url.pathname)) e.respondWith(docFromCache(req)); return; }
   if (ALLOW.test(url.pathname)) { e.respondWith(fromCacheThenNetwork(req)); return; }
 });

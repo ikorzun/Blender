@@ -748,6 +748,15 @@ function removeItem(it){
   destroyItemBody(it);
   scene.remove(it.mesh);
   it.mesh.material.dispose();
+  // ⛔ AN UNBROKEN ICE CRUST DIES WITH ITS ITEM (the full review 2026-09-24). The crust owns its geometry (a
+  // non-indexed copy of the model) and its material, and only the smash path freed them (`tickIceBooms`) —
+  // a block eaten by the finale, swept by the bowl collect-all or left on the level at a regen kept both in
+  // GPU and JS memory for the rest of the session (~100-560 KB a block, one or two blocks a level from 11).
+  // The smash path nulls `iceShell` before it gets here, so it is untouched. Freed the way tickIceBooms frees.
+  if (it.iceShell){
+    const shell = it.iceShell; it.iceShell = null;
+    for (const m of shell.children){ if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }
+  }
 }
 
 // a random item size according to the spread of the current level (the twins of a

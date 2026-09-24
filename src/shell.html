@@ -4804,10 +4804,17 @@
   // game tab would be left with a blank page and a purchase nobody asked for.
   // ⚠️ It writes the same mark 83-pay writes and reads — the game tab wakes on the `storage` event. The
   // timestamp is what makes a SECOND payment of the same session id fire the event again.
+  // ⛔⛔ A CANCEL CLOSES THE TAB TOO (the full review 2026-09-24). It used to return early, so «back» on Stripe's
+  // page booted a SECOND FULL GAME in the payment tab — two live game tabs, and whichever granted the next purchase
+  // could be overwritten by the other's stale save. A cancel with a live opener clears the pending mark here (the
+  // same key 83-pay clears) and hands back an EMPTY session id, exactly what 83-pay's own cancel path writes; the
+  // game tab's watcher then finds nothing pending and does not poll. ⚠️ The two key names are copies of 83-pay's
+  // PAY_PENDING_LS / PAY_RETURN_LS and a guard compares them.
   (function(){ try {
     var p = new URLSearchParams(location.search).get('paid');
-    if (!p || p === 'cancel') return;
+    if (!p) return;
     if (!(window.opener && !window.opener.closed)) return;
+    if (p === 'cancel') { localStorage.removeItem('mixer_pay_pending'); p = ''; }
     localStorage.setItem('mixer_pay_return', p + ':' + Date.now());
     window.close();
   } catch(e){} })();

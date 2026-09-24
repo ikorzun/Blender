@@ -647,18 +647,29 @@ function tickFireSpawn(now){
   fireNextMs = now + fireEveryMs();
 }
 
+// THE FRAME CAP'S DECISION — pure, so the suite can drive it with any tick sequence (a refresh
+// rate the stand does not have). `credit` is the lateness (ms) the last rendered frame left, `rawMs`
+// the time since that frame. Returns whether this tick renders and the credit to keep. See 00-config.
+function capDecide(credit, rawMs, cap){
+  const P = 1000 / cap;
+  if (rawMs + credit < CAP_THRESHOLD_K * P) return { run: false, credit };
+  return { run: true, credit: Math.min(CAP_CREDIT_K * P, Math.max(0, credit + rawMs - P)) };
+}
+let capCredit = 0;
 function loop(){
   requestAnimationFrame(loop);
   const now = performance.now();
   const rawMs = now - lastT;
-  // FRAME CAP (live CFG.fpsCap=60, threshold 840/cap = 14 ms — see 00-config):
-  // on 120 Hz phones we skip every second rAF tick BEFORE any
-  // work. lastT does not move — dt honestly accumulates towards the next frame,
-  // the simulation does not notice the cap (the fixed step is the same).
-  // ⚠️ The threshold is DERIVED from the cap (840/cap), not a literal: headless cannot
-  // release vsync, and a two-sided guard proves the mechanics with a cap of 30 on
-  // ordinary 60 Hz (frames must become ~33 ms). 840/60 = exactly the live 14.
-  if (CFG.fpsCap > 0 && rawMs < 840 / CFG.fpsCap) return;
+  // FRAME CAP (live CFG.fpsCap = 60; the threshold plus a lateness credit since 2026-09-24 — see
+  // 00-config): on a 120 Hz phone every second tick is skipped BEFORE any work. lastT does not move — dt honestly
+  // accumulates towards the next frame, the simulation does not notice the cap (the fixed step is
+  // the same). ⛔ The fixed threshold `rawMs < 840/cap` that stood here dropped frames on 75-165 Hz
+  // screens and after every late frame at 60 Hz.
+  if (CFG.fpsCap > 0){
+    const c = capDecide(capCredit, rawMs, CFG.fpsCap);
+    if (!c.run) return;
+    capCredit = c.credit;
+  }
   let dt = Math.min(0.033, rawMs/1000); lastT = now;
   // BOWL SHATTER: slow-mo (the owner's «yes!») — we slow down GAME time (physics,
   // fx, ticks on dt); the real clock (toasts, collection, HUD) is not touched
@@ -2510,7 +2521,11 @@ window.__game = {
       maxSub: maxSubsteps(), ccdDefault: getCcdDefault(), wallTol: getRescueWallTol(),
       waves: getWaves() };
   },
-  fpsCapInfo(){ return { cap: CFG.fpsCap, thresholdMs: CFG.fpsCap > 0 ? +(840 / CFG.fpsCap).toFixed(1) : 0 }; },
+  fpsCapInfo(){ return { cap: CFG.fpsCap, thresholdMs: CFG.fpsCap > 0 ? +(CAP_THRESHOLD_K * 1000 / CFG.fpsCap).toFixed(1) : 0,
+    creditMaxMs: CFG.fpsCap > 0 ? +(CAP_CREDIT_K * 1000 / CFG.fpsCap).toFixed(1) : 0 }; },
+  // the cap's pure decision (2026-09-24): the suite feeds it the tick sequence of a display the stand
+  // does not have and counts what renders
+  capDecide(credit, rawMs, cap){ return capDecide(credit, rawMs, cap); },
   fpsBadge(v){ fpsBadgeOn = !!v; if (!fpsBadgeOn && fpsBadgeEl){ fpsBadgeEl.remove(); fpsBadgeEl = null; } return fpsBadgeOn; },
   // the minimum of the frame ring: a deterministic sign that the cap IS BINDING —
   // load makes the frames LONGER, a minimum below the threshold will not appear from it
