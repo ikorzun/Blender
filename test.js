@@ -18500,6 +18500,214 @@ window.bridge = {
   }
   // ⟦SETTLEFAN-SECTION-END⟧
 
+  // ⟦EVENTFAN-SECTION-BEGIN⟧ — THE EVENTS' SKY-RAY FAN DRAINS AS A BURST OF SLICES TOO (the owner's «yes, do the same», 2026-09-24-v)
+  // ⛔⛔ After the settle went to a burst (2026-09-24-b) seven places still ran the FULL fan in one frame on Hard: the ice
+  // (breakIce), the bomb, the type charge, the rival, the treasure, the idle grind (every 2 s while the mixer eats) and
+  // the final top-up's +900 ms pass. They ARM the same burst now. What keeps the one-frame sweep ON PURPOSE: the hint
+  // (findHintGroup picks from the flags on its next line — E0 pins it as the control), the finale's grind (the orphans
+  // only), the bowl collect-all (an empty bowl), applyHard, skipIntro and the test doors.
+  // Each behavioural arm fires ONE event through the production path on Hard and traces the state PER FRAME IN THE PAGE:
+  // the burst must be ARMED BY THE EVENT (a frame with the pile AWAKE and slices left — a settle's burst is armed as the
+  // pile falls asleep, so it cannot pass for it), it must DRAIN, and the FULL-sweep counter must not move from the
+  // trigger through the drain. Both halves are needed: dropping the sweep altogether passes «no full sweep», and the
+  // old one-frame sweep passes neither.
+  // ⚠️ The rival and the treasure are tapped with the REAL mouse (a synthetic click from evaluate does not reach the
+  // pointer handlers), so their windows are opened and closed around the click (__efStart / __efEnd).
+  // ⚠️ `leaveSingles` runs a full sweep of its own (a test door): E7 opens its window AFTER it.
+  // SABOTAGE (each red on its own arm): an event back to refreshAccessibility() → E0 and its own arm; the same hidden
+  // (called through an alias, the armed string kept in a comment) → its own arm alone; the hint turned into a burst →
+  // E0 alone; a comment edit → green.
+  {
+    const efSrc = require('fs').readFileSync(PAGE_FILE, 'utf8');
+    const efBody = (name) => { const i = efSrc.indexOf('\nfunction ' + name + '('); if (i < 0) return '';
+      const j = efSrc.indexOf('\n}', i + 1); return j < 0 ? '' : efSrc.slice(i, j); };
+    const efCode = (b) => b.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    // E0 — structural, each function's OWN body with the comment lines dropped (a tombstone may quote the old line)
+    const e0 = {};
+    for (const nm of ['breakIce', 'detonateBomb', 'detonateCharge', 'collectRival', 'collectSurprise', 'mixerGrind', 'finalPairsRefill']){
+      const b = efCode(efBody(nm));
+      e0[nm] = b.length > 0 && b.indexOf('accSweepBurst = ACC_SLICES') >= 0 && !/refreshAccessibility\(\)/.test(b);
+    }
+    // the CONTROL: the hint keeps its synchronous full sweep, and it stands before the first read of the flags
+    const efHb = efCode(efBody('findHintGroup'));
+    const efHs = efHb.indexOf('refreshAccessibility();'), efHa = efHb.indexOf('.accessible');
+    e0.hintSync = efHs > 0 && efHa > efHs && efHb.indexOf('accSweepBurst') < 0;
+    expect(Object.keys(e0).length === 8 && Object.values(e0).every(Boolean),
+      'EVENTFAN E0: the ice, the bomb, the charge, the rival, the treasure, the grind and the final top-up ARM the slice ' +
+      'burst and run no one-frame full sweep, while the hint keeps its synchronous sweep before it reads the flags (' +
+      JSON.stringify(e0) + ')');
+
+    const ef = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const efErr = [];
+    ef.on('pageerror', (e) => efErr.push(e.message));
+    await ef.addInitScript(() => {
+      // THE WINDOW LIVES IN THE PAGE: the harness only opens and closes it, the samples are the page's own frames
+      window.__efQuiet = async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms)), q0 = performance.now();
+        g.extinguish(); g.fireDue(600000);                       // no flare-up in the window
+        while (performance.now() - q0 < 4000 && g.accBurst().left > 0){ g.stats().lastAction = performance.now(); await sl(30); }
+        g.stats().lastAction = performance.now();                // no idle grind in the window: it arms a burst of its own
+        return g.accBurst().left === 0;
+      };
+      window.__efStart = () => {
+        const g = window.__game;
+        const w = { trace: [], stop: false, full0: g.accBurst().full, slices: g.accBurst().slices, t0: performance.now() };
+        const tick = () => { if (w.stop) return; const b = g.accBurst();
+          w.trace.push({ t: performance.now(), awake: g.awake().physAwake, left: b.left, full: b.full });
+          requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+        window.__efW = w;
+        return true;
+      };
+      window.__efEnd = async (maxMs) => {
+        const g = window.__game, w = window.__efW, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        let armedAt = -1, drainedAt = -1;
+        while (performance.now() - w.t0 < maxMs){
+          await sl(40);
+          g.stats().lastAction = performance.now();
+          armedAt = -1; drainedAt = -1;
+          for (let i = 0; i < w.trace.length; i++){
+            if (w.trace[i].t < w.t0) continue;
+            if (armedAt < 0){ if (w.trace[i].awake && w.trace[i].left > 0) armedAt = i; continue; }
+            if (w.trace[i].left === 0){ drainedAt = i; break; }
+          }
+          if (drainedAt >= 0 && w.trace.length > drainedAt + 3) break;
+        }
+        w.stop = true;
+        return { armedAt, drainedAt, leftAtArm: armedAt >= 0 ? w.trace[armedAt].left : null, slices: w.slices,
+                 fullDelta: g.accBurst().full - w.full0, frames: w.trace.length, hard: g.cfg.hard };
+      };
+    });
+    await ef.goto('file://' + PAGE_FILE + '?dev=1');
+    const ef1 = {};
+    try {
+      await ef.waitForFunction(() => window.__game && window.__game.accBurst && window.__game.level(), null, { timeout: 30000 });
+      // E1 — THE ICE first, on a fresh page: its schedule is session memory and only moves forward
+      ef1.ice = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.storyEnable(false); g.cfg.hard = true;
+        const lv = g.frozenNextAt(); g.setLevel(lv); g.regen(); g.skipIntro();
+        await sl(600);
+        const f = g.frozenInfo()[0];
+        if (!f) return { why: 'no ice block at level ' + lv };
+        const quiet = await window.__efQuiet();
+        window.__efStart();
+        const broke = g.frozenBreak(f.index);
+        return Object.assign({ lv, quiet, broke }, await window.__efEnd(3000));
+      });
+      // E2 — THE IDLE GRIND (the production mixerGrind through its test door)
+      ef1.grind = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.setLevel(12); g.regen(); g.skipIntro();
+        await sl(600);
+        const quiet = await window.__efQuiet();
+        const a0 = g.alive();
+        window.__efStart();
+        g.grindNow();
+        const r = await window.__efEnd(3500);
+        return Object.assign({ quiet, eaten: a0 - g.alive() }, r);
+      });
+      // E3 — THE BOMB, dealt by pointing its schedule at the level
+      ef1.bomb = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.bombNextAt(12); g.setLevel(12); g.regen(); g.skipIntro();
+        await sl(600);
+        if (g.bombRule().inPile !== 1) return { why: 'no bomb in the pile' };
+        const quiet = await window.__efQuiet();
+        const a0 = g.alive();
+        window.__efStart();
+        const fired = g.detonate();
+        const r = await window.__efEnd(3500);
+        return Object.assign({ quiet, fired, removed: a0 - g.alive() }, r);
+      });
+      // E4 — THE TYPE CHARGE on the most numerous kind
+      ef1.charge = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.setLevel(12); g.regen(); g.skipIntro();
+        await sl(600);
+        const sn = g.typesSnapshot(); let name = null, n = 0;
+        for (const [k, v] of Object.entries(sn)) if (k !== 'surprise' && v.alive > n){ name = k; n = v.alive; }
+        const quiet = await window.__efQuiet();
+        window.__efStart();
+        g.chargeGrant(name);
+        const fired = g.detonateCharge();
+        const r = await window.__efEnd(3500);
+        return Object.assign({ quiet, name, n, fired, left: (g.typesSnapshot()[name] || { alive: 0 }).alive }, r);
+      });
+      // E5 — THE RIVAL: dealt through its test doors, lifted above the pile, tapped with the real mouse
+      const rv = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.rivalSetNext(7, 'Godwit'); g.setLevel(6); g.rivalNextAt(6); g.regen(); g.skipIntro();
+        await sl(600);
+        const info = g.rivalInfo();
+        if (!info || !(info.index >= 0)) return { why: 'no rival in the pile' };
+        g.place(info.index, 0, g.topY() + 1.1, 0); g.forceRefresh();
+        await sl(400);
+        const quiet = await window.__efQuiet();
+        return { index: info.index, px: g.pixelOf(info.index), quiet };
+      });
+      if (rv.px && !rv.px.occluded){
+        await ef.evaluate(() => window.__efStart());
+        await ef.mouse.click(rv.px.px, rv.px.py);
+        ef1.rival = Object.assign({ quiet: rv.quiet }, await ef.evaluate(async () => {
+          const r = await window.__efEnd(3500);
+          return Object.assign({ inPile: window.__game.rivalRule().inPile }, r);
+        }));
+      } else ef1.rival = { why: 'no pixel', rv };
+      // E6 — THE GOLDEN FISH: needs a bought upgrade and level 10+, then the same lift and a real tap
+      const fsh = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.starGrant(1000000);
+        const snap = g.accSnapshot(); const key = snap.length ? snap[0].key : null;
+        const bought = key ? g.buyBoost(key) : null;
+        g.setLevel(12); g.regen(); g.skipIntro();
+        await sl(600);
+        const i = g.surpriseIndex();
+        if (i < 0) return { why: 'no treasure in the pile', bought: bought && bought.ok, rule: g.surpriseRule() };
+        g.place(i, 0, g.topY() + 1.1, 0); g.forceRefresh();
+        await sl(400);
+        const quiet = await window.__efQuiet();
+        return { index: i, px: g.pixelOf(i), quiet };
+      });
+      if (fsh.px && !fsh.px.occluded){
+        await ef.evaluate(() => window.__efStart());
+        await ef.mouse.click(fsh.px.px, fsh.px.py);
+        ef1.fish = Object.assign({ quiet: fsh.quiet }, await ef.evaluate(async () => {
+          const r = await window.__efEnd(3500);
+          return Object.assign({ inPile: window.__game.surpriseRule().inPile }, r);
+        }));
+      } else ef1.fish = { why: 'no pixel', fsh };
+      // E7 — THE FINAL TOP-UP: only orphans are left, the loop pours their partners and arms the pass at +900 ms
+      ef1.refill = await ef.evaluate(async () => {
+        const g = window.__game, sl = (ms) => new Promise((r) => setTimeout(r, ms));
+        g.setLevel(12); g.regen(); g.skipIntro();
+        await sl(600);
+        const quiet = await window.__efQuiet();
+        g.leaveSingles();              // the test door's own full sweep stands BEFORE the window opens
+        window.__efStart();
+        const r = await window.__efEnd(4500);
+        return Object.assign({ quiet, done: !!g.level().finalRefillDone }, r);
+      });
+    } catch (e) { ef1.threw = String(e).slice(0, 160); }
+    await ef.close();
+    console.log('eventfan:', JSON.stringify(ef1));
+    const efOk = (r) => !!r && r.quiet === true && r.hard === true && r.armedAt >= 0 && r.leftAtArm >= r.slices - 1 &&
+                        r.drainedAt > r.armedAt && r.fullDelta === 0;
+    const efMsg = (nm, what, r) => 'EVENTFAN ' + nm + ': ' + what + ' ARMS the slice burst while the pile is awake (' +
+      (r ? r.leftAtArm : '?') + ' of ' + (r ? r.slices : '?') + ' slices left in its first frame), the burst drains, and NO ' +
+      'full sweep runs from the trigger through the drain (' + (r ? r.fullDelta : '?') + ') (' + JSON.stringify(r) + ')';
+    expect(efOk(ef1.ice) && ef1.ice.broke === true, efMsg('E1', 'breaking an ice block', ef1.ice));
+    expect(efOk(ef1.grind) && ef1.grind.eaten >= 1, efMsg('E2', 'the grinder eating the bottom pair', ef1.grind));
+    expect(efOk(ef1.bomb) && ef1.bomb.fired === true && ef1.bomb.removed >= 2, efMsg('E3', 'the bomb', ef1.bomb));
+    expect(efOk(ef1.charge) && ef1.charge.fired === true && ef1.charge.left === 0, efMsg('E4', 'the type charge', ef1.charge));
+    expect(efOk(ef1.rival) && ef1.rival.inPile === 0, efMsg('E5', 'tapping the rival', ef1.rival));
+    expect(efOk(ef1.fish) && ef1.fish.inPile === 0, efMsg('E6', 'tapping the golden fish', ef1.fish));
+    expect(efOk(ef1.refill) && ef1.refill.done === true, efMsg('E7', 'the final top-up\'s +900 ms pass', ef1.refill));
+    expect(efErr.length === 0 && !ef1.threw,
+      'EVENTFAN: the page raised no errors and the section ran to its end (' + (ef1.threw || '') + efErr.join(' | ') + ')');
+  }
+  // ⟦EVENTFAN-SECTION-END⟧
+
   // ===== A PAUSE DURING THE INTRO (the owner's complaint 2026-08-12) =====
   // «on pause the timer of the game does not stop and after some time the mixer
   // starts working». The mechanic: pauseGame in the intro REFUSED, while the menu on

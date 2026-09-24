@@ -424,7 +424,7 @@ function breakIce(it, byBomb){
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
   }
   try { popFX(it.p); } catch(e){}
-  try { refreshAccessibility(); } catch(e){}
+  accSweepBurst = ACC_SLICES;   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   try { updateHUD(); } catch(e){}
 }
 function detonateBomb(bomb){
@@ -481,7 +481,7 @@ function detonateBomb(bomb){
   setTimeout(() => afterPause(() => {
     all.forEach(removeItem);   // ⚠️ after the bang: BOWL_MERGE_MS + the pause
     wakePhysics('gameplay:L28'); // the mass above the explosion crater must settle
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 150);
 }
 
@@ -660,6 +660,8 @@ function bowlCollectAll(){
     // reached zero and the level hung without a win.
     for (const it of items){ if (it.alive){ try { removeItem(it); } catch(e){} } }
     bowlShattering = false;
+    // ⚠️ THIS FULL SWEEP STAYS (2026-09-24-v): the loop above has just removed every live item, so it runs over
+    // an empty bowl and costs nothing — the burst the other events arm would buy nothing here.
     refreshAccessibility(); updateHUD(); checkEnd(); // no live ones -> the win
   }), BOWL_MERGE_MS + 260);
 }
@@ -740,7 +742,7 @@ function detonateCharge(){
   afterPause(() => {
     victims.forEach(removeItem);
     wakePhysics('charge:settle');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   });
   return true;
 }
@@ -991,7 +993,7 @@ function collectRival(it){
   setTimeout(() => afterPause(() => {
     removeItem(it);
     wakePhysics('gameplay:rival2');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 200);
   updateHUD();
   try { refreshX5Float(); } catch(e){}       // the corner shows the window from its first frame
@@ -1018,7 +1020,7 @@ function collectSurprise(it){
   setTimeout(()=>afterPause(()=>{
     removeItem(it);
     wakePhysics('gameplay:L70');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 200);
 }
 
@@ -1238,6 +1240,9 @@ function handleTapInner(x, y){
 // ---------- The hint ----------
 // Finds the best accessible group (the maximum of identical ones within the radius) and highlights it
 function findHintGroup(){
+  // ⛔ THIS FULL SWEEP MUST STAY SYNCHRONOUS (2026-09-24-v, when every event around it went to a burst of slices):
+  // the very next line picks the best group FROM these flags, and a burst would hand it the flags of up to 8
+  // frames ago — a hint pointing at a group that is no longer reachable.
   refreshAccessibility();
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.rival && i.accessible);
   // the top of the pile is taken over the NON-flying ones, so that a fresh top-up does not raise the bar
@@ -1370,7 +1375,7 @@ function mixerGrind(){
   setTimeout(()=>afterPause(()=>{
     group.forEach(removeItem); // the shards/dust are spawned by grindShred at the shredding
     wakePhysics('gameplay:L198');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 560);
 }
 // The final clean-up: no pairable ones are left — the mixer destroys the remainder (without penalty)
@@ -1391,6 +1396,10 @@ function finaleGrind(){
   setTimeout(()=>afterPause(()=>{
     removeItem(low);
     wakePhysics('gameplay:L222');
+    // ⚠️ THIS FULL SWEEP STAYS (2026-09-24-v): the finale's pile is only the orphans — at most one per dealt kind
+    // plus the special items — and they lie in the open, so each answers on its FIRST ray. MEASURED (CPU ×4, Hard,
+    // level 20): ~1 ms for the 22 orphans against ~52 ms for a full pile of 140, where most items are buried and
+    // cast all their rays. Spreading 1 ms over 8 frames would buy nothing (BATCH 2026-09-24-v).
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 410);
 }

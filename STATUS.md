@@ -6,7 +6,40 @@ decisions, bans and traps with their reasons; [WORKSTREAMS.md](WORKSTREAMS.md) �
 a log of EVERY release with your specs verbatim; docs/ — plans.
 A new session is required to read the canon first — that rule is in its header.
 
-**Build: batch 2026-09-24-b (the Hard fix is on: the check that decides which items are grey no longer freezes a frame at the end of a pour or after a merge), v2 = main** · **the full suite: 1313 green, 0 red** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+**Build: batch 2026-09-24-v (the same fix for the other moments: the grinder, the bomb, the lightning charge, the rival, the golden fish, the ice and the final top-up), v2 = main** · **the full suite: 1322 green, 0 red** · **on GitHub and blendo.monster** · **the level pacing: not built — you are still thinking**
+
+**24 SEPTEMBER, NIGHT — THE SAME FIX FOR THE OTHER MOMENTS.**
+
+You said «do the same for the other moments», so the seven moments I listed now spread the check over 8 frames too:
+the grinder while the mixer eats, the bomb, the lightning charge, the rival, the golden fish, the ice and the final
+top-up. Measured on the slowed-down test machine (a stand-in for a phone), level 20, Hard, before → after:
+- **the grinder:** its worst frame went from 76 ms to 40 ms, and no frame is over 50 ms any more. While the mixer
+  eats, that hitch used to come every 2 seconds;
+- **the bomb:** the check used to add a second heavy frame of about 71 ms after the blast; now the check's frames
+  stay under 38 ms. The blast's own heavy frame (its effects) is still there — that is a different cost, not this fix;
+- **the lightning charge:** the frame of the tap went from 97 ms to 44 ms;
+- **the ice:** the frame of the tap went from 81 ms to 23 ms;
+- **the final top-up:** no change — the bowl is nearly empty at that moment, so the check was already cheap.
+The rival and the golden fish work exactly like the bomb; the new guard checks them, the bench did not time them.
+Which items are grey stays the same; it is only worked out over the next 8 frames.
+
+**Kept in one frame on purpose:** the hint (it chooses the group from the result on the very next line, so the
+result must be fresh), the finale's clean-up (about 1 ms — the few items left lie in the open) and a few one-off
+switches.
+
+**Two more things I measured, yours to decide:**
+- **The fire.** When an item is due to catch fire, the game checks the whole pile in one frame to choose it: about
+  55 ms of work at level 20, every 20 seconds — and every 2 seconds while nothing can catch fire. Say the word and
+  I make it use the check that is already done instead.
+- **The hint.** A press costs about 60 ms, because it checks the whole pile first. When the pile is at rest the
+  answer is already known, so a press could cost almost nothing then. Also yours to say.
+
+**Checked:** the full test suite, 1322 green, 0 red; a new guard of 9 checks that fires each moment
+through the real game and follows the check frame by frame; and 16 deliberately broken copies, each caught exactly
+where it should be, plus a comment-only edit that stayed green.
+
+**Still waiting from you:** a screenshot with `?fps=1` during a pour on Hard; whether Low Power Mode is on when you
+see the drops; and the Cloudflare rate-limit check (Security → WAF → Rate limiting rules).
 
 **24 SEPTEMBER, EVENING — THE HARD FIX IS ON.**
 
@@ -23,7 +56,8 @@ a quarter of a second in Low Power Mode. The grey already fades in over a quarte
 not be noticeable.
 
 **Still done in one frame, not changed (tell me if you want these too):** the grinder while the mixer eats, the
-bomb, the lightning charge, the rival, the golden fish, the ice and the final top-up.
+bomb, the lightning charge, the rival, the golden fish, the ice and the final top-up. ✅ Done the same night — see
+the entry above.
 
 **Checked:** the full test suite, 1313 checks, 0 red; a new guard of 7 checks that follows the
 check frame by frame; and nine deliberately broken copies of the fix, each one caught, plus a comment-only edit

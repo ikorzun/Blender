@@ -725,7 +725,9 @@ function finalPairsRefill(){
     stats.lastAction = performance.now(); // the grind is postponed — let them be collected
     level.stuck = -4;                     // a head start for the detectors while the top-up settles
     Telemetry.ev('final_refill', { lv: levelNum, n: k });
-    setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+    // ⛔ NOT the one-shot full fan any more (the owner's «yes, do the same», 2026-09-24-v): the top-up is still in the
+    // air at +900 ms, exactly when the frame is most loaded — the same burst of slices the shake's +900 ms arms.
+    setTimeout(()=>{ accSweepBurst = ACC_SLICES; updateHUD(); }, 900);
   }
   return k > 0;
 }

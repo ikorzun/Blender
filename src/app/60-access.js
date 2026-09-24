@@ -214,6 +214,14 @@ let accFlips = 0; // diagnostics: how many items changed accessibility during th
 // 41 with none over 50. skipIntro keeps a SYNCHRONOUS full sweep (the suite reads the flags right
 // after it). Still a one-frame full fan, not measured, named: the event callbacks (the idle grind,
 // the bomb, the charge, the rival, the treasure, the ice) and the final top-up's +900 ms sweep.
+// ⛔ REVISED A THIRD TIME 2026-09-24-v (the owner's «yes, do the same for the other moments»): those seven arm the
+// same burst now — breakIce at the break itself (inside the tap); detonateBomb, detonateCharge, collectRival,
+// collectSurprise and mixerGrind in their removal callbacks (⚠️ the charge's afterPause runs AT ONCE unless the game
+// is paused, so its old sweep lived in the tap's own frame too); finalPairsRefill at its +900 ms.
+// What still sweeps in ONE frame, deliberately: findHintGroup (it reads the flags on the next line), applyHard
+// (a one-off switch), finaleGrind (the orphans only), bowlCollectAll (an empty bowl), skipIntro and the test doors
+// (the suite reads right after them). The fire's pick (tickFireSpawn) casts isAccessible over the whole pile in
+// one frame too — not a sweep, named, not changed.
 // ⚠️ The cursor LIVES BETWEEN CALLS and sweeps over the alive ones: removing items does not
 // break it (the index is taken modulo the alive length at every step).
 const ACC_SLICES = 8;

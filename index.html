@@ -5259,7 +5259,7 @@
   <!-- THE BUILD LABEL IS WRITTEN BY build.py (2026-09-12): the same stamp as sw.js's BUILD and the date that
        stamp first appeared. It used to be a hand-typed literal frozen since August, so the perf report and
        telemetry (both read this node) named a build that no longer existed. -->
-  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build a1ce1510e4c9 · 2026-09-24</div>
+  <div style="margin-top:8px; font-size:11px; opacity:.5; text-align:center" id="buildVer">build 3d4f74456bf9 · 2026-09-24</div>
 </div>
 
 <div class="overlay" id="adOverlay">
@@ -12163,7 +12163,9 @@ function finalPairsRefill(){
     stats.lastAction = performance.now(); // the grind is postponed — let them be collected
     level.stuck = -4;                     // a head start for the detectors while the top-up settles
     Telemetry.ev('final_refill', { lv: levelNum, n: k });
-    setTimeout(()=>{ refreshAccessibility(); updateHUD(); }, 900);
+    // ⛔ NOT the one-shot full fan any more (the owner's «yes, do the same», 2026-09-24-v): the top-up is still in the
+    // air at +900 ms, exactly when the frame is most loaded — the same burst of slices the shake's +900 ms arms.
+    setTimeout(()=>{ accSweepBurst = ACC_SLICES; updateHUD(); }, 900);
   }
   return k > 0;
 }
@@ -14525,6 +14527,14 @@ let accFlips = 0; // diagnostics: how many items changed accessibility during th
 // 41 with none over 50. skipIntro keeps a SYNCHRONOUS full sweep (the suite reads the flags right
 // after it). Still a one-frame full fan, not measured, named: the event callbacks (the idle grind,
 // the bomb, the charge, the rival, the treasure, the ice) and the final top-up's +900 ms sweep.
+// ⛔ REVISED A THIRD TIME 2026-09-24-v (the owner's «yes, do the same for the other moments»): those seven arm the
+// same burst now — breakIce at the break itself (inside the tap); detonateBomb, detonateCharge, collectRival,
+// collectSurprise and mixerGrind in their removal callbacks (⚠️ the charge's afterPause runs AT ONCE unless the game
+// is paused, so its old sweep lived in the tap's own frame too); finalPairsRefill at its +900 ms.
+// What still sweeps in ONE frame, deliberately: findHintGroup (it reads the flags on the next line), applyHard
+// (a one-off switch), finaleGrind (the orphans only), bowlCollectAll (an empty bowl), skipIntro and the test doors
+// (the suite reads right after them). The fire's pick (tickFireSpawn) casts isAccessible over the whole pile in
+// one frame too — not a sweep, named, not changed.
 // ⚠️ The cursor LIVES BETWEEN CALLS and sweeps over the alive ones: removing items does not
 // break it (the index is taken modulo the alive length at every step).
 const ACC_SLICES = 8;
@@ -20071,7 +20081,7 @@ function breakIce(it, byBomb){
     try { scorePop('+' + shown, it.p.clone().setY(it.p.y + 0.6), '#bfe8ff', true); } catch(e){}
   }
   try { popFX(it.p); } catch(e){}
-  try { refreshAccessibility(); } catch(e){}
+  accSweepBurst = ACC_SLICES;   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   try { updateHUD(); } catch(e){}
 }
 function detonateBomb(bomb){
@@ -20128,7 +20138,7 @@ function detonateBomb(bomb){
   setTimeout(() => afterPause(() => {
     all.forEach(removeItem);   // ⚠️ after the bang: BOWL_MERGE_MS + the pause
     wakePhysics('gameplay:L28'); // the mass above the explosion crater must settle
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 150);
 }
 
@@ -20307,6 +20317,8 @@ function bowlCollectAll(){
     // reached zero and the level hung without a win.
     for (const it of items){ if (it.alive){ try { removeItem(it); } catch(e){} } }
     bowlShattering = false;
+    // ⚠️ THIS FULL SWEEP STAYS (2026-09-24-v): the loop above has just removed every live item, so it runs over
+    // an empty bowl and costs nothing — the burst the other events arm would buy nothing here.
     refreshAccessibility(); updateHUD(); checkEnd(); // no live ones -> the win
   }), BOWL_MERGE_MS + 260);
 }
@@ -20387,7 +20399,7 @@ function detonateCharge(){
   afterPause(() => {
     victims.forEach(removeItem);
     wakePhysics('charge:settle');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   });
   return true;
 }
@@ -20638,7 +20650,7 @@ function collectRival(it){
   setTimeout(() => afterPause(() => {
     removeItem(it);
     wakePhysics('gameplay:rival2');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 200);
   updateHUD();
   try { refreshX5Float(); } catch(e){}       // the corner shows the window from its first frame
@@ -20665,7 +20677,7 @@ function collectSurprise(it){
   setTimeout(()=>afterPause(()=>{
     removeItem(it);
     wakePhysics('gameplay:L70');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 200);
 }
 
@@ -20885,6 +20897,9 @@ function handleTapInner(x, y){
 // ---------- The hint ----------
 // Finds the best accessible group (the maximum of identical ones within the radius) and highlights it
 function findHintGroup(){
+  // ⛔ THIS FULL SWEEP MUST STAY SYNCHRONOUS (2026-09-24-v, when every event around it went to a burst of slices):
+  // the very next line picks the best group FROM these flags, and a burst would hand it the flags of up to 8
+  // frames ago — a hint pointing at a group that is no longer reachable.
   refreshAccessibility();
   const acc = items.filter(i => i.alive && !i.animating && !i.surprise && !i.rival && i.accessible);
   // the top of the pile is taken over the NON-flying ones, so that a fresh top-up does not raise the bar
@@ -21017,7 +21032,7 @@ function mixerGrind(){
   setTimeout(()=>afterPause(()=>{
     group.forEach(removeItem); // the shards/dust are spawned by grindShred at the shredding
     wakePhysics('gameplay:L198');
-    refreshAccessibility(); updateHUD(); checkEnd();
+    accSweepBurst = ACC_SLICES; updateHUD(); checkEnd();   // a burst of slices, not the one-frame full fan (the owner's «yes, do the same», 2026-09-24-v; see 60-access)
   }), 560);
 }
 // The final clean-up: no pairable ones are left — the mixer destroys the remainder (without penalty)
@@ -21038,6 +21053,10 @@ function finaleGrind(){
   setTimeout(()=>afterPause(()=>{
     removeItem(low);
     wakePhysics('gameplay:L222');
+    // ⚠️ THIS FULL SWEEP STAYS (2026-09-24-v): the finale's pile is only the orphans — at most one per dealt kind
+    // plus the special items — and they lie in the open, so each answers on its FIRST ray. MEASURED (CPU ×4, Hard,
+    // level 20): ~1 ms for the 22 orphans against ~52 ms for a full pile of 140, where most items are buried and
+    // cast all their rays. Spreading 1 ms over 8 frames would buy nothing (BATCH 2026-09-24-v).
     refreshAccessibility(); updateHUD(); checkEnd();
   }), 410);
 }
@@ -28461,6 +28480,8 @@ function loop(){
   // base frame sits at budget and every tick tips exactly its own frame over 16.7 ms.
   //  - the BURST drains the shake's deferred sweep one slice per frame (~130 ms, see 60-access) —
   //    and, since 2026-09-24, the settle's sweep (finishIntro, finalizeFill, sleepPhysics);
+  //    and, since 2026-09-24-v, the events' sweeps (the grind, the bomb, the charge, the rival, the treasure,
+  //    the ice, the final top-up's +900 ms) — a burst armed on a burst just restarts the count of 8;
   //  - the background tick STRETCHES to 300 ms while the pile is erupting (maxV > 3) and stays
   //    at 100 ms otherwise. A 300 ms PARTIAL sweep is strictly cheaper than the pre-2026-08-14
   //    300 ms FULL cadence, so this cannot regress past any previously measured state.
@@ -29972,6 +29993,8 @@ window.__game = {
   // stones: the number of live ones (spawn ramp tests) and the index of the first one (setting up scenes)
   // bomb: the index of the live bomb (-1 if there is none) and a forced detonation
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
+  // the treasure's twin of bombIndex (2026-09-24-v): the EVENTFAN guard taps the golden fish through the real tap path
+  surpriseIndex(){ return items.findIndex(i => i.alive && i.surprise); },
   // REGRESSION #2 (the owner's spec 2026-07-23 «an iridescent bomb»): the bomb's material
   // is a MeshMatcapMaterial with a matcap, NOT a flat MeshBasicMaterial.
   // ⛔ THE WORD «RAINBOW» AND THE NAME `bombMatcap` WENT STALE ON 2026-08-28, when the dynamite

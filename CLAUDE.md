@@ -20938,6 +20938,9 @@ green.
 pile falls asleep after a match — plus in the grind, bomb, charge and rival callbacks and in `tickFireSpawn` (the
 review's per-frame #1-#3; those were not measured separately). The 2026-08-14 cure made the BACKGROUND tick partial
 and the MATCH local; these three event sites kept the one-frame fan.
+⛔ SINCE 2026-09-24-v THE GRIND, BOMB, CHARGE AND RIVAL CALLBACKS — and the ice, the treasure and the final top-up —
+ARM THE SAME BURST (BATCH 2026-09-24-v, measured there). `tickFireSpawn` is unchanged: its cost is measured there
+too (~55 ms of work in one frame) and named for his word.
 **MEASURED ON HARD** (lv20, CPU ×4; «REST» = the frame's work minus every named phase, i.e. the fan):
 | window | Easy | Hard (base) | Hard (the burst variant) |
 |---|---|---|---|
@@ -21117,6 +21120,8 @@ This closes the headline of BATCH 2026-09-24: the fix that was measured and held
 - ⛔ **NOT CHANGED, AND NAMED:** the event callbacks still run the full fan in one frame — the idle grind (every
   2 s while the mixer eats), the bomb, the charge, the rival, the treasure, the ice, and the final top-up's
   +900 ms sweep. Not measured; the same device applies, and it is his word.
+  ⛔⛔ CHANGED ON HIS «yes, do the same for the other moments» THE SAME DAY — BATCH 2026-09-24-v: all seven arm the
+  burst now, and the cost they carried is measured there.
 - **Production readers were re-checked on the tree:** the tap casts fresh (`isAccessible`), the hint runs its own
   full sweep, the test hooks (`autoMatch`, `bestTapTarget`, `matchType`) refresh before reading, `updateHUD` reads
   no flag, and the deadlock detector needs `availablePairs() === 0` on two ticks ~1.2 s apart against a drain of
@@ -21191,3 +21196,138 @@ stated; FIRE 12 and RIVAL 11 green (the two sections whose callbacks sweep and r
 `index.html` md5 checked identical before and after the variant runs.
 The build: `index.html` 12 954 206 → **12 957 408 B**, md5 65687db5065e948f9f32c213bffe0543, build a1ce1510e4c9.
 Pushed to `v2` and `v2:main` on his word, and the site deployed by me after the green run (the standing rule).
+
+## BATCH 2026-09-24-v: THE EVENTS' SKY-RAY FAN DRAINS AS A BURST OF SLICES TOO — SEVEN MOMENTS CONVERTED, FOUR KEPT ON PURPOSE, THE FIRE PICKER NAMED (his word, translated: «yes, do the same for the other moments»)
+
+⚠️ «THE SAME» WAS READ AS THE SAME MECHANISM AND THE SAME PROCESS AS -b: a guard, its sabotages, a full suite, the
+push, the deploy and the report. This change moves WHEN the cached accessibility converges after every event, which is
+the risk profile he ordered a full run for in -b — so the full run was taken as part of his word. If he would rather
+the dry-runs gate a batch of this shape, that is one word, and the rule of 9 September is unchanged.
+
+### WHAT CHANGED (80-gameplay, 40-items; the drain is -b's, untouched)
+Seven one-frame full sweeps arm `accSweepBurst = ACC_SLICES` instead — the same total work, the same per-item result,
+over the next 8 loop frames; a burst armed while another drains restarts the count of 8:
+- **the ice** (`breakIce`) — at the break itself, i.e. inside the tap;
+- **the type charge** (`detonateCharge`) — ⚠️ its `afterPause` runs AT ONCE when the game is not paused, so its old
+  sweep also lived in the tap's own frame (the bench caught that — see below);
+- **the bomb, the rival, the treasure and the idle grind** (`detonateBomb`, `collectRival`, `collectSurprise`,
+  `mixerGrind`) — in their deferred removal callbacks; the grind fires every 2 s while the mixer eats;
+- **the final top-up's +900 ms pass** (`finalPairsRefill`) — the partners are still in the air then, the most loaded
+  moment of the finale.
+`surpriseIndex()` was added to `__game` (the treasure's twin of `bombIndex`, one key, the literal grepped first).
+
+### KEPT ON PURPOSE, EACH FOR ITS OWN REASON — AND THE ONE NAMED FOR HIM
+- ⛔ **`findHintGroup` MUST stay synchronous**: its very next line picks the best group FROM the flags, and a burst
+  would hand it flags up to 8 frames old — a hint pointing at a group that is no longer reachable. EVENTFAN's E0 pins
+  it as the control.
+- **`finaleGrind`** — the finale's pile is only the orphans (at most one per dealt kind plus the specials):
+  a full sweep there costs **~1 ms** for the 22 orphans of level 20 against ~54 ms on a full pile of 140 — the
+  orphans lie in the open and each answers on its first ray. Spreading 1 ms over 8 frames buys nothing.
+- **`bowlCollectAll`** — the loop above it has just removed every live item; the sweep walks an empty bowl.
+- **`applyHard`** (a one-off switch), **`skipIntro`** (the suite reads right after it) and **the test doors**
+  (`leaveSingles`, `refreshAcc`, `forceRefresh`, `autoMatch`, `bestTapTarget`, `matchType`).
+- ⛔ **NAMED, NOT CHANGED — THE FIRE PICKER.** `tickFireSpawn` runs a live `isAccessible` over the whole pile in the
+  frame a flare-up falls due — every 20-30 s, and every 2 s while nothing is eligible — which is the same per-item
+  fan as a full sweep: **~55 ms of work in one frame** at level 20 (the costs bench below). ⚠️ And while NOTHING is
+  eligible (no accessible item with an accessible twin in reach — common on a deep Hard pile) it re-runs every 2 s,
+  i.e. the same periodic hitch the idle grind had. It picks from that fresh answer on the same frame, so a burst does
+  not fit it as it stands; the cures (read the cached flags, or spread the pick over frames) are a design choice and
+  his word.
+- ⛔ **AND THE HINT'S OWN COST, NAMED:** a press sweeps the whole pile first (~60 ms on a full pile of 140, CPU ×4).
+  When the pile is at rest and no burst is draining, the cached flags are already exact, so the sweep could be
+  skipped there — the usual case when a player stops to look for a hint. Offered to him, not done: it is a change to
+  the hint's own path.
+
+### THE READERS, RE-CHECKED ON THE TREE (the census)
+Production readers of the cached flags: `availablePairs` (the deadlock detector — it needs zero on two ticks ~1.2 s
+apart against a drain of 8 frames) and `scopeHighlight` (a hidden feature). `checkEnd`, `hasAnyPair` and `updateHUD`
+read no flag; the tap casts `isAccessible` fresh. The test hooks that refresh first (`autoMatch`, `bestTapTarget`,
+`matchType`) are safe by construction; those that read the cache (`availablePairs`, `accessibleList`,
+`typesSnapshot().acc`, `findByTex`, `itemsGeo().acc`) were walked against the suite's readers that stand after one of
+the seven events — the census found none that reads within 8 frames of one without a refresh or a wait, and the full
+run below is what confirms it.
+
+### THE GUARD: EVENTFAN (9 arms, its own 390×844 page, Hard)
+- **E0** structural, each function's OWN body with its comment lines dropped (a tombstone may quote the old line):
+  the seven arm the burst and carry no `refreshAccessibility()`; the control — `findHintGroup` keeps its
+  `refreshAccessibility();` BEFORE its first `.accessible` and names no burst.
+- **E1-E7** behavioural, one event each through the production path, the state traced PER FRAME IN THE PAGE (a
+  harness poll lands on the bench's clock): the burst must be ARMED BY THE EVENT — a frame with the pile AWAKE and
+  slices left (a settle's burst is armed as the pile falls asleep, so it cannot pass for it), 7 of 8 left in the
+  arming frame, it must DRAIN, and the full-sweep counter must not move from the trigger through the drain. Both
+  halves are needed: dropping the sweep altogether passes «no full sweep», the old one-frame sweep passes neither.
+  E1 the ice (its schedule is session memory — it runs first), E2 the grind (`grindNow`), E3 the bomb (dealt by
+  `bombNextAt`), E4 the charge on the most numerous kind, E5 the rival and E6 the golden fish (lifted above the pile
+  and tapped with the REAL mouse — a synthetic click from evaluate never reaches the pointer handlers), E7 the final
+  top-up (its window opens AFTER `leaveSingles`, whose own full sweep is a test door).
+- A final arm: no page errors, and the section ran to its end.
+The healthy dry run (the frame the burst was armed at → drained at): the ice 0→7, the grind 14→21, the bomb 5→12
+(8 removed), the charge 0→7, the rival 7→14, the fish 8→15, the top-up 61→69 — every event 7 of 8 left in its
+arming frame and a full-sweep delta of 0.
+**PROVEN AGAINST SIXTEEN SABOTAGES AND A COMMENT-ONLY CONTROL — SEVENTEEN VARIANTS** (`tools/build-variant.py`
+outside the tree + `tools/section-dryrun.js`; the tree's `index.html` md5 identical before and after, d0f9df0e…) —
+each event broken twice: bluntly (the structure back) and HIDDEN (the structure intact, the behaviour broken: the
+sweep called through an alias with the armed string kept in a comment), so every behavioural arm is shown to see its
+sabotage without E0:
+
+| variant | red |
+|---|---|
+| the ice back to a full sweep / the same, hidden | E0 E1 / E1 |
+| the grind back / hidden / the armed line dropped with the string only in a comment | E0 E2 / E2 / E2 |
+| the bomb back / hidden | E0 E3 / E3 |
+| the charge back / hidden | E0 E4 / E4 |
+| the rival back / hidden | E0 E5 / E5 |
+| the treasure back / hidden | E0 E6 / E6 |
+| the top-up back / hidden (40-items) | E0 E7 / E7 |
+| the hint turned into a burst | E0 alone |
+| a comment edit | 9 green |
+
+### THE MEASUREMENT (the ruler of 2026-09-24: headless Chromium `--use-angle=metal`, CPU ×4, 390×844, Hard, level 20)
+The «before» arm is the shipped build of -b (md5 65687db5…, `git show HEAD:index.html` beside the repo's side files),
+the «after» arm this batch's; 3 reps per arm, the arms alternating, a cold start per page, each event WARMED once on
+its page before the measured one (the first of a kind pays compiles), the scene quiet (the pile asleep, no burst
+draining, the fire out) before the window opens. The window is traced PER FRAME IN THE PAGE with the full-sweep
+counter beside every frame, so the frame that carried a full sweep is FOUND by the counter, not guessed by its size;
+nothing polls the page inside a window (its cost would land in it). Medians, the range in brackets:
+
+| event | before | after |
+|---|---|---|
+| the idle grind: the worst frame | **76.2 ms** (63.6-90.2), one frame > 50 ms per bite | **39.7 ms** (38.6-43.9), none |
+| the bomb: the frame that carried the sweep | **71.4 ms** (64.6-71.8) | the burst's worst frame **37.9 ms** (30.5-43.8) |
+| the bomb: frames > 50 ms | 2 (1-2) | 1 (0-1) — the blast's OWN frame (its work sits in named phases, not in the fan) |
+| the charge: the tap's frame (the second cut, below) | **97.3 ms** (96.4-104.5) | **43.9 ms** (41.9-46.5) |
+| the ice: the tap's frame (the second cut) | **81.0 ms** (77.0-81.3) | **22.5 ms** (6.7-28.3) |
+| the final top-up: the worst frame | 34.0 ms (33.7-36.6) | 35.4 ms (35.3-35.5) — no change |
+The first cut read the charge's tap frame off the loop's worst-frame snapshot (90.1 → 39.5 ms); the second cut traced
+it directly and added the ice — the two cuts agree in shape (the tap frame more than halved), not digit for digit:
+they are different bench runs, the -b section's own caveat.
+⚠️⚠️ **THE BENCH'S FIRST CUT MIS-ATTRIBUTED THE CHARGE, AND THE CAUSE IS A FACT ABOUT THE CODE, NOT THE BENCH:**
+`detonateCharge` removes its victims through `afterPause`, which runs AT ONCE when the game is not paused — so the old
+sweep ran INSIDE the tap, and the counter moved in the frame the harness's own call opens. Reported apart as the
+call frame (`callFrame`) from the second cut on; `breakIce` is the other synchronous one.
+⚠️ **THE GRIND IS THE ONE THAT MATTERED MOST AND WAS THE CHEAPEST TO MISS:** while the mixer eats (idling past the
+limit, or the deadlock rescue), `mixerGrind` fires every 2 s — i.e. before this batch, a 60-90 ms frame every two
+seconds for as long as the player waited.
+⚠️ **THE TOP-UP'S PASS WAS ALREADY CHEAP** (20-32 ms: at +900 ms the bowl holds the orphans and their partners, ~44
+items at level 20). Converted anyway — it is the same device, and at a deep level with more kinds the pile is bigger.
+**THE ONE-FRAME COSTS THAT STAYED, MEASURED ON THE SAME RULER** (the costs bench, 3 reps, level 20, a pile of 140):
+a full sweep **~54 ms** (50.3-57.7, six reps over two cuts); the hint press **~60 ms** (54.4-64.8 over the second
+cut's 9 presses, each on the honest path with a charge spent; the first cut's 9 agree) — almost all of it the sweep;
+the finale's sweep over the 22 orphans **~1 ms** (0.6-1.7) — they lie in the open and each answers on its FIRST ray,
+where a buried item of a full pile casts all 56;
+the fire picker's frame **~55 ms of work** (53.1-59.5, read as the loop's REST — the picker runs inside the loop in no
+named phase). ⚠️ THE FIRST CUT OF THE FIRE READ ~16 ms IN TWO REPS OF THREE AND WAS WRONG: it took the largest
+traced frame of the window and sliced off the first one, which is usually exactly where `fireDue(0)` puts the picker;
+the loop's own worst-frame snapshot is what found the 55.
+
+### THE RUNS
+**Run 59 — the whole suite on this build: 1322 green, 0 red, `ERRORS(tail): none`, SUITE: PASS** (14:59–15:25, nothing
+else of mine running beside it). Run 58 (batch -b) was 1313; the 9 more are EVENTFAN's arms.
+Also: EVENTFAN 9 green twice on the healthy build; the seventeen variants of the table above, each red exactly where
+stated; the neighbours whose events or flags this touches, one after another on the healthy build — SETTLEFAN 7,
+CHARGEFX 13, RIVAL 11, FIRE 12, TIERSHARE 8, ACCSTEP 7, BOWL140 7, RETURN 21 — all green; two bench cuts and two
+cost cuts as above. The comments of 60-access and 80-gameplay were corrected after those runs (the ice sweeps AT the
+break; the finale's measured ~1 ms) and the build re-made: `diff` against the tested build shows comment lines and the
+build label only, and run 59 ran on the re-made build.
+The build: `index.html` 12 957 408 → **12 960 572 B**, md5 42906022d4b641a413710b06d3526c95, build 3d4f74456bf9.
+Pushed to `v2` and `v2:main` (fetched first), and the site deployed by me after the green run (the standing rule).

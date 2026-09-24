@@ -893,6 +893,8 @@ function loop(){
   // base frame sits at budget and every tick tips exactly its own frame over 16.7 ms.
   //  - the BURST drains the shake's deferred sweep one slice per frame (~130 ms, see 60-access) —
   //    and, since 2026-09-24, the settle's sweep (finishIntro, finalizeFill, sleepPhysics);
+  //    and, since 2026-09-24-v, the events' sweeps (the grind, the bomb, the charge, the rival, the treasure,
+  //    the ice, the final top-up's +900 ms) — a burst armed on a burst just restarts the count of 8;
   //  - the background tick STRETCHES to 300 ms while the pile is erupting (maxV > 3) and stays
   //    at 100 ms otherwise. A 300 ms PARTIAL sweep is strictly cheaper than the pre-2026-08-14
   //    300 ms FULL cadence, so this cannot regress past any previously measured state.
@@ -2404,6 +2406,8 @@ window.__game = {
   // stones: the number of live ones (spawn ramp tests) and the index of the first one (setting up scenes)
   // bomb: the index of the live bomb (-1 if there is none) and a forced detonation
   bombIndex(){ return items.findIndex(i => i.alive && i.bomb); },
+  // the treasure's twin of bombIndex (2026-09-24-v): the EVENTFAN guard taps the golden fish through the real tap path
+  surpriseIndex(){ return items.findIndex(i => i.alive && i.surprise); },
   // REGRESSION #2 (the owner's spec 2026-07-23 «an iridescent bomb»): the bomb's material
   // is a MeshMatcapMaterial with a matcap, NOT a flat MeshBasicMaterial.
   // ⛔ THE WORD «RAINBOW» AND THE NAME `bombMatcap` WENT STALE ON 2026-08-28, when the dynamite
