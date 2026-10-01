@@ -21626,3 +21626,15 @@ As for -d: the tool is not the game, `index.html` did not change, no suite secti
 above, ffprobe (1080×1920 / 1920×1080, 60 fps, exactly 60 s, AAC 48 kHz stereo), the loudness, and the contact sheets
 of both picked takes (16 moments each: side views, top views, the endgame close-up, the rival's ×3 window, turbo's
 «Power chain!», «Final pairs», the win screen, the New Object screen, the next level's pour).
+
+## BATCH 2026-10-01: THE CANON SPLIT — CLAUDE.md BECOMES A ~23 KB SUMMARY OF THE RULES IN FORCE, THIS FILE BECOMES THE ARCHIVE (his word, translated: «Blender — I cannot assemble a session, the limit is not enough»)
+
+- **MEASURED, NOT GUESSED:** the session that did the move read its own usage card: «Memory files» **563 191 tokens = 56%** of the 1M context window before the first message, auto-compact at 97%. The canon was 1 701 168 bytes, 21 628 lines, 344 `##` sections (~3.06 bytes per token). The plan limits were not the constraint (5-hour 2%, weekly 46%).
+- The sessions titled «Blender» run with cwd `Desktop/Claude`, i.e. the PARENT folder: they got this file on demand (a nested CLAUDE.md is auto-loaded when a file under `Blender/` is read) — so moving the cwd would not have helped.
+- **DONE:** `git mv CLAUDE.md docs/CANON-HISTORY.md` — this file, verbatim (`git log --follow` keeps its history); a new CLAUDE.md of 23 234 bytes (~7.6K tokens): the rules in force, the owner's process rules, the subsystem contracts, the removed list, and grep keywords into this file. Nothing was deleted; the revert is one `git mv`.
+- **THE NEW RULE, AND IT IS THE LOAD-BEARING PART:** batch records go to the END of this file, never into CLAUDE.md; CLAUDE.md changes only when a rule in force changes, budget ≤ 40 KB. Appending here keeps the earlier line numbers valid, so `grep -n '^## ' docs/CANON-HISTORY.md` stays the index.
+- ⛔ **THE READ-WHOLE TRAPS ARE REDIRECTED:** the old «FIRST OF ALL read WORKSTREAMS.md» pointed at a 704 KB file (~230K tokens); STATUS.md is 119 KB; this archive is 1.7 MB. The new CLAUDE.md says grep, never read whole, for all three.
+- ⚠️ The 65 comments in src/ that say «the canon» / «CLAUDE.md §…» were NOT rewritten (prose; a rebuild and runs for nothing) — the new CLAUDE.md says they mean this file.
+- ⚠️ **THE PRICE, NAMED:** agents no longer carry the whole history in context; they must grep here before touching a subsystem, and the new file tells them to. Existing sessions carry the old 1.7 MB file in their transcripts — start a NEW session; worktrees of old branches keep the old file until rebased on v2.
+- Offered, not built (an unasked addition): a node-side test.js arm holding CLAUDE.md under its budget.
+- No run and no site deploy: docs only, and `site/` carries no CLAUDE.md. `index.html` unchanged.
